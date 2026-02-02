@@ -1,0 +1,11 @@
+name = "give-your-point"
+main = "src/index.ts" # <--- Ajoute cette ligne
+compatibility_date = "2026-01-28"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "compteur_db"
+database_id = "local-db"
+
+[assets]
+directory = "./public"

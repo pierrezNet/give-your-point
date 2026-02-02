@@ -1,0 +1,17 @@
+# Dépendances
+node_modules/
+
+# Données locales et DB (IMPORTANT)
+.wrangler/
+*.sqlite
+data.json
+migration.sql
+seed.sql
+local-data.json
+
+# Secrets et variables d'environnement
+.dev.vars
+.env
+
+# Build
+dist/

@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - Donne Ton Point</title>
+        <style>
+        @keyframes bounce-short {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-4px); }
+        }
+        .animate-bounce-short {
+            animation: bounce-short 1s ease-in-out infinite;
+        }
+    </style>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 min-h-screen p-4 md:p-8 opacity-0 transition-opacity duration-500" id="admin-body">
+    <div class="max-w-4xl mx-auto">
+        <header class="flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-black text-slate-800">Console Admin 🛠️</h1>
+            <a href="/" class="text-blue-600 font-bold hover:underline">← Retour à l'App</a>
+        </header>
+
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mt-8">
+            <h2 class="text-xl font-bold mb-4">Ajouter un collègue</h2>
+            <div class="flex gap-4 mb-6">
+                <input type="text" id="new-user-name" placeholder="Nom du collègue..." class="flex-1 p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="addUser()" class="bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors">Ajouter</button>
+            </div>
+            <table class="w-full text-left">
+                <thead class="bg-slate-100 border-b border-slate-200">
+                    <tr>
+                        <th class="p-4 font-bold text-slate-600">Nom</th>
+                        <th class="p-4 font-bold text-slate-600 hidden sm:table-cell">Lien Magique</th>
+                        <th class="p-4 font-bold text-slate-600 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="admin-users-list">
+                    </tbody>
+            </table>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mt-8">
+            <h2 class="text-xl font-bold mb-4 text-slate-800">Gestion des Badges</h2>
+            
+            <div class="flex flex-col md:flex-row gap-4 mb-8 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                <input type="text" id="new-cat-emoji" placeholder="Emoji" class="w-full md:w-20 p-3 rounded-xl border border-slate-200 text-center text-xl shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                <input type="text" id="new-cat-name" placeholder="Nom du badge (ex: Humour)" class="flex-1 p-3 rounded-xl border border-slate-200 shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                <button onclick="addCategory()" class="bg-emerald-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-emerald-700 hover:shadow-lg transition-all">Créer le badge</button>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="admin-categories-list"></div>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 mt-8">
+            <h2 class="text-xl font-bold mb-4 text-orange-600">⚖️ Paramétrage des Gages</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-orange-50 rounded-xl mb-6">
+                <div>
+                    <label class="block text-xs font-bold mb-1">Badge</label>
+                    <select id="rule-cat" class="w-full p-2 rounded-lg border"></select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold mb-1">Seuil (points)</label>
+                    <input type="number" id="rule-threshold" value="10" class="w-full p-2 rounded-lg border">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-bold mb-1">Gage à accomplir</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="rule-text" placeholder="Ex: Ramener des croissants" class="flex-1 p-2 rounded-lg border">
+                        <button onclick="addRule()" class="bg-orange-600 text-white px-4 rounded-lg font-bold">OK</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="rules-list" class="space-y-2">
+                </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. On vérifie immédiatement le secret
+        let adminPass = sessionStorage.getItem('admin_pass');
+
+        async function checkAndLoad() {
+            if (!adminPass) {
+                adminPass = prompt("Mot de passe administrateur requis :");
+                if (!adminPass) return window.location.href = "/";
+                sessionStorage.setItem('admin_pass', adminPass);
+            }
+
+            // On tente un premier appel pour vérifier le mot de passe
+            const res = await adminFetch('/api/admin/users', {
+                headers: { 'X-Admin-Password': adminPass }
+            });
+
+            if (res.ok) {
+                // C'est le bon mot de passe ! On affiche la page
+                document.getElementById('admin-body').classList.remove('opacity-0');
+                loadAdminUsers();
+                loadAdminCategories();
+                loadCategoriesForRules();
+                loadRules();
+            } else {
+                // Mauvais mot de passe
+                alert("Accès refusé ❌");
+                sessionStorage.removeItem('admin_pass');
+                window.location.href = "/";
+            }
+        }
+
+        // 2. Fonction fetch sécurisée
+        async function adminFetch(url, options = {}) {
+            options.headers = {
+                ...options.headers,
+                'X-Admin-Password': adminPass
+            };
+            const res = await fetch(url, options);
+            
+            if (res.status === 401) {
+                alert("Accès refusé. Mot de passe incorrect.");
+                sessionStorage.removeItem('admin_pass');
+                window.location.href = "/"; // On dégage l'intrus
+                return;
+            }
+            return res;
+        }
+
+        async function loadAdminUsers() {
+            try {
+                const [resUsers, resDares, resCats] = await Promise.all([
+                    adminFetch('/api/admin/users'),
+                    adminFetch('/api/admin/dares'),
+                    adminFetch('/api/categories')
+                ]);
+
+                const users = await resUsers.json();
+                const dares = await resDares.json();
+                const categories = await resCats.json();
+
+                const list = document.getElementById('admin-users-list');
+                if (!list) return;
+                
+                list.innerHTML = users.map(u => {
+                    const isActive = u.active === 1;
+                    const activeDares = dares.filter(d => d.userId === u.id);
+
+                    return `
+                        <tr class="border-b border-slate-100 ${!isActive ? 'bg-slate-50 opacity-60' : 'hover:bg-slate-50/50'} transition-colors">
+                            <td class="p-4">
+                                <div class="font-bold ${isActive ? 'text-slate-800' : 'text-slate-400 italic'}">
+                                    ${u.name} ${!isActive ? '(Désactivé)' : ''}
+                                </div>
+                                ${activeDares.map(d => `<div class="text-[9px] text-orange-600 font-black uppercase">⚠️ Oups, un gage</div>`).join('')}
+                            </td>
+                            
+                            <td class="p-4 text-xs font-mono text-slate-400 hidden sm:table-cell">
+                                ${isActive ? `.../login/${u.token}` : '---'}
+                            </td>
+                            
+                            <td class="p-4">
+                                <div class="flex items-center justify-end gap-3">
+                                    
+                                    <div class="flex gap-1">
+                                        ${categories.map(cat => {
+                                            const hasGageForThisCat = activeDares.some(d => String(d.categoryId) === String(cat.id));
+                                            if (!hasGageForThisCat) return '';
+
+                                            return `
+                                                <button onclick="clearCategoryPoints('${u.id}', '${cat.id}', '${cat.name}', '${u.name}')"
+                                                        class="w-10 h-10 flex flex-col items-center justify-center bg-orange-50 hover:bg-orange-100 rounded-lg border border-orange-200 transition-all shadow-sm animate-bounce-short"
+                                                        title="Effacer dette: ${cat.name}">
+                                                    <span class="text-xs">${cat.emoji}</span>
+                                                </button>
+                                            `;
+                                        }).join('')}
+                                    </div>
+
+                                    <div class="flex items-center gap-4 ml-4 border-l border-slate-200 pl-4">
+                                        ${isActive ? `
+                                            <button onclick="copyLink('${u.token}')" class="text-xs font-black text-blue-600 uppercase hover:underline">Lien</button>
+                                            <button onclick="toggleUser('${u.id}', false)" class="text-xs font-black text-red-400 hover:text-red-600 uppercase">Désactiver</button>
+                                        ` : `
+                                            <button onclick="toggleUser('${u.id}', true)" class="text-xs font-black text-emerald-600 uppercase">Réactiver</button>
+                                        `}
+                                    </div>
+
+                                </div>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (err) {
+                console.error("Erreur de chargement admin:", err);
+            }
+        }
+
+        async function toggleUser(id, shouldActivate) {
+            const url = shouldActivate ? `/api/admin/users/${id}/restore` : `/api/admin/users/${id}`;
+            const method = shouldActivate ? 'PATCH' : 'DELETE'; // On utilise DELETE pour désactiver car c'est notre route existante
+            
+            if (confirm(shouldActivate ? "Réactiver ce collègue ?" : "Désactiver ce collègue ?")) {
+                await adminFetch(url, { method });
+                loadAdminUsers();
+            }
+        }
+
+        function copyLink(token) {
+            const url = `${window.location.origin}/login/${token}`;
+            navigator.clipboard.writeText(url);
+            alert("Lien copié dans le presse-papier ! ✅");
+        }
+
+        async function addUser() {
+            const name = document.getElementById('new-user-name').value;
+            if(!name) return;
+            
+            await adminFetch('/api/admin/users', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name })
+            });
+            
+            document.getElementById('new-user-name').value = '';
+            loadAdminUsers();
+        }
+
+        // Fonction universelle pour supprimer avec confirmation
+        async function deleteItem(type, id, name) {
+            const confirmMessage = type === 'user' 
+                ? `Es-tu sûr de vouloir retirer ${name} de l'équipe ?`
+                : `Supprimer le badge ${name} ?`;
+
+            if (confirm(confirmMessage)) {
+                const res = await adminFetch(`/api/admin/${type}s/${id}`, { method: 'DELETE' });
+                if (res.ok) {
+                    type === 'user' ? loadAdminUsers() : loadAdminCategories();
+                }
+            }
+        }
+
+        // Nouvelle fonction pour charger les catégories
+        async function loadAdminCategories() {
+            const res = await adminFetch('/api/admin/categories');
+            if (!res.ok) return;
+            
+            const cats = await res.json();
+            const list = document.getElementById('admin-categories-list');
+            
+            // On affiche sous forme de petites cartes ou lignes
+            list.innerHTML = cats.map(c => {
+                const isActive = c.active === 1;
+                return `
+                    <div class="relative group flex flex-col p-5 bg-white rounded-2xl border-2 ${isActive ? 'border-slate-100' : 'border-slate-50 bg-slate-50/50'} transition-all shadow-sm">
+                        
+                        <div class="flex items-center gap-4 mb-4">
+                            <span class="text-4xl ${!isActive ? 'grayscale opacity-30' : ''}">${c.emoji}</span>
+                            <div class="flex flex-col">
+                                <span class="font-bold text-lg ${isActive ? 'text-slate-800' : 'text-slate-400 italic'}">${c.name}</span>
+                                <span class="text-[10px] font-black uppercase tracking-widest ${isActive ? 'text-emerald-500' : 'text-slate-400'}">
+                                    ${isActive ? '● Actif' : '○ Désactivé'}
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end mt-auto">
+                            <button onclick="toggleCategory('${c.id}', ${!isActive})" 
+                                    class="p-2 rounded-xl transition-all ${isActive ? 'bg-red-50 text-red-400 hover:bg-red-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}"
+                                    title="${isActive ? 'Désactiver' : 'Réactiver'}">
+                                ${isActive 
+                                    ? `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                    </svg>` 
+                                    : `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                                    </svg>`
+                                }
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        async function toggleCategory(id, shouldActivate) {
+            const url = shouldActivate ? `/api/admin/categories/${id}/restore` : `/api/admin/categories/${id}`;
+            const method = shouldActivate ? 'PATCH' : 'DELETE';
+            
+            if (confirm(shouldActivate ? "Réactiver ce badge ?" : "Désactiver ce badge ?")) {
+                await adminFetch(url, { method });
+                loadAdminCategories();
+            }
+        }
+
+        // On récupère d'abord les gages dispo
+        let availableDares = [];
+        async function loadDares() {
+            const res = await adminFetch('/api/admin/dares');
+            availableDares = await res.json();
+            renderDaresList(); // Pour la gestion des gages eux-mêmes
+        }
+
+        // Charger les catégories dans le menu déroulant du gage
+        async function loadCategoriesForRules() {
+            const res = await adminFetch('/api/admin/categories');
+            const cats = await res.json();
+            const select = document.getElementById('rule-cat');
+            select.innerHTML = cats.map(c => `<option value="${c.id}">${c.emoji} ${c.name}</option>`).join('');
+        }
+
+        async function addRule() {
+            const category_id = document.getElementById('rule-cat').value;
+            const threshold = document.getElementById('rule-threshold').value;
+            const dare_text = document.getElementById('rule-text').value;
+
+            await adminFetch('/api/admin/rules', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ category_id, threshold, dare_text })
+            });
+            
+            loadRules(); // Rafraîchit la liste
+        }
+
+        async function loadRules() {
+            const res = await adminFetch('/api/admin/rules');
+            const rules = await res.json();
+            const list = document.getElementById('rules-list');
+            
+            list.innerHTML = rules.map(r => `
+                <div class="flex justify-between items-center p-3 bg-white border border-slate-100 rounded-lg shadow-sm">
+                    <span class="text-sm">Si <b>${r.cat_emoji} ${r.cat_name}</b> atteint <b>${r.threshold}</b> → <span class="text-orange-600 font-bold">${r.dare_text}</span></span>
+                    <button onclick="deleteRule('${r.id}')" class="text-red-400 hover:text-red-600 text-xs font-bold">Supprimer</button>
+                </div>
+            `).join('');
+        }
+
+        async function deleteRule(id) {
+            if(confirm("Supprimer cette règle ?")) {
+                await adminFetch(`/api/admin/rules/${id}`, { method: 'DELETE' });
+                loadRules();
+            }
+        }
+
+        async function clearCategoryPoints(userId, catId, catName, userName) {
+            if (!confirm(`Confirmer la rédemption pour "${catName}" pour ${userName} ?`)) return;
+
+            const res = await fetch(`/api/admin/clear-category/${userId}/${catId}`, { method: 'POST' });
+            if (res.ok) {
+                // On recharge la liste pour voir le gage disparaître immédiatement
+                await loadAdminUsers();
+            }
+        }
+
+        checkAndLoad();
+    </script>
+</body>
+</html>
