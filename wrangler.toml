@@ -4,8 +4,8 @@ compatibility_date = "2026-01-28"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "compteur_db"
-database_id = "local-db"
+database_name = "give-your-point"
+database_id = "e3050aaa-892c-4a5a-ac00-38fe3fe2dd43"
 
 [assets]
 directory = "./public"

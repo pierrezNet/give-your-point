@@ -1,11 +1,12 @@
 {
-  "name": "donnetonpoint",
+  "name": "give-your-point",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "scripts": {
     "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+    "deploy": "wrangler deploy",
+    "build": "mkdir -p dist && cp -r public/* dist/ || true"
   },
   "keywords": [],
   "author": "",
