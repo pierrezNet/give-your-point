@@ -2,21 +2,28 @@
 DROP TABLE IF EXISTS points_log;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS categories;
+DROP TABLE IF EXISTS points_log;
+DROP TABLE IF EXISTS dare_rules;
 
 -- Création des tables
-CREATE TABLE users (
-    id TEXT PRIMARY KEY,
+
+CREATE TABLE IF NOT EXISTS categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
-    active INTEGER DEFAULT 1, -- Ajouté pour gérer l'activation/désactivation
-    token TEXT,                -- Ajouté pour le Magic Link
-    avatar_url TEXT
+    icon TEXT
 );
 
-CREATE TABLE categories (
+CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    emoji TEXT,
-    forfeit TEXT               -- C'est ici que tu stockeras le texte du "Gage"
+    active INTEGER DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS dare_rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    points INTEGER DEFAULT 0
 );
 
 CREATE TABLE points_log (
@@ -28,8 +35,11 @@ CREATE TABLE points_log (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP 
 );
 
--- Insertion des catégories de base
-INSERT INTO categories (id, name, emoji, forfeit) VALUES 
-('cat_1', 'Méchanceté', '😈', 'Apporter des viennoiseries'),
-('cat_2', 'Mauvaise foi', '🤥', 'Payer le café'),
-('cat_3', 'Entraide', '🤝', 'Aucun (Bonus)');
+
+-- Créer la table des règles manquante
+CREATE TABLE IF NOT EXISTS dare_rules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    points INTEGER DEFAULT 0
+);

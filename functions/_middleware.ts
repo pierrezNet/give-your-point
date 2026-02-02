@@ -1,7 +1,8 @@
 import { Hono } from 'hono'
-// On définit l'interface pour que l'IDE sache ce qu'il y a dans "c.env"
+
 type Bindings = {
   DB: D1Database
+  ADMIN_PASSWORD?: string
 }
 
 interface DareRule {

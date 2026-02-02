@@ -1,5 +1,5 @@
 name = "give-your-point"
-main = "src/index.ts" # <--- Ajoute cette ligne
+main = "functions/_middleware.ts" # <--- Ajoute cette ligne
 compatibility_date = "2026-01-28"
 
 [[d1_databases]]
