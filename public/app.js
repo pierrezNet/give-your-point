@@ -251,18 +251,16 @@ async function updateAllData() {
             fetch('/api/leaderboard')
         ]);
 
-        // Vérification de sécurité
+        // Si l'une des deux requêtes a échoué (404, 500, etc.)
         if (!statsRes.ok || !leaderboardRes.ok) {
-            const errStats = await statsRes.text();
-            const errLeader = await leaderboardRes.text();
-            console.error("Erreur API Stats:", errStats);
-            console.error("Erreur API Leaderboard:", errLeader);
-            throw new Error("Le serveur a renvoyé une erreur.");
+            throw new Error(`Erreur Serveur: Stats(${statsRes.status}) Leaderboard(${leaderboardRes.status})`);
         }
 
         const users = await statsRes.json();
         const leaderboard = await leaderboardRes.json();
         
+        console.log("✅ Données reçues avec succès !");
+
         if (document.startViewTransition) {
             document.startViewTransition(() => {
                 renderUsers(users);
@@ -273,8 +271,7 @@ async function updateAllData() {
             renderLeaderboardUI(leaderboard);
         }
     } catch (err) {
-        console.error("Erreur lors de la mise à jour des données :", err);
-        // Optionnel : afficher un message à l'utilisateur sur l'UI
+        console.error("Erreur lors de la mise à jour :", err);
     }
 }
 
