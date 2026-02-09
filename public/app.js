@@ -245,24 +245,36 @@ function showUndoToast() {
 }
 
 async function updateAllData() {
-    const [statsRes, leaderboardRes] = await Promise.all([
-        fetch('/api/users-stats'),
-        fetch('/api/leaderboard')
-    ]);
+    try {
+        const [statsRes, leaderboardRes] = await Promise.all([
+            fetch('/api/users-stats'),
+            fetch('/api/leaderboard')
+        ]);
 
-    const users = await statsRes.json();
-    const leaderboard = await leaderboardRes.json();
-    
-    // Si le navigateur supporte les transitions de vue
-    if (document.startViewTransition) {
-        document.startViewTransition(() => {
+        // Vérification de sécurité
+        if (!statsRes.ok || !leaderboardRes.ok) {
+            const errStats = await statsRes.text();
+            const errLeader = await leaderboardRes.text();
+            console.error("Erreur API Stats:", errStats);
+            console.error("Erreur API Leaderboard:", errLeader);
+            throw new Error("Le serveur a renvoyé une erreur.");
+        }
+
+        const users = await statsRes.json();
+        const leaderboard = await leaderboardRes.json();
+        
+        if (document.startViewTransition) {
+            document.startViewTransition(() => {
+                renderUsers(users);
+                renderLeaderboardUI(leaderboard);
+            });
+        } else {
             renderUsers(users);
             renderLeaderboardUI(leaderboard);
-        });
-    } else {
-        // Fallback pour les vieux navigateurs
-        renderUsers(users);
-        renderLeaderboardUI(leaderboard);
+        }
+    } catch (err) {
+        console.error("Erreur lors de la mise à jour des données :", err);
+        // Optionnel : afficher un message à l'utilisateur sur l'UI
     }
 }
 
@@ -375,7 +387,7 @@ async function init() {
     if (displayEl && userName) {
         displayEl.innerText = userName;
     }
-    
+
     await Promise.all([
         loadCategories(),
         updateAllData()
