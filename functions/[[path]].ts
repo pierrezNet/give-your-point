@@ -126,60 +126,59 @@ app.post('/api/points', async (c) => {
 });
 
 app.get('/api/users-stats', async (c) => {
-  // 0. Récupérer les catégories pour avoir les emojis et noms
-  const categories = await c.env.DB.prepare("SELECT id, name, emoji FROM categories").all();
-  const catMap = new Map(categories.results.map(cat => [cat.id, cat]));
+  try {
+    // 1. Récupération sécurisée des données
+    const [catRes, statsRes, rulesRes, usersRes] = await Promise.all([
+      c.env.DB.prepare("SELECT id, name, emoji FROM categories").all(),
+      c.env.DB.prepare("SELECT to_user_id, category_id, COUNT(*) as total FROM points_log GROUP BY to_user_id, category_id").all<PointStat>(),
+      c.env.DB.prepare("SELECT * FROM dare_rules").all<DareRule>(),
+      c.env.DB.prepare("SELECT id, name FROM users WHERE active = 1").all()
+    ]);
 
-  const stats = await c.env.DB.prepare(`
-    SELECT to_user_id, category_id, COUNT(*) as total 
-    FROM points_log GROUP BY to_user_id, category_id
-  `).all<PointStat>();
+    const catMap = new Map((catRes.results || []).map(cat => [cat.id, cat]));
+    const stats = statsRes.results || [];
+    const rules = rulesRes.results || [];
+    const users = usersRes.results || [];
 
-  const rules = await c.env.DB.prepare("SELECT * FROM dare_rules").all<DareRule>();
-  const users = await c.env.DB.prepare("SELECT id, name FROM users WHERE active = 1").all();
+    const data = users.map(user => {
+      const userPoints = stats.filter(p => p.to_user_id === user.id);
+      const total_points = userPoints.reduce((sum, p) => sum + p.total, 0);
 
-  const data = users.results.map(user => {
-    const userPoints = stats.results.filter(p => p.to_user_id === user.id);
-    
-    // Calcul du total_points
-    const total_points = userPoints.reduce((sum, p) => sum + p.total, 0);
+      const topCategories = userPoints
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 3)
+        .map(p => {
+          const category = catMap.get(p.category_id);
+          return {
+            count: p.total,
+            emoji: category?.emoji || '✨',
+            cat_name: category?.name || 'Inconnu'
+          };
+        });
 
-    // Préparation des topCategories avec emojis
-    const topCategories = userPoints
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 3)
-      .map(p => {
-        const category = catMap.get(p.category_id);
-        return {
-          count: p.total,
-          emoji: category?.emoji || '✨',
-          cat_name: category?.name || 'Inconnu'
-        };
-      });
-
-    // Logique du gage
-    let activeDare = null;
-    for (const rule of rules.results) {
-      const score = userPoints.find(p => p.category_id === rule.category_id);
-      if (score && score.total >= rule.threshold) {
-        activeDare = rule.dare_text; 
-        break; 
+      // Logique du gage sécurisée
+      let activeDare = null;
+      if (rules.length > 0) {
+          for (const rule of rules) {
+            const score = userPoints.find(p => p.category_id === rule.category_id);
+            if (score && score.total >= rule.threshold) {
+              activeDare = rule.dare_text; 
+              break; 
+            }
+          }
       }
-    }
 
-    return { 
-      ...user, 
-      total_points, 
-      topCategories, 
-      gage: activeDare 
-    };
-  });
+      return { ...user, total_points, topCategories, gage: activeDare };
+    });
 
-  // Tri pour le rang (rank)
-  const rankedData = data.sort((a, b) => b.total_points - a.total_points)
-                         .map((u, index) => ({ ...u, rank: index + 1 }));
+    const rankedData = data.sort((a, b) => b.total_points - a.total_points)
+                           .map((u, index) => ({ ...u, rank: index + 1 }));
 
-  return c.json(rankedData);
+    return c.json(rankedData);
+  } catch (e: any) {
+    console.error("🔥 Erreur Stats:", e.message);
+    return c.json({ error: "Erreur calcul stats", details: e.message }, 500);
+  }
 });
 
 app.get('/api/leaderboard', async (c) => {
