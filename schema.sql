@@ -30,4 +30,10 @@ CREATE TABLE points_log (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+-- Test d'insertion immédiat pour vérifier que ça fonctionne
+INSERT INTO categories (id, name, emoji, forfeit, active) VALUES 
+('cat_1', 'Méchanceté', '😈', 'Amener des croissants', 1),
+
+INSERT INTO users (id, name, token, active) VALUES ('user_test', 'Emmanuel', 'mon-token', 1);
+
 PRAGMA foreign_keys = ON;

@@ -1,49 +1,33 @@
-/** * 1. GESTION DE L'AUTH 
- */
+let selectedCategoryId = null;
+
 function handleAuth() {
     const urlParams = new URLSearchParams(window.location.search);
     const loginId = urlParams.get('login_id');
     const loginName = urlParams.get('login_name');
 
+    // Si on vient du lien magique, on enregistre
     if (loginId && loginName) {
         localStorage.setItem('my_user_id', loginId);
         localStorage.setItem('my_user_name', loginName);
-        window.history.replaceState({}, document.title, "/");
+        // On nettoie l'URL proprement
+        window.history.replaceState({}, document.title, window.location.pathname);
     }
-
-    const storedName = localStorage.getItem('my_user_name');
-    const displayEl = document.getElementById('current-user-display');
-    if (displayEl) displayEl.textContent = storedName || 'Invité';
 
     return localStorage.getItem('my_user_id');
 }
 
-/** * 2. INITIALISATION 
- */
-async function init() {
-    const myId = handleAuth();
-
-    if (!myId) {
-        document.body.innerHTML = `
-            <div class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4 font-sans">
-                <h1 class="text-2xl font-bold text-gray-800">Accès restreint 🔒</h1>
-                <p class="text-gray-600 mt-2">Utilise ton lien magique pour te connecter.</p>
-            </div>`;
+async function loadCategories() {
+    const catList = document.getElementById('categories-list');
+    
+    // Sécurité : on sort si l'élément n'existe pas encore
+    if (!catList) {
+        console.warn("⚠️ L'élément 'categories-list' n'a pas été trouvé dans le HTML.");
         return;
     }
 
-    await Promise.all([
-        loadCategories(),
-        updateAllData()
-    ]);
-}
-
-/** * 3. RENDU DES COMPOSANTS 
- */
-async function loadCategories() {
     const res = await fetch('/api/categories');
     const categories = await res.json();
-    const catList = document.getElementById('categories-list');
+
     catList.innerHTML = '';
 
     categories.forEach(cat => {
@@ -82,7 +66,7 @@ function renderUsers(users) {
             </button>
             <div class="rank-badge absolute top-3 right-3 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-sm"></div>
             <div class="w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-50 rounded-full mb-3 flex items-center justify-center text-blue-600 text-2xl font-bold border border-blue-100 shadow-inner">
-                ${user.name[0]}
+                ${(user.name || "U")[0].toUpperCase()}
             </div>
             <h3 class="font-bold text-gray-800 text-lg">${user.name} ${isMe ? '(Toi)' : ''}</h3>
             <p class="user-points-total text-blue-600 font-black text-sm mb-3"></p>
@@ -140,9 +124,53 @@ function updateCardUI(card, user) {
     }
 }
 
-/** * 4. ACTIONS ET LOGIQUE 
- */
-let selectedCategoryId = null;
+// La fonction de création
+async function addCategory() {
+    console.log("Tentative d'ajout de catégorie...");
+    
+    const nameInput = document.getElementById('new-cat-name');
+    const emojiInput = document.getElementById('new-cat-emoji');
+    
+    // On récupère le mot de passe (soit stocké, soit via prompt)
+    let adminPass = localStorage.getItem('admin_password');
+    if (!adminPass) {
+        adminPass = prompt("Mot de passe admin requis :");
+        if (adminPass) localStorage.setItem('admin_password', adminPass);
+    }
+
+    if (!nameInput.value || !emojiInput.value) {
+        alert("Merci de remplir le nom et l'émoji !");
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/admin/categories', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-Admin-Password': adminPass 
+            },
+            body: JSON.stringify({
+                name: nameInput.value,
+                emoji: emojiInput.value
+            })
+        });
+
+        if (response.ok) {
+            nameInput.value = '';
+            emojiInput.value = '';
+            alert("Badge créé avec succès !");
+            location.reload(); // On rafraîchit pour voir la nouvelle liste
+        } else {
+            const errorData = await response.json();
+            alert("Erreur : " + (errorData.error || "Accès refusé"));
+        }
+    } catch (err) {
+        console.error("Erreur lors de l'envoi :", err);
+        alert("Impossible de contacter le serveur.");
+    }
+}
+window.addCategory = addCategory;
 
 function selectCategory(el, id) {
     const isAlreadySelected = el.classList.contains('ring-blue-500');
@@ -252,9 +280,6 @@ function renderLeaderboardUI(data) {
         </div>`).join('');
 }
 
-/**
- * 5. HISTORIQUE
- */
 async function showHistory(event, userId, userName) {
     // Crucial : on empêche le clic d'activer la carte en dessous
     event.stopPropagation();
@@ -333,5 +358,33 @@ async function undoLastPoint() {
     }
 }
 
+async function init() {
+    const myId = handleAuth();
+
+    if (!myId) {
+        document.body.innerHTML = `
+            <div class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4 font-sans">
+                <h1 class="text-2xl font-bold text-gray-800">Accès restreint 🔒</h1>
+                <p class="text-gray-600 mt-2">Utilise ton lien magique pour te connecter.</p>
+            </div>`;
+        return;
+    }
+
+    const userName = localStorage.getItem('my_user_name');
+    const displayEl = document.getElementById('current-user-display');
+    if (displayEl && userName) {
+        displayEl.innerText = userName;
+    }
+    
+    await Promise.all([
+        loadCategories(),
+        updateAllData()
+    ]);
+}
+
 // Lancement
-init();
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    init();
+}

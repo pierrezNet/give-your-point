@@ -1,9 +1,33 @@
 import { Hono } from 'hono'
+import { handle } from 'hono/cloudflare-pages'
 
 type Bindings = {
   DB: D1Database
-  ADMIN_PASSWORD?: string
+  ASSETS: Fetcher
 }
+
+const app = new Hono<{ Bindings: Bindings }>()
+
+// CE BLOC VA FORCER LA CRÉATION À CHAQUE RECHARGEMENT
+app.use('/api/*', async (c, next) => {
+  const sql = `
+    CREATE TABLE IF NOT EXISTS categories (id TEXT PRIMARY KEY, name TEXT, emoji TEXT, forfeit TEXT, active INTEGER DEFAULT 1);
+    CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT, active INTEGER DEFAULT 1, token TEXT, role TEXT DEFAULT 'user');
+    CREATE TABLE IF NOT EXISTS points_log (id INTEGER PRIMARY KEY AUTOINCREMENT, from_user_id TEXT, to_user_id TEXT, category_id TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
+    CREATE TABLE IF NOT EXISTS dare_rules (id TEXT PRIMARY KEY, category_id TEXT, threshold INTEGER, dare_text TEXT);
+    
+    INSERT OR REPLACE INTO users (id, name, active, token, role) VALUES ('883136a9-23bd-4b57-9985-59d4b8f1117b', 'Emmanuel', 1, '883136a9-23bd-4b57-9985-59d4b8f1117b', 'admin');
+  `;
+  try {
+    await c.env.DB.exec(sql);
+  } catch (e) {
+    // On ignore si déjà créé
+  }
+  await next();
+});
+
+// Log pour confirmer que l'API est chargée
+console.log("🚀 API Hono chargée via functions/[[path]].ts");
 
 interface DareRule {
   id: string;
@@ -18,7 +42,15 @@ interface PointStat {
   total: number;
 }
 
-const app = new Hono<{ Bindings: Bindings }>()
+app.get('/api/debug-db', async (c) => {
+  // Cette commande SQL spéciale liste les fichiers de base de données ouverts
+  const dbFiles = await c.env.DB.prepare("PRAGMA database_list").all();
+  return c.json({
+    message: "Où est ma base ?",
+    data: dbFiles.results,
+    env_keys: Object.keys(c.env)
+  });
+});
 
 app.get('/api/me', async (c) => {
   const authHeader = c.req.header('Authorization');
@@ -43,9 +75,14 @@ app.get('/api/users', async (c) => {
 
 // Route pour récupérer les catégories
 app.get('/api/categories', async (c) => {
-  const { results } = await c.env.DB.prepare('SELECT * FROM categories WHERE active = 1').all()
-  return c.json(results)
-})
+  try {
+    const { results } = await c.env.DB.prepare('SELECT * FROM categories WHERE active = 1').all();
+    return c.json(results);
+  } catch (e: any) {
+    console.error("❌ Erreur D1:", e.message); // Ceci va s'afficher dans ton terminal
+    return c.json({ error: e.message }, 500);
+  }
+});
 
 // Route pour enregistrer un point
 app.post('/api/points', async (c) => {
@@ -111,11 +148,14 @@ app.get('/api/users-stats', async (c) => {
     const topCategories = userPoints
       .sort((a, b) => b.total - a.total)
       .slice(0, 3)
-      .map(p => ({
-        count: p.total,
-        emoji: catMap.get(p.category_id)?.emoji || '✨',
-        cat_name: catMap.get(p.category_id)?.name || 'Badge'
-      }));
+      .map(p => {
+        const category = catMap.get(p.category_id);
+        return {
+          count: p.total,
+          emoji: category?.emoji || '✨',
+          cat_name: category?.name || 'Inconnu'
+        };
+      });
 
     // Logique du gage
     let activeDare = null;
@@ -147,7 +187,6 @@ app.get('/api/leaderboard', async (c) => {
     SELECT 
       u.id, 
       u.name, 
-      u.avatar_url,
       COUNT(p.id) as total_points
     FROM users u
     LEFT JOIN points_log p ON u.id = p.to_user_id
@@ -371,4 +410,17 @@ app.post('/api/admin/clear-category/:userId/:categoryId', async (c) => {
   }
 });
 
-export default app
+app.get('/', async (c) => {
+  return c.env.ASSETS.fetch(c.req.raw);
+});
+
+// Et pour être sûr que les autres fichiers (app.js, admin.html) passent :
+app.get('/*', async (c, next) => {
+  if (c.req.path.startsWith('/api/')) {
+    return next();
+  }
+  return c.env.ASSETS.fetch(c.req.raw);
+});
+
+export const onRequest = handle(app);
+//export default handle(app);

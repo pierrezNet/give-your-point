@@ -1,11 +1,10 @@
 name = "give-your-point"
-main = "functions/_middleware.ts" # <--- Ajoute cette ligne
 compatibility_date = "2026-01-28"
+
+# On définit ici le dossier que Wrangler doit surveiller
+pages_build_output_dir = "./public"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "give-your-point"
 database_id = "e3050aaa-892c-4a5a-ac00-38fe3fe2dd43"
-
-[assets]
-directory = "./public"

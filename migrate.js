@@ -7,14 +7,14 @@ let sql = "-- Migration des données JSON vers D1\n\n";
 Object.entries(data.categories).forEach(([id, cat]) => {
     const name = cat.name.replace(/'/g, "''");
     const forfeit = (cat.forfeit || "").replace(/'/g, "''");
-    sql += `INSERT INTO categories (id, name, emoji, forfeit) VALUES ('${id}', '${name}', '${cat.emoji}', '${forfeit}');\n`;
+    sql += `INSERT OR REPLACE INTO categories (id, name, emoji, forfeit) VALUES ('${id}', '${name}', '${cat.emoji}', '${forfeit}');\n`;
 });
 
 // 2. Migration des Utilisateurs (avec génération de tokens)
 Object.entries(data.users).forEach(([id, user]) => {
     const name = user.name.replace(/'/g, "''");
     // On utilise l'ID comme token par défaut pour la migration
-    sql += `INSERT INTO users (id, name, active, token) VALUES ('${id}', '${name}', 1, '${id}');\n`;
+    sql += `INSERT OR REPLACE INTO users (id, name, active, token) VALUES ('${id}', '${name}', 1, '${id}');\n`;
 });
 
 // 3. Migration des Logs (L'historique des points)

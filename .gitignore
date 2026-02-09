@@ -6,7 +6,7 @@ node_modules/
 *.sqlite
 data.json
 migration.sql
-seed.sql
+migrate.js
 local-data.json
 
 # Secrets et variables d'environnement
