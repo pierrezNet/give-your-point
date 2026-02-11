@@ -395,6 +395,23 @@
             }
         }
 
+        function formatSmartDate(dateIso) {
+            const date = new Date(dateIso);
+            const now = new Date();
+            const diffInDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+
+            const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+            if (diffInDays === 0 && date.getDate() === now.getDate()) {
+                return `Aujourd'hui à ${time}`;
+            } else if (diffInDays === 1 || (diffInDays === 0 && date.getDate() !== now.getDate())) {
+                return `Hier à ${time}`;
+            } else {
+                const dayMonth = date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+                return `${dayMonth} à ${time}`;
+            }
+        }
+
         async function loadGlobalLog() {
             const res = await adminFetch('/api/admin/points-log');
             const logs = await res.json();
@@ -413,7 +430,7 @@
                     </div>
                     <div class="flex items-center gap-4">
                         <span class="text-[10px] font-bold text-slate-400">
-                            ${new Date(log.created_at).toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}
+                            ${formatSmartDate(log.created_at)}
                         </span>
                         <button onclick="deletePoint('${log.id}')" 
                                 class="text-red-300 hover:text-red-600 transition-colors p-1 opacity-0 group-hover:opacity-100">

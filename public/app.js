@@ -352,14 +352,22 @@ async function showHistory(event, userId, userName) {
         const data = await res.json();
 
         // Fonction interne pour un formatage de date propre
-        const formatDate = (dateStr) => {
-            if (!dateStr) return "---";
-            const dateObj = new Date(dateStr);
-            return dateObj.toLocaleDateString('fr-FR', { 
-                day: '2-digit', month: '2-digit', 
-                hour: '2-digit', minute: '2-digit' 
-            });
-        };
+        function formatSmartDate(dateIso) {
+            const date = new Date(dateIso);
+            const now = new Date();
+            const diffInDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+
+            const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+
+            if (diffInDays === 0 && date.getDate() === now.getDate()) {
+                return `Aujourd'hui à ${time}`;
+            } else if (diffInDays === 1 || (diffInDays === 0 && date.getDate() !== now.getDate())) {
+                return `Hier à ${time}`;
+            } else {
+                const dayMonth = date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+                return `${dayMonth} à ${time}`;
+            }
+        }
 
         const historyHtml = `
             <div id="history-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm" 
@@ -377,7 +385,7 @@ async function showHistory(event, userId, userName) {
                         ${data.received.length > 0 ? data.received.map(p => `
                             <div class="flex items-center justify-between text-sm bg-slate-50 p-3 rounded-xl border border-slate-100">
                                 <span class="text-slate-700">${p.emoji} <b>${p.cat_name}</b> <span class="text-slate-400 text-xs">de</span> ${p.from_name}</span>
-                                <span class="text-[10px] font-bold text-slate-400 bg-white px-2 py-1 rounded-md shadow-sm">${formatDate(p.created_at)}</span>
+                                <span class="text-[10px] font-bold text-slate-400 bg-white px-2 py-1 rounded-md shadow-sm">${formatSmartDate(p.created_at)}</span>
                             </div>
                         `).join('') : '<p class="text-xs italic text-slate-400 py-2 text-center">Aucun point reçu pour le moment</p>'}
                     </div>
@@ -389,7 +397,7 @@ async function showHistory(event, userId, userName) {
                         ${data.given.length > 0 ? data.given.map(p => `
                             <div class="flex items-center justify-between text-sm bg-emerald-50/30 p-3 rounded-xl border border-emerald-100">
                                 <span class="text-slate-700">Offert ${p.emoji} <span class="text-slate-400 text-xs">à</span> ${p.to_name}</span>
-                                <span class="text-[10px] font-bold text-emerald-600/50 bg-white px-2 py-1 rounded-md shadow-sm">${formatDate(p.created_at)}</span>
+                                <span class="text-[10px] font-bold text-emerald-600/50 bg-white px-2 py-1 rounded-md shadow-sm">${formatSmartDate(p.created_at)}</span>
                             </div>
                         `).join('') : '<p class="text-xs italic text-slate-400 py-2 text-center">Aucun point donné pour le moment</p>'}
                     </div>
