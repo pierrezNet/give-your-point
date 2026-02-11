@@ -8,27 +8,6 @@ type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>()
 
-// CE BLOC VA FORCER LA CRÉATION À CHAQUE RECHARGEMENT
-app.use('/api/*', async (c, next) => {
-  const sql = `
-    CREATE TABLE IF NOT EXISTS categories (id TEXT PRIMARY KEY, name TEXT, emoji TEXT, forfeit TEXT, active INTEGER DEFAULT 1);
-    CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, name TEXT, active INTEGER DEFAULT 1, token TEXT, role TEXT DEFAULT 'user');
-    CREATE TABLE IF NOT EXISTS points_log (id INTEGER PRIMARY KEY AUTOINCREMENT, from_user_id TEXT, to_user_id TEXT, category_id TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP);
-    CREATE TABLE IF NOT EXISTS dare_rules (id TEXT PRIMARY KEY, category_id TEXT, threshold INTEGER, dare_text TEXT);
-    
-    INSERT OR REPLACE INTO users (id, name, active, token, role) VALUES ('883136a9-23bd-4b57-9985-59d4b8f1117b', 'Emmanuel', 1, '883136a9-23bd-4b57-9985-59d4b8f1117b', 'admin');
-  `;
-  try {
-    await c.env.DB.exec(sql);
-  } catch (e) {
-    // On ignore si déjà créé
-  }
-  await next();
-});
-
-// Log pour confirmer que l'API est chargée
-console.log("🚀 API Hono chargée via functions/[[path]].ts");
-
 interface DareRule {
   id: string;
   category_id: string;
@@ -41,16 +20,6 @@ interface PointStat {
   category_id: string;
   total: number;
 }
-
-app.get('/api/debug-db', async (c) => {
-  // Cette commande SQL spéciale liste les fichiers de base de données ouverts
-  const dbFiles = await c.env.DB.prepare("PRAGMA database_list").all();
-  return c.json({
-    message: "Où est ma base ?",
-    data: dbFiles.results,
-    env_keys: Object.keys(c.env)
-  });
-});
 
 app.get('/api/me', async (c) => {
   const authHeader = c.req.header('Authorization');
@@ -75,13 +44,8 @@ app.get('/api/users', async (c) => {
 
 // Route pour récupérer les catégories
 app.get('/api/categories', async (c) => {
-  try {
-    const { results } = await c.env.DB.prepare('SELECT * FROM categories WHERE active = 1').all();
-    return c.json(results);
-  } catch (e: any) {
-    console.error("❌ Erreur D1:", e.message); // Ceci va s'afficher dans ton terminal
-    return c.json({ error: e.message }, 500);
-  }
+  const { results } = await c.env.DB.prepare('SELECT * FROM categories WHERE active = 1').all();
+  return c.json(results);
 });
 
 // Route pour enregistrer un point
@@ -91,20 +55,24 @@ app.post('/api/points', async (c) => {
     const { to_user_id, category_id } = body;
 
     const authHeader = c.req.header('Authorization');
-    const userIdFromClient = authHeader?.replace('Bearer ', '');
+    const fromUserId = authHeader?.replace('Bearer ', '');
 
     // Sécurité : on vérifie que l'ID n'est pas vide avant de bind
-    if (!userIdFromClient) {
+    if (!fromUserId) {
         return c.json({ error: "Session manquante" }, 401);
     }
 
     // On cherche par ID
-    const fromUser = await c.env.DB.prepare("SELECT id FROM users WHERE id = ?")
-      .bind(userIdFromClient)
-      .first<{ id: string }>();
+    const fromUser = await c.env.DB.prepare("SELECT id, active FROM users WHERE id = ?")
+      .bind(fromUserId)
+      .first<{ id: string, active: number }>();
 
     if (!fromUser) {
       return c.json({ error: "Utilisateur non reconnu" }, 401);
+    }
+
+    if (fromUser.active !== 1) {
+      return c.json({ error: "Ton compte est désactivé, tu ne peux plus donner de points. 🛑" }, 403);
     }
 
     if (fromUser.id === to_user_id) {
@@ -375,6 +343,40 @@ app.get('/api/users/:id/history', async (c) => {
   return c.json({ received: received.results, given: given.results });
 });
 
+app.get('/api/admin/points-log', isAdmin, async (c) => {
+  const { results } = await c.env.DB.prepare(`
+    SELECT 
+      p.id, 
+      p.created_at, 
+      u_from.name as from_name, 
+      u_to.name as to_name, 
+      c.name as cat_name, 
+      c.emoji
+    FROM points_log p
+    JOIN users u_from ON p.from_user_id = u_from.id
+    JOIN users u_to ON p.to_user_id = u_to.id
+    JOIN categories c ON p.category_id = c.id
+    ORDER BY p.created_at DESC 
+    LIMIT 50
+  `).all();
+  return c.json(results);
+});
+
+// Supprimer un point spécifique (Admin uniquement)
+app.delete('/api/admin/points/:id', async (c) => {
+  const id = c.req.param('id');
+  
+  const result = await c.env.DB.prepare("DELETE FROM points_log WHERE id = ?")
+    .bind(id)
+    .run();
+
+  if (result.success) {
+    return c.json({ success: true, message: "Point supprimé avec succès" });
+  } else {
+    return c.json({ error: "Erreur lors de la suppression" }, 500);
+  }
+});
+
 app.post('/api/points/undo', async (c) => {
   const authHeader = c.req.header('Authorization');
   const userId = authHeader?.replace('Bearer ', '');
@@ -413,13 +415,8 @@ app.get('/', async (c) => {
   return c.env.ASSETS.fetch(c.req.raw);
 });
 
-// Et pour être sûr que les autres fichiers (app.js, admin.html) passent :
-app.get('/*', async (c, next) => {
-  if (c.req.path.startsWith('/api/')) {
-    return next();
-  }
+app.get('/*', async (c) => {
   return c.env.ASSETS.fetch(c.req.raw);
 });
 
 export const onRequest = handle(app);
-//export default handle(app);

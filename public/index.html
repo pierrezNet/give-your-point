@@ -7,13 +7,37 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="app.js"></script>
     <style>
-        .user-card { transition: transform 0.2s; cursor: grab; }
+        /* --- 1. CARTES UTILISATEURS & INTERACTIONS --- */
+        .user-card { 
+            transition: transform 0.2s; 
+            cursor: grab; 
+        }
         .user-card:active { cursor: grabbing; }
+        
+        /* Zone de drop lors du drag & drop */
         .category-drop { border: 2px dashed transparent; }
-        .category-drop.drag-over { border-color: #3b82f6; background-color: #eff6ff; }
+        .category-drop.drag-over { 
+            border-color: #3b82f6; 
+            background-color: #eff6ff; 
+        }
+
+        /* --- 2. BADGES / CATÉGORIES --- */
         .category-card {
-            -webkit-tap-highlight-color: transparent; /* Enlève le flash gris sur mobile */
+            -webkit-tap-highlight-color: transparent;
             outline: none;
+        }
+        /* Effet spécifique mobile au toucher */
+        @media (max-width: 767px) {
+            .category-card:active {
+                transform: scale(0.95);
+                background-color: #f3f4f6;
+            }
+        }
+
+        /* --- 3. SYSTÈME DE GAGES (PULSE) --- */
+        .gage-active {
+            animation: pulse-orange 2s infinite;
+            background-color: #fffaf8;
         }
         @keyframes pulse-orange {
             0% { box-shadow: 0 0 0 0px rgba(234, 88, 12, 0.4); }
@@ -21,22 +45,35 @@
             100% { box-shadow: 0 0 0 0px rgba(234, 88, 12, 0); }
         }
 
-        .gage-active {
-            animation: pulse-orange 2s infinite;
-            background-color: #fffaf8; /* Une légère teinte orangée pour le fond */
-        }
+        /* --- 4. MODALES (HISTORIQUE & ROUE) --- */
         #history-modal {
             backdrop-filter: blur(4px);
             animation: fadeIn 0.2s ease-out;
         }
 
+        /* Animation d'entrée générale (Modales) */
         @keyframes fadeIn {
             from { opacity: 0; transform: scale(0.95); }
             to { opacity: 1; transform: scale(1); }
         }
+
+        /* Animations spécifique à la Roue Mobile */
+        .animate-pop { animation: pop-in 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        .animate-out-pop { animation: pop-out 0.2s ease-in forwards; }
+
+        @keyframes pop-in {
+            0% { transform: scale(0.9); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes pop-out {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(0.9); opacity: 0; }
+        }
+
+        /* --- 5. TRANSITIONS DE VUE (LE GLISSEMENT DES CARTES) --- */
         ::view-transition-group(*) {
             animation-duration: 0.5s;
-            animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+            animation-timing-function: cubic-bezier(0.2, 0, 0.1, 1);
         }
 
         /* Évite le flash blanc pendant la transition */
@@ -45,18 +82,28 @@
             animation: none;
             mix-blend-mode: normal;
         }
+
+        /* --- 6. TOASTS & NOTIFICATIONS --- */
+        #undo-toast {
+            animation: slideInUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
         @keyframes slideInUp {
             from { transform: translate(-50%, 100%); opacity: 0; }
             to { transform: translate(-50%, 0); opacity: 1; }
         }
-        #undo-toast {
-            animation: slideInUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+        /* Utile pour les items de la roue */
+        .wheel-item {
+            transition: transform 0.2s ease-out;
+        }
+        .wheel-item:active {
+            transform: scale(0.9);
         }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen p-8">
-    <header class="flex justify-between items-center mb-8 bg-white p-4 rounded-xl shadow-sm">
-        <h1 class="text-2xl font-black text-blue-600">🎯 Donne Ton Point <span id="current-user-display" class="text-gray-500">Connexion en cours...</span></h1>
+<body class="bg-gray-100 min-h-screen p-2 sm:p-4 lg:p-8"">
+    <header class="flex justify-between items-center mb-2 lg:mb-8 bg-white rounded-xl shadow-sm p-2 lg:p-2">
+        <h1 class="text-xl lg:text-2xl font-black text-blue-600">🎯 Donne Ton Point <span id="current-user-display" class="text-gray-500">Connexion en cours...</span></h1>
     </header>
     <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
         <div class="md:col-span-1">
@@ -67,7 +114,7 @@
 
         <div class="md:col-span-3">
             <h2 class="text-xl font-semibold mb-4 text-gray-600">L'Équipe</h2>
-            <div id="users-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div id="users-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 </div>
         </div>
     </div>

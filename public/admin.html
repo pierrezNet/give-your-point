@@ -78,17 +78,26 @@
             <div id="rules-list" class="space-y-2">
                 </div>
         </div>
+
+        <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 mt-8">
+            <h2 class="text-xl font-black text-slate-800 mb-6 flex items-center gap-2">
+                <span class="w-2 h-6 bg-blue-500 rounded-full"></span>
+                Historique global des points
+            </h2>
+            <div id="admin-global-log" class="space-y-2 max-h-[500px] overflow-y-auto">
+                </div>
+        </div>
     </div>
 
     <script>
         // 1. On vérifie immédiatement le secret
-        let adminPass = sessionStorage.getItem('admin_pass');
+        let adminPass = sessionStorage.getItem('ADMIN_PASSWORD');
 
         async function checkAndLoad() {
             if (!adminPass) {
                 adminPass = prompt("Mot de passe administrateur requis :");
                 if (!adminPass) return window.location.href = "/";
-                sessionStorage.setItem('admin_pass', adminPass);
+                sessionStorage.setItem('ADMIN_PASSWORD', adminPass);
             }
 
             // On tente un premier appel pour vérifier le mot de passe
@@ -103,6 +112,7 @@
                 loadAdminCategories();
                 loadCategoriesForRules();
                 loadRules();
+                loadGlobalLog();
             } else {
                 // Mauvais mot de passe
                 alert("Accès refusé ❌");
@@ -241,6 +251,34 @@
             }
         }
 
+        async function addCategory() {
+            const nameInput = document.getElementById('new-cat-name');
+            const emojiInput = document.getElementById('new-cat-emoji');
+
+            if (!nameInput.value || !emojiInput.value) {
+                return alert("Merci de remplir le nom et l'émoji !");
+            }
+
+            // On utilise adminFetch : il gère déjà le mot de passe et le 401
+            const response = await adminFetch('/api/admin/categories', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: nameInput.value,
+                    emoji: emojiInput.value
+                })
+            });
+
+            if (response && response.ok) {
+                nameInput.value = '';
+                emojiInput.value = '';
+                // On rafraîchit immédiatement la liste des catégories sur la page admin
+                loadAdminCategories();
+                // Optionnel : rafraîchir la liste pour les règles de gages
+                loadCategoriesForRules(); 
+            }
+        }
+
         // Nouvelle fonction pour charger les catégories
         async function loadAdminCategories() {
             const res = await adminFetch('/api/admin/categories');
@@ -347,14 +385,87 @@
         async function clearCategoryPoints(userId, catId, catName, userName) {
             if (!confirm(`Confirmer la rédemption pour "${catName}" pour ${userName} ?`)) return;
 
-            const res = await fetch(`/api/admin/clear-category/${userId}/${catId}`, { method: 'POST' });
-            if (res.ok) {
-                // On recharge la liste pour voir le gage disparaître immédiatement
+            // Utilisation de adminFetch pour inclure le header X-Admin-Password
+            const res = await adminFetch(`/api/admin/clear-category/${userId}/${catId}`, { 
+                method: 'POST' 
+            });
+            
+            if (res && res.ok) {
                 await loadAdminUsers();
             }
         }
 
+        async function loadGlobalLog() {
+            const res = await adminFetch('/api/admin/points-log');
+            const logs = await res.json();
+            const container = document.getElementById('admin-global-log');
+            if (!container) return;
+
+            container.innerHTML = logs.map(log => `
+                <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-white transition-all group">
+                    <div class="flex items-center gap-3 text-sm">
+                        <span class="text-lg">${log.emoji}</span>
+                        <span class="text-slate-600">
+                            <b class="text-slate-800">${log.from_name}</b> 
+                            a donné à 
+                            <b class="text-slate-800">${log.to_name}</b>
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span class="text-[10px] font-bold text-slate-400">
+                            ${new Date(log.created_at).toLocaleTimeString('fr-FR', {hour: '2-digit', minute:'2-digit'})}
+                        </span>
+                        <button onclick="deletePoint('${log.id}')" 
+                                class="text-red-300 hover:text-red-600 transition-colors p-1 opacity-0 group-hover:opacity-100">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function deletePoint(pointId) {
+            if (!confirm("Supprimer définitivement ce point ?")) return;
+
+            const res = await adminFetch(`/api/admin/points/${pointId}`, {
+                method: 'DELETE'
+            });
+
+            if (res && res.ok) {
+                if (window.showToast) window.showToast("Point supprimé !");
+                // On rafraîchit tout pour que les compteurs soient justes
+                loadGlobalLog();
+                loadAdminUsers(); 
+            }
+        }
+
+        async function deleteSpecificPoint(pointId, userName) {
+        if (!confirm(`Supprimer définitivement ce point pour ${userName} ?`)) return;
+
+            const res = await adminFetch(`/api/admin/points/${pointId}`, {
+                method: 'DELETE'
+            });
+
+            if (res && res.ok) {
+                // On utilise la fonction de app.js pour notifier
+                if (window.showToast) {
+                    window.showToast("Le point a été effacé", "success");
+                } else {
+                    alert("Point effacé");
+                }
+                
+                // On rafraîchit les données pour voir le score baisser
+                if (window.loadAdminUsers) window.loadAdminUsers();
+                // Si tu as une modale d'historique ouverte, il faudra aussi la rafraîchir ou la fermer
+            }
+        }
+
         checkAndLoad();
+
+        window.loadAdminCategories = loadAdminCategories;
+        window.loadAdminUsers = loadAdminUsers;
     </script>
 </body>
 </html>

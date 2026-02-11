@@ -1,4 +1,5 @@
 let selectedCategoryId = null;
+let lastPointId = null;
 
 function handleAuth() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -20,21 +21,21 @@ async function loadCategories() {
     const catList = document.getElementById('categories-list');
     
     // Sécurité : on sort si l'élément n'existe pas encore
-    if (!catList) {
+    if (!catList) return;
+    /*if (!catList) {
         console.warn("⚠️ L'élément 'categories-list' n'a pas été trouvé dans le HTML.");
         return;
-    }
+    }*/
 
     const res = await fetch('/api/categories');
     const categories = await res.json();
 
     catList.innerHTML = '';
-
     categories.forEach(cat => {
         const div = document.createElement('div');
-        div.className = 'category-card bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-all';
+        div.className = 'category-card bg-white p-2 lg:p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-all';
         div.draggable = true;
-        div.innerHTML = `<span class="text-2xl pointer-events-none">${cat.emoji}</span> <span class="font-medium pointer-events-none">${cat.name}</span>`;
+        div.innerHTML = `<span class="text-xl lg:text-2xl pointer-events-none">${cat.emoji}</span> <span class="text-base lg:text-2xl pointer-events-none">${cat.name}</span>`;
 
         div.onclick = () => selectCategory(div, String(cat.id));
         div.ondragstart = (e) => e.dataTransfer.setData('text/plain', String(cat.id));
@@ -44,6 +45,9 @@ async function loadCategories() {
 
 function renderUsers(users) {
     const usersGrid = document.getElementById('users-grid');
+    if (!usersGrid) {
+        return; // On sort discrètement si on n'est pas sur la page principale
+    }
     const myId = localStorage.getItem('my_user_id');
     usersGrid.innerHTML = '';
 
@@ -54,7 +58,7 @@ function renderUsers(users) {
         div.style.viewTransitionName = `card-${user.id}`;
         
         // Style de la carte : si c'est moi, on grise et on désactive le curseur
-        div.className = `user-card relative bg-white p-6 rounded-2xl shadow-sm border-2 transition-all flex flex-col items-center text-center 
+        div.className = `user-card relative bg-white p-2 lg:p-3 rounded-2xl shadow-sm border-2 transition-all flex flex-col items-center text-center 
             ${isMe ? 'cursor-not-allowed hover:bg-red-100' : 'cursor-pointer hover:shadow-md border-transparent'}`;
         
         div.innerHTML = `
@@ -65,7 +69,7 @@ function renderUsers(users) {
                 </svg>
             </button>
             <div class="rank-badge absolute top-3 right-3 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-sm"></div>
-            <div class="w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-50 rounded-full mb-3 flex items-center justify-center text-blue-600 text-2xl font-bold border border-blue-100 shadow-inner">
+            <div class="collapse lg:visible w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-50 rounded-full mb-3 flex items-center justify-center text-blue-600 text-2xl font-bold border border-blue-100 shadow-inner">
                 ${(user.name || "U")[0].toUpperCase()}
             </div>
             <h3 class="font-bold text-gray-800 text-lg">${user.name} ${isMe ? '(Toi)' : ''}</h3>
@@ -124,65 +128,88 @@ function updateCardUI(card, user) {
     }
 }
 
-// La fonction de création
-async function addCategory() {
-    console.log("Tentative d'ajout de catégorie...");
-    
-    const nameInput = document.getElementById('new-cat-name');
-    const emojiInput = document.getElementById('new-cat-emoji');
-    
-    // On récupère le mot de passe (soit stocké, soit via prompt)
-    let adminPass = localStorage.getItem('admin_password');
-    if (!adminPass) {
-        adminPass = prompt("Mot de passe admin requis :");
-        if (adminPass) localStorage.setItem('admin_password', adminPass);
-    }
-
-    if (!nameInput.value || !emojiInput.value) {
-        alert("Merci de remplir le nom et l'émoji !");
-        return;
-    }
-
-    try {
-        const response = await fetch('/api/admin/categories', {
-            method: 'POST',
-            headers: { 
-                'Content-Type': 'application/json',
-                'X-Admin-Password': adminPass 
-            },
-            body: JSON.stringify({
-                name: nameInput.value,
-                emoji: emojiInput.value
-            })
-        });
-
-        if (response.ok) {
-            nameInput.value = '';
-            emojiInput.value = '';
-            alert("Badge créé avec succès !");
-            location.reload(); // On rafraîchit pour voir la nouvelle liste
-        } else {
-            const errorData = await response.json();
-            alert("Erreur : " + (errorData.error || "Accès refusé"));
-        }
-    } catch (err) {
-        console.error("Erreur lors de l'envoi :", err);
-        alert("Impossible de contacter le serveur.");
-    }
-}
-window.addCategory = addCategory;
-
 function selectCategory(el, id) {
-    const isAlreadySelected = el.classList.contains('ring-blue-500');
-    document.querySelectorAll('.category-card').forEach(c => c.classList.remove('ring-4', 'ring-blue-500', 'category-active'));
-    
-    if (!isAlreadySelected) {
-        selectedCategoryId = id;
-        el.classList.add('ring-4', 'ring-blue-500', 'category-active');
+    const isMobile = window.innerWidth < 768; // Détection standard (tablette/mobile)
+    const emoji = el.querySelector('span').innerText;
+
+    if (isMobile) {
+        // --- COMPORTEMENT MOBILE ---
+        // On ouvre directement le sélecteur central
+        openUserSelector(id, emoji);
     } else {
-        selectedCategoryId = null;
+        // --- COMPORTEMENT DESKTOP ---
+        // On garde ton ancienne logique de sélection visuelle
+        const isAlreadySelected = el.classList.contains('ring-blue-500');
+        document.querySelectorAll('.category-card').forEach(c => 
+            c.classList.remove('ring-4', 'ring-blue-500', 'category-active')
+        );
+        
+        if (!isAlreadySelected) {
+            selectedCategoryId = id;
+            el.classList.add('ring-4', 'ring-blue-500', 'category-active');
+        } else {
+            selectedCategoryId = null;
+        }
     }
 }
+
+async function openUserSelector(catId, emoji) {
+    const res = await fetch('/api/users-stats');
+    const users = await res.json();
+    const myId = localStorage.getItem('my_user_id');
+
+    const overlay = document.createElement('div');
+    overlay.id = 'wheel-selector';
+    overlay.className = "fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[300] flex items-center justify-center p-4";
+    
+    // On filtre pour ne pas s'auto-mousser
+    const otherUsers = users.filter(u => String(u.id) !== String(myId));
+
+    overlay.innerHTML = `
+        <div class="bg-white rounded-[40px] w-full max-w-sm p-6 animate-pop shadow-2xl text-center">
+            <div class="mb-6">
+                <div class="text-5xl mb-2">${emoji}</div>
+                <p class="text-slate-500 text-sm font-medium">À qui offres-tu ce badge ?</p>
+            </div>
+            
+            <div class="grid grid-cols-3 gap-4 mb-6">
+                ${otherUsers.map(u => `
+                    <button onclick="sendPointAndClose('${u.id}', '${catId}')" 
+                            class="flex flex-col items-center gap-2 group">
+                        <div class="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 font-bold text-xl group-active:bg-blue-600 group-active:text-white transition-all shadow-sm">
+                            ${u.name[0].toUpperCase()}
+                        </div>
+                        <span class="text-[10px] font-bold text-slate-600 truncate w-full">${u.name}</span>
+                    </button>
+                `).join('')}
+            </div>
+
+            <button onclick="document.getElementById('wheel-selector').remove()" 
+                    class="text-slate-400 font-bold text-xs uppercase tracking-widest py-2">
+                Annuler
+            </button>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+}
+
+// Fonction de pont pour envoyer et fermer
+window.sendPointAndClose = async (userId, catId) => {
+    const selector = document.getElementById('wheel-selector');
+    const modalContent = selector.querySelector('.bg-white'); // La boîte blanche
+
+    modalContent.classList.add('animate-out-pop');
+
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    selector.remove();
+
+    requestAnimationFrame(async () => {
+        const cardMock = document.createElement('div');
+        await addPoint(userId, cardMock, catId);
+    });
+};
 
 function clearSelection() {
     document.querySelectorAll('.category-card').forEach(c => c.classList.remove('ring-4', 'ring-blue-500', 'category-active'));
@@ -206,7 +233,7 @@ async function addPoint(userId, cardEl, catId) {
             // 2. Animation de succès
             cardEl.classList.add('ring-4', 'ring-green-500');
 
-            showUndoToast();    
+            showToast("Point envoyé !", 'success');  
 
             // 3. MISE À JOUR SYNCHRONE
             await updateAllData(); 
@@ -215,27 +242,54 @@ async function addPoint(userId, cardEl, catId) {
                 cardEl.classList.remove('ring-4', 'ring-green-500');
             }, 500);
         }
-    } catch (e) { console.error(e); }
+        if (!res.ok) {
+            const errorData = await res.json();
+            // On utilise le système de toast
+            showToast(errorData.error || "Une erreur est survenue", "bg-orange-500");
+            
+            // On nettoie quand même la sélection pour ne pas rester bloqué
+            selectedCategoryId = null;
+            clearSelection();
+            return; 
+        }
+        selectedCategoryId = null;
+        clearSelection();
+        cardEl.classList.add('ring-4', 'ring-green-500'); 
+        await updateAllData(); 
+
+        setTimeout(() => {
+            cardEl.classList.remove('ring-4', 'ring-green-500');
+        }, 500);
+    } catch (e) {
+        console.error("Erreur réseau :", e);
+        showToast("Impossible de contacter le serveur", "bg-red-600");
+    }
 }
 
-function showUndoToast() {
-    // On supprime l'ancien toast s'il existe
-    const oldToast = document.getElementById('undo-toast');
+function showToast(message, type = 'success') {
+    const oldToast = document.getElementById('toast-notification');
     if (oldToast) oldToast.remove();
 
     const toast = document.createElement('div');
-    toast.id = 'undo-toast';
-    // Style flottant en bas
-    toast.className = "fixed bottom-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-6 py-3 rounded-full shadow-2xl z-[200] flex items-center gap-4 animate-in slide-in-from-bottom-10";
+    toast.id = 'toast-notification';
+    
+    // On change la couleur selon le type (Succès = sombre, Erreur = orange/rouge)
+    const bgColor = type === 'success' ? 'bg-slate-800' : 'bg-orange-600';
+    
+    toast.className = `fixed bottom-8 left-1/2 -translate-x-1/2 ${bgColor} text-white px-6 py-3 rounded-full shadow-2xl z-[200] flex items-center gap-4 animate-in slide-in-from-bottom-10`;
+    
+    // Si c'est un succès, on ajoute le bouton "Annuler"
+    const undoButton = type === 'success' 
+        ? `<button onclick="undoLastPoint()" class="text-yellow-400 font-black uppercase text-xs hover:text-yellow-300 transition-colors">Annuler</button>` 
+        : '';
+
     toast.innerHTML = `
-        <span class="text-sm font-medium">Point envoyé !</span>
-        <button onclick="undoLastPoint()" class="text-yellow-400 font-black uppercase text-xs hover:text-yellow-300 transition-colors">
-            Annuler
-        </button>
+        <span class="text-sm font-medium">${message}</span>
+        ${undoButton}
     `;
+    
     document.body.appendChild(toast);
 
-    // Il disparaît tout seul après 5 secondes
     setTimeout(() => {
         if (toast) {
             toast.classList.add('animate-out', 'fade-out', 'slide-out-to-bottom-10');
@@ -258,8 +312,6 @@ async function updateAllData() {
 
         const users = await statsRes.json();
         const leaderboard = await leaderboardRes.json();
-        
-        console.log("✅ Données reçues avec succès !");
 
         if (document.startViewTransition) {
             document.startViewTransition(() => {
@@ -390,6 +442,10 @@ async function init() {
         updateAllData()
     ]);
 }
+
+setInterval(() => {
+    updateAllData();
+}, 30000);
 
 // Lancement
 if (document.readyState === 'loading') {
