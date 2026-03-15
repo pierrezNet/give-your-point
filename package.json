@@ -3,9 +3,14 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "dev": "npm run build && wrangler dev --persist-to=./db_data",
+    "dev": "npm run build && wrangler pages dev dist --persist-to=./db_data",
+    "db:init": "wrangler d1 execute give-your-point --local --persist-to=./db_data --file=init_db.sql",
+    "db:seed": "wrangler d1 execute give-your-point --local --persist-to=./db_data --file=seed.sql",
+    "db:reset": "npm run db:init && npm run db:seed",
+    "db:pull": "wrangler d1 export give-your-point --remote --output=prod_backup.sql && rm -rf db_data && wrangler d1 execute give-your-point --local --persist-to=./db_data --file=prod_backup.sql && wrangler d1 execute give-your-point --local --persist-to=./db_data --command=\"CREATE TABLE IF NOT EXISTS dare_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, category_id TEXT, dare_text TEXT, cleared_at DATETIME DEFAULT CURRENT_TIMESTAMP);\"",
+    "db:migrate:prod": "wrangler d1 execute give-your-point --remote --command=\"CREATE TABLE IF NOT EXISTS dare_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, category_id TEXT, dare_text TEXT, cleared_at DATETIME DEFAULT CURRENT_TIMESTAMP);\"",
     "deploy": "wrangler pages deploy dist",
-    "build": "mkdir -p dist && cp -r public/* dist/ || true"
+    "build": "mkdir -p dist && npx @tailwindcss/cli -i public/input.css -o dist/styles.css --minify && cp -r public/* dist/"
   },
   "keywords": [],
   "author": "",
@@ -15,6 +20,8 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260128.0",
+    "@tailwindcss/cli": "^4.2.1",
+    "tailwindcss": "^4.2.1",
     "wrangler": "^4.62.0"
   }
 }

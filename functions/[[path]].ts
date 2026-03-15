@@ -1,5 +1,6 @@
 import { Hono } from 'hono'
 import { handle } from 'hono/cloudflare-pages'
+import { streamSSE } from 'hono/streaming'
 
 type Bindings = {
   DB: D1Database
@@ -21,6 +22,44 @@ interface PointStat {
   total: number;
 }
 
+async function getUsersStats(db: D1Database) {
+  const [catRes, statsRes, rulesRes, usersRes] = await Promise.all([
+    db.prepare("SELECT id, name, emoji FROM categories").all(),
+    db.prepare("SELECT to_user_id, category_id, COUNT(*) as total FROM points_log GROUP BY to_user_id, category_id").all<PointStat>(),
+    db.prepare("SELECT * FROM dare_rules").all<DareRule>(),
+    db.prepare("SELECT id, name FROM users WHERE active = 1").all()
+  ]);
+
+  const catMap = new Map((catRes.results || []).map((cat: any) => [cat.id, cat]));
+  const stats = statsRes.results || [];
+  const rules = rulesRes.results || [];
+  const users = usersRes.results || [];
+
+  const data = users.map((user: any) => {
+    const userPoints = stats.filter(p => p.to_user_id === user.id);
+    const total_points = userPoints.reduce((sum, p) => sum + p.total, 0);
+
+    const topCategories = userPoints
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10)
+      .map(p => {
+        const category: any = catMap.get(p.category_id);
+        return { count: p.total, emoji: category?.emoji || '✨', cat_name: category?.name || 'Inconnu' };
+      });
+
+    let activeDare = null;
+    for (const rule of rules) {
+      const score = userPoints.find(p => p.category_id === rule.category_id);
+      if (score && score.total >= rule.threshold) { activeDare = rule.dare_text; break; }
+    }
+
+    return { ...user, total_points, topCategories, gage: activeDare };
+  });
+
+  return data.sort((a: any, b: any) => b.total_points - a.total_points)
+             .map((u: any, index: number) => ({ ...u, rank: index + 1 }));
+}
+
 app.get('/api/me', async (c) => {
   const authHeader = c.req.header('Authorization');
   const token = authHeader?.replace('Bearer ', '');
@@ -36,9 +75,9 @@ app.get('/api/me', async (c) => {
   return c.json(user);
 });
 
-// Route pour les données des utilisateurs
+// Route pour les données des utilisateurs (sans token)
 app.get('/api/users', async (c) => {
-  const { results } = await c.env.DB.prepare('SELECT * FROM users').all()
+  const { results } = await c.env.DB.prepare('SELECT id, name, active FROM users').all()
   return c.json(results)
 })
 
@@ -95,73 +134,26 @@ app.post('/api/points', async (c) => {
 
 app.get('/api/users-stats', async (c) => {
   try {
-    // 1. Récupération sécurisée des données
-    const [catRes, statsRes, rulesRes, usersRes] = await Promise.all([
-      c.env.DB.prepare("SELECT id, name, emoji FROM categories").all(),
-      c.env.DB.prepare("SELECT to_user_id, category_id, COUNT(*) as total FROM points_log GROUP BY to_user_id, category_id").all<PointStat>(),
-      c.env.DB.prepare("SELECT * FROM dare_rules").all<DareRule>(),
-      c.env.DB.prepare("SELECT id, name FROM users WHERE active = 1").all()
-    ]);
-
-    const catMap = new Map((catRes.results || []).map(cat => [cat.id, cat]));
-    const stats = statsRes.results || [];
-    const rules = rulesRes.results || [];
-    const users = usersRes.results || [];
-
-    const data = users.map(user => {
-      const userPoints = stats.filter(p => p.to_user_id === user.id);
-      const total_points = userPoints.reduce((sum, p) => sum + p.total, 0);
-
-      const topCategories = userPoints
-        .sort((a, b) => b.total - a.total)
-        .slice(0, 3)
-        .map(p => {
-          const category = catMap.get(p.category_id);
-          return {
-            count: p.total,
-            emoji: category?.emoji || '✨',
-            cat_name: category?.name || 'Inconnu'
-          };
-        });
-
-      // Logique du gage sécurisée
-      let activeDare = null;
-      if (rules.length > 0) {
-          for (const rule of rules) {
-            const score = userPoints.find(p => p.category_id === rule.category_id);
-            if (score && score.total >= rule.threshold) {
-              activeDare = rule.dare_text; 
-              break; 
-            }
-          }
-      }
-
-      return { ...user, total_points, topCategories, gage: activeDare };
-    });
-
-    const rankedData = data.sort((a, b) => b.total_points - a.total_points)
-                           .map((u, index) => ({ ...u, rank: index + 1 }));
-
-    return c.json(rankedData);
+    return c.json(await getUsersStats(c.env.DB));
   } catch (e: any) {
     console.error("🔥 Erreur Stats:", e.message);
     return c.json({ error: "Erreur calcul stats", details: e.message }, 500);
   }
 });
 
-app.get('/api/leaderboard', async (c) => {
-  const { results } = await c.env.DB.prepare(`
-    SELECT 
-      u.id, 
-      u.name, 
-      COUNT(p.id) as total_points
-    FROM users u
-    LEFT JOIN points_log p ON u.id = p.to_user_id
-    GROUP BY u.id
-    ORDER BY total_points DESC
-  `).all();
-  
-  return c.json(results);
+app.get('/api/events', async (c) => {
+  return streamSSE(c, async (stream) => {
+    const send = async () => {
+      const data = await getUsersStats(c.env.DB);
+      await stream.writeSSE({ data: JSON.stringify(data), event: 'stats' });
+    };
+    await send();
+    while (true) {
+      await stream.sleep(10000);
+      if (stream.aborted) break;
+      await send();
+    }
+  });
 });
 
 // Route pour le lien magique : /login/ton-token-unique
@@ -256,37 +248,31 @@ app.patch('/api/admin/categories/:id/restore', isAdmin, async (c) => {
   return c.json({ success: true });
 });
 
-// Lister les gages (Admin)
-app.get('/api/admin/dares', async (c) => {
-  // Il faut ABSOLUMENT récupérer category_id ici
-  const { results } = await c.env.DB.prepare(`
-    SELECT 
-      to_user_id as userId, 
-      category_id as categoryId, 
-      COUNT(*) as count,
-      'Gage Croissants' as gage -- ou ta logique de nom de gage
-    FROM points_log
-    GROUP BY to_user_id, category_id
-    HAVING count >= 10 -- Ton seuil
-  `).all();
-  
-  return c.json(results);
-});
+// Lister les gages actifs (utilisateurs ayant dépassé un seuil)
+app.get('/api/admin/dares', isAdmin, async (c) => {
+  const [rulesRes, statsRes] = await Promise.all([
+    c.env.DB.prepare("SELECT * FROM dare_rules").all<DareRule>(),
+    c.env.DB.prepare("SELECT to_user_id, category_id, COUNT(*) as total FROM points_log GROUP BY to_user_id, category_id").all<PointStat>(),
+  ]);
 
-// Créer un nouveau gage
-app.post('/api/admin/dares', isAdmin, async (c) => {
-  const { task, emoji } = await c.req.json();
-  const id = crypto.randomUUID();
-  await c.env.DB.prepare("INSERT INTO dares (id, task, emoji) VALUES (?, ?, ?)").bind(id, task, emoji).run();
-  return c.json({ success: true });
-});
+  const rules = rulesRes.results || [];
+  const stats = statsRes.results || [];
 
-// Assigner un gage à un utilisateur
-app.post('/api/admin/users/:userId/assign-dare', isAdmin, async (c) => {
-  const userId = c.req.param('userId');
-  const { dareId } = await c.req.json(); // dareId peut être null pour enlever le gage
-  await c.env.DB.prepare("UPDATE users SET current_dare_id = ? WHERE id = ?").bind(dareId, userId).run();
-  return c.json({ success: true });
+  const activeDares: { userId: string; categoryId: string; count: number; dare: string }[] = [];
+  for (const rule of rules) {
+    for (const stat of stats) {
+      if (stat.category_id === rule.category_id && stat.total >= rule.threshold) {
+        activeDares.push({
+          userId: stat.to_user_id,
+          categoryId: stat.category_id,
+          count: stat.total,
+          dare: rule.dare_text,
+        });
+      }
+    }
+  }
+
+  return c.json(activeDares);
 });
 
 // Lister les règles avec le nom de la catégorie (JOIN)
@@ -332,7 +318,7 @@ app.get('/api/users/:id/history', async (c) => {
 
   // Points donnés par cet utilisateur
   const given = await c.env.DB.prepare(`
-    SELECT p.*, u.name as to_name, c.emoji, c.name as cat_name 
+    SELECT p.*, u.name as to_name, c.emoji, c.name as cat_name
     FROM points_log p
     JOIN users u ON p.to_user_id = u.id
     JOIN categories c ON p.category_id = c.id
@@ -340,7 +326,16 @@ app.get('/api/users/:id/history', async (c) => {
     ORDER BY p.created_at DESC LIMIT 20
   `).bind(id).all();
 
-  return c.json({ received: received.results, given: given.results });
+  // Gages acquittés par cet utilisateur
+  const dares = await c.env.DB.prepare(`
+    SELECT dl.*, c.emoji, c.name as cat_name
+    FROM dare_log dl
+    JOIN categories c ON dl.category_id = c.id
+    WHERE dl.user_id = ?
+    ORDER BY dl.cleared_at DESC LIMIT 10
+  `).bind(id).all();
+
+  return c.json({ received: received.results, given: given.results, dares: dares.results });
 });
 
 app.get('/api/admin/points-log', isAdmin, async (c) => {
@@ -363,7 +358,7 @@ app.get('/api/admin/points-log', isAdmin, async (c) => {
 });
 
 // Supprimer un point spécifique (Admin uniquement)
-app.delete('/api/admin/points/:id', async (c) => {
+app.delete('/api/admin/points/:id', isAdmin, async (c) => {
   const id = c.req.param('id');
   
   const result = await c.env.DB.prepare("DELETE FROM points_log WHERE id = ?")
@@ -383,25 +378,40 @@ app.post('/api/points/undo', async (c) => {
 
   if (!userId) return c.json({ error: "Non autorisé" }, 401);
 
-  // On supprime le point le plus récent créé par cet utilisateur
-  await c.env.DB.prepare(`
-    DELETE FROM points_log 
+  // On supprime le point le plus récent créé par cet utilisateur, uniquement dans les 15 dernières secondes
+  const result = await c.env.DB.prepare(`
+    DELETE FROM points_log
     WHERE id = (
-        SELECT id FROM points_log 
-        WHERE from_user_id = ? 
+        SELECT id FROM points_log
+        WHERE from_user_id = ?
+        AND created_at >= datetime('now', '-15 seconds')
         ORDER BY created_at DESC LIMIT 1
     )
   `).bind(userId).run();
 
+  if (result.meta.changes === 0) {
+    return c.json({ error: "Délai d'annulation dépassé" }, 403);
+  }
+
   return c.json({ success: true });
 });
 
-app.post('/api/admin/clear-category/:userId/:categoryId', async (c) => {
+app.post('/api/admin/clear-category/:userId/:categoryId', isAdmin, async (c) => {
   const { userId, categoryId } = c.req.param();
 
   try {
+    const rule = await c.env.DB.prepare(
+      "SELECT dare_text FROM dare_rules WHERE category_id = ?"
+    ).bind(categoryId).first<{ dare_text: string }>();
+
+    if (rule) {
+      await c.env.DB.prepare(
+        "INSERT INTO dare_log (user_id, category_id, dare_text) VALUES (?, ?, ?)"
+      ).bind(userId, categoryId, rule.dare_text).run();
+    }
+
     await c.env.DB.prepare(`
-      DELETE FROM points_log 
+      DELETE FROM points_log
       WHERE to_user_id = ? AND category_id = ?
     `).bind(userId, categoryId).run();
 
@@ -409,6 +419,18 @@ app.post('/api/admin/clear-category/:userId/:categoryId', async (c) => {
   } catch (err) {
     return c.json({ error: "Erreur lors de la remise à zéro" }, 500);
   }
+});
+
+app.get('/api/admin/dare-log', isAdmin, async (c) => {
+  const { results } = await c.env.DB.prepare(`
+    SELECT dl.*, u.name as user_name, c.name as cat_name, c.emoji
+    FROM dare_log dl
+    JOIN users u ON dl.user_id = u.id
+    JOIN categories c ON dl.category_id = c.id
+    ORDER BY dl.cleared_at DESC
+    LIMIT 50
+  `).all();
+  return c.json(results);
 });
 
 app.get('/', async (c) => {

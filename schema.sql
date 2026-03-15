@@ -2,6 +2,7 @@ PRAGMA foreign_keys = OFF;
 
 -- Suppression propre pour repartir sur une base saine
 DROP TABLE IF EXISTS points_log;
+DROP TABLE IF EXISTS dare_log;
 DROP TABLE IF EXISTS dare_rules;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS categories;
@@ -29,8 +30,19 @@ CREATE TABLE points_log (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- Test d'insertion immédiat pour vérifier que ça fonctionne
-INSERT INTO categories (id, name, emoji, forfeit, active) VALUES ('cat_1', 'Méchanceté', '😈', 'Amener des croissants', 1),
-INSERT INTO users (id, name, token, active) VALUES ('user_test', 'Emmanuel', 'mon-token', 1);
+CREATE TABLE dare_rules (
+    id TEXT PRIMARY KEY,
+    category_id TEXT,
+    threshold INTEGER,
+    dare_text TEXT
+);
+
+CREATE TABLE dare_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT,
+    category_id TEXT,
+    dare_text TEXT,
+    cleared_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
 
 PRAGMA foreign_keys = ON;

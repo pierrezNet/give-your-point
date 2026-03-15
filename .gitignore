@@ -5,7 +5,8 @@ node_modules/
 .wrangler/
 *.sqlite
 data.json
-migration.sql
+seed.sql
+prod_backup.sql
 migrate.js
 local-data.json
 
@@ -15,3 +16,6 @@ local-data.json
 
 # Build
 dist/
+
+# Claude Code
+CLAUDE.md

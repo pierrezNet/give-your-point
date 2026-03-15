@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Donne Ton Point</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/styles.css">
     <script src="app.js"></script>
     <style>
         /* --- 1. CARTES UTILISATEURS & INTERACTIONS --- */
@@ -83,7 +83,97 @@
             mix-blend-mode: normal;
         }
 
-        /* --- 6. TOASTS & NOTIFICATIONS --- */
+        /* --- 6. HEADER ANIMÉ --- */
+        header {
+            background: linear-gradient(135deg, #1e3a8a, #2563eb, #4f46e5, #7c3aed, #2563eb);
+            background-size: 300% 300%;
+            animation: gradient-shift 8s ease infinite;
+        }
+        @keyframes gradient-shift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        .header-emoji {
+            display: inline-block;
+            animation: emoji-bounce 3s ease-in-out infinite;
+        }
+        @keyframes emoji-bounce {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            30% { transform: translateY(-5px) rotate(-12deg); }
+            60% { transform: translateY(-2px) rotate(6deg); }
+        }
+        .header-title {
+            background: linear-gradient(90deg, #fff 0%, #bfdbfe 40%, #e0e7ff 60%, #fff 100%);
+            background-size: 200% auto;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: shimmer 4s linear infinite;
+        }
+        .header-username {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: rgba(255,255,255,0.15);
+            border: 1px solid rgba(255,255,255,0.25);
+            color: #fff;
+            font-size: 0.8rem;
+            font-weight: 700;
+            padding: 0.25rem 0.75rem 0.25rem 0.3rem;
+            border-radius: 9999px;
+        }
+        .header-username-avatar {
+            width: 1.4rem;
+            height: 1.4rem;
+            background: rgba(255,255,255,0.25);
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.65rem;
+            font-weight: 900;
+            color: #fff;
+            flex-shrink: 0;
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% center; }
+            100% { background-position: -200% center; }
+        }
+
+        /* --- MENU NAVIGATION --- */
+        .nav-btn {
+            color: rgba(255,255,255,0.8);
+            font-size: 0.8rem;
+            font-weight: 700;
+            padding: 0.4rem 0.9rem;
+            border-radius: 9999px;
+            border: 1px solid rgba(255,255,255,0.25);
+            background: rgba(255,255,255,0.1);
+            cursor: pointer;
+            transition: background 0.2s, color 0.2s;
+        }
+        .nav-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
+        .nav-btn-admin {
+            color: #fde68a;
+            font-size: 0.8rem;
+            font-weight: 800;
+            padding: 0.4rem 0.9rem;
+            border-radius: 9999px;
+            border: 1px solid rgba(253,230,138,0.4);
+            background: rgba(253,230,138,0.1);
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+        .nav-btn-admin:hover { background: rgba(253,230,138,0.2); }
+        #mobile-menu {
+            transform-origin: top right;
+            transition: opacity 0.15s ease, transform 0.15s ease;
+        }
+        #mobile-menu.hidden { opacity: 0; pointer-events: none; transform: scale(0.95); }
+        #mobile-menu.open { opacity: 1; pointer-events: auto; transform: scale(1); }
+
+        /* --- 7. TOASTS & NOTIFICATIONS --- */
         #undo-toast {
             animation: slideInUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
@@ -102,8 +192,37 @@
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen p-2 sm:p-4 lg:p-8"">
-    <header class="flex justify-between items-center mb-2 lg:mb-8 bg-white rounded-xl shadow-sm p-2 lg:p-2">
-        <h1 class="text-xl lg:text-2xl font-black text-blue-600">🎯 Donne Ton Point <span id="current-user-display" class="text-gray-500">Connexion en cours...</span></h1>
+    <header class="relative flex justify-between items-center mb-2 lg:mb-8 rounded-xl shadow-lg p-3 lg:p-4">
+        <h1 class="text-md lg:text-2xl font-black flex items-center gap-2">
+            <span class="header-emoji">🎯</span>
+            <span class="header-title">Donne Ton Point</span>
+            <span class="header-username" id="current-user-display">
+                <span class="header-username-avatar" id="current-user-avatar">?</span>
+                <span id="current-user-name">Connexion en cours...</span>
+            </span>
+        </h1>
+
+        <!-- Navigation desktop -->
+        <nav class="hidden md:flex items-center gap-2">
+            <button onclick="showAbout()" class="nav-btn">À propos</button>
+            <button onclick="showHelp()" class="nav-btn">Aide</button>
+            <a href="/admin" class="nav-btn-admin">Admin 🔐</a>
+        </nav>
+
+        <!-- Hamburger mobile -->
+        <button onclick="toggleMenu()" id="menu-toggle"
+                class="md:hidden flex flex-col justify-center items-center w-9 h-9 gap-1.5 rounded-lg border border-white/25 bg-white/10 hover:bg-white/20 transition-colors">
+            <span class="block w-5 h-0.5 bg-white rounded-full"></span>
+            <span class="block w-5 h-0.5 bg-white rounded-full"></span>
+            <span class="block w-4 h-0.5 bg-white rounded-full self-end"></span>
+        </button>
+
+        <!-- Dropdown mobile -->
+        <div id="mobile-menu" class="hidden absolute top-full right-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-50 p-2 flex flex-col gap-1">
+            <button onclick="showAbout(); toggleMenu()" class="text-left px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">À propos</button>
+            <button onclick="showHelp(); toggleMenu()" class="text-left px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">Aide</button>
+            <a href="/admin" class="px-4 py-3 rounded-xl text-sm font-bold text-yellow-600 hover:bg-yellow-50 transition-colors">Admin 🔐</a>
+        </div>
     </header>
     <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
         <div class="md:col-span-1">

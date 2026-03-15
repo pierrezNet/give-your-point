@@ -1,5 +1,68 @@
 let selectedCategoryId = null;
 let lastPointId = null;
+let isModalOpen = false;
+let isTransitioning = false;
+
+function toggleMenu() {
+    const menu = document.getElementById('mobile-menu');
+    if (!menu) return;
+    const isOpen = menu.classList.contains('open');
+    menu.classList.toggle('hidden', isOpen);
+    menu.classList.toggle('open', !isOpen);
+}
+
+document.addEventListener('click', (e) => {
+    const menu = document.getElementById('mobile-menu');
+    const toggle = document.getElementById('menu-toggle');
+    if (menu && toggle && !menu.contains(e.target) && !toggle.contains(e.target)) {
+        menu.classList.add('hidden');
+        menu.classList.remove('open');
+    }
+});
+
+function showAbout() {
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="about-modal" class="fixed inset-0 bg-black/85 flex items-center justify-center z-[100] p-4"
+             onclick="if(event.target===this){this.remove();isModalOpen=false;}">
+            <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-in fade-in zoom-in duration-200">
+                <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
+                    <h2 class="text-xl font-black text-slate-800">À propos 🎯</h2>
+                    <button onclick="document.getElementById('about-modal').remove();isModalOpen=false;" class="text-slate-400 hover:text-slate-600 text-3xl leading-none">&times;</button>
+                </div>
+                <p class="text-sm text-slate-600 mb-3">
+                    <b>Donne Ton Point</b> est un outil de gamification interne pour célébrer (et taquiner) les comportements de l'équipe.
+                </p>
+                <p class="text-sm text-slate-600 mb-3">
+                    Chaque collègue peut offrir des badges dans différentes catégories. Quand un seuil est atteint… un gage s'impose !
+                </p>
+                <p class="text-xs text-slate-400 mt-4 italic">Fait avec ❤️ pour l'équipe par Emmanuel et Claude.</p>
+            </div>
+        </div>
+    `);
+    isModalOpen = true;
+}
+
+function showHelp() {
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="help-modal" class="fixed inset-0 bg-black/85 flex items-center justify-center z-[100] p-4"
+             onclick="if(event.target===this){this.remove();isModalOpen=false;}">
+            <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-in fade-in zoom-in duration-200">
+                <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
+                    <h2 class="text-xl font-black text-slate-800">Comment ça marche ? 💡</h2>
+                    <button onclick="document.getElementById('help-modal').remove();isModalOpen=false;" class="text-slate-400 hover:text-slate-600 text-3xl leading-none">&times;</button>
+                </div>
+                <ol class="text-sm text-slate-600 space-y-3 list-none">
+                    <li class="flex gap-3"><span class="font-black text-blue-500 shrink-0">1.</span> Sélectionne une catégorie dans la colonne de gauche.</li>
+                    <li class="flex gap-3"><span class="font-black text-blue-500 shrink-0">2.</span> Clique sur la carte d'un collègue pour lui offrir le badge.</li>
+                    <li class="flex gap-3"><span class="font-black text-blue-500 shrink-0">3.</span> Sur mobile, appuie sur la catégorie puis choisis ton collègue.</li>
+                    <li class="flex gap-3"><span class="font-black text-blue-500 shrink-0">4.</span> Tu as 15 secondes pour annuler via le bouton qui apparaît.</li>
+                    <li class="flex gap-3"><span class="font-black text-orange-500 shrink-0">⚠️</span> Quand le seuil d'une catégorie est atteint, un gage s'active !</li>
+                </ol>
+            </div>
+        </div>
+    `);
+    isModalOpen = true;
+}
 
 function handleAuth() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -20,12 +83,7 @@ function handleAuth() {
 async function loadCategories() {
     const catList = document.getElementById('categories-list');
     
-    // Sécurité : on sort si l'élément n'existe pas encore
     if (!catList) return;
-    /*if (!catList) {
-        console.warn("⚠️ L'élément 'categories-list' n'a pas été trouvé dans le HTML.");
-        return;
-    }*/
 
     const res = await fetch('/api/categories');
     const categories = await res.json();
@@ -58,8 +116,8 @@ function renderUsers(users) {
         div.style.viewTransitionName = `card-${user.id}`;
         
         // Style de la carte : si c'est moi, on grise et on désactive le curseur
-        div.className = `user-card relative bg-white p-2 lg:p-3 rounded-2xl shadow-sm border-2 transition-all flex flex-col items-center text-center 
-            ${isMe ? 'cursor-not-allowed hover:bg-red-100' : 'cursor-pointer hover:shadow-md border-transparent'}`;
+        div.className = `user-card relative bg-white p-2 lg:p-3 rounded-2xl shadow-sm border-2 transition-all flex flex-col items-center text-center
+            ${isMe ? 'cursor-not-allowed border-slate-200 hover:bg-red-50' : 'cursor-pointer hover:shadow-md border-transparent'}`;
         
         div.innerHTML = `
             <button onclick="showHistory(event, '${user.id}', '${user.name}')" 
@@ -160,10 +218,12 @@ async function openUserSelector(catId, emoji) {
 
     const overlay = document.createElement('div');
     overlay.id = 'wheel-selector';
-    overlay.className = "fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[300] flex items-center justify-center p-4";
+    overlay.className = "fixed inset-0 bg-slate-900/85 z-[300] flex items-center justify-center p-4";
     
     // On filtre pour ne pas s'auto-mousser
     const otherUsers = users.filter(u => String(u.id) !== String(myId));
+
+    isModalOpen = true;
 
     overlay.innerHTML = `
         <div class="bg-white rounded-[40px] w-full max-w-sm p-6 animate-pop shadow-2xl text-center">
@@ -184,7 +244,7 @@ async function openUserSelector(catId, emoji) {
                 `).join('')}
             </div>
 
-            <button onclick="document.getElementById('wheel-selector').remove()" 
+            <button onclick="document.getElementById('wheel-selector').remove(); isModalOpen = false;"
                     class="text-slate-400 font-bold text-xs uppercase tracking-widest py-2">
                 Annuler
             </button>
@@ -204,6 +264,7 @@ window.sendPointAndClose = async (userId, catId) => {
     await new Promise(resolve => setTimeout(resolve, 200));
 
     selector.remove();
+    isModalOpen = false;
 
     requestAnimationFrame(async () => {
         const cardMock = document.createElement('div');
@@ -225,41 +286,23 @@ async function addPoint(userId, cardEl, catId) {
         });
 
         if (res.ok) {
-            // 1. Nettoyage immédiat
             selectedCategoryId = null;
             clearSelection();
             if (document.activeElement) document.activeElement.blur();
 
-            // 2. Animation de succès
             cardEl.classList.add('ring-4', 'ring-green-500');
-
-            showToast("Point envoyé !", 'success');  
-
-            // 3. MISE À JOUR SYNCHRONE
-            await updateAllData(); 
+            showToast("Point envoyé !", 'success');
+            await updateAllData();
 
             setTimeout(() => {
                 cardEl.classList.remove('ring-4', 'ring-green-500');
             }, 500);
-        }
-        if (!res.ok) {
+        } else {
             const errorData = await res.json();
-            // On utilise le système de toast
             showToast(errorData.error || "Une erreur est survenue", "bg-orange-500");
-            
-            // On nettoie quand même la sélection pour ne pas rester bloqué
             selectedCategoryId = null;
             clearSelection();
-            return; 
         }
-        selectedCategoryId = null;
-        clearSelection();
-        cardEl.classList.add('ring-4', 'ring-green-500'); 
-        await updateAllData(); 
-
-        setTimeout(() => {
-            cardEl.classList.remove('ring-4', 'ring-green-500');
-        }, 500);
     } catch (e) {
         console.error("Erreur réseau :", e);
         showToast("Impossible de contacter le serveur", "bg-red-600");
@@ -300,27 +343,23 @@ function showToast(message, type = 'success') {
 
 async function updateAllData() {
     try {
-        const [statsRes, leaderboardRes] = await Promise.all([
-            fetch('/api/users-stats'),
-            fetch('/api/leaderboard')
-        ]);
-
-        // Si l'une des deux requêtes a échoué (404, 500, etc.)
-        if (!statsRes.ok || !leaderboardRes.ok) {
-            throw new Error(`Erreur Serveur: Stats(${statsRes.status}) Leaderboard(${leaderboardRes.status})`);
-        }
-
+        const statsRes = await fetch('/api/users-stats');
+        if (!statsRes.ok) throw new Error(`Erreur Serveur: Stats(${statsRes.status})`);
         const users = await statsRes.json();
-        const leaderboard = await leaderboardRes.json();
 
         if (document.startViewTransition) {
-            document.startViewTransition(() => {
+            isTransitioning = true;
+            const t = document.startViewTransition(() => {
                 renderUsers(users);
-                renderLeaderboardUI(leaderboard);
+                renderLeaderboardUI(users);
             });
+            t.finished.catch(() => {
+                renderUsers(users);
+                renderLeaderboardUI(users);
+            }).finally(() => { isTransitioning = false; });
         } else {
             renderUsers(users);
-            renderLeaderboardUI(leaderboard);
+            renderLeaderboardUI(users);
         }
     } catch (err) {
         console.error("Erreur lors de la mise à jour :", err);
@@ -368,14 +407,16 @@ async function showHistory(event, userId, userName) {
                 return `${dayMonth} à ${time}`;
             }
         }
+        
+        isModalOpen = true;
 
         const historyHtml = `
-            <div id="history-modal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm" 
-                 onclick="if(event.target === this) this.remove()">
+            <div id="history-modal" class="fixed inset-0 bg-black/85 flex items-center justify-center z-[100] p-4"
+                 onclick="if(event.target === this) { this.remove(); isModalOpen = false; }">
                 <div class="bg-white rounded-3xl p-6 max-w-md w-full max-h-[85vh] overflow-y-auto shadow-2xl animate-in fade-in zoom-in duration-200">
                     <div class="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
                         <h2 class="text-xl font-black text-slate-800">Historique de ${userName}</h2>
-                        <button onclick="document.getElementById('history-modal').remove()" class="text-slate-400 hover:text-slate-600 text-3xl leading-none">&times;</button>
+                        <button onclick="document.getElementById('history-modal').remove(); isModalOpen = false;" class="text-slate-400 hover:text-slate-600 text-3xl leading-none">&times;</button>
                     </div>
                     
                     <h3 class="font-black text-[10px] uppercase tracking-widest text-blue-500 mb-4 flex items-center gap-2">
@@ -396,11 +437,24 @@ async function showHistory(event, userId, userName) {
                     <div class="space-y-3">
                         ${data.given.length > 0 ? data.given.map(p => `
                             <div class="flex items-center justify-between text-sm bg-emerald-50/30 p-3 rounded-xl border border-emerald-100">
-                                <span class="text-slate-700">Offert ${p.emoji} <span class="text-slate-400 text-xs">à</span> ${p.to_name}</span>
+                                <span class="text-slate-700">Offert ${p.emoji} <b>${p.cat_name}</b> <span class="text-slate-400 text-xs">à</span> ${p.to_name}</span>
                                 <span class="text-[10px] font-bold text-emerald-600/50 bg-white px-2 py-1 rounded-md shadow-sm">${formatSmartDate(p.created_at)}</span>
                             </div>
                         `).join('') : '<p class="text-xs italic text-slate-400 py-2 text-center">Aucun point donné pour le moment</p>'}
                     </div>
+
+                    ${data.dares && data.dares.length > 0 ? `
+                    <h3 class="font-black text-[10px] uppercase tracking-widest text-orange-500 mb-4 mt-8 flex items-center gap-2">
+                        <span class="w-2 h-2 bg-orange-500 rounded-full"></span> Gages accomplis
+                    </h3>
+                    <div class="space-y-3">
+                        ${data.dares.map(d => `
+                            <div class="flex items-center justify-between text-sm bg-orange-50 p-3 rounded-xl border border-orange-100">
+                                <span class="text-slate-700">${d.emoji} <b>${d.dare_text}</b></span>
+                                <span class="text-[10px] font-bold text-orange-400 bg-white px-2 py-1 rounded-md shadow-sm">${formatSmartDate(d.cleared_at)}</span>
+                            </div>
+                        `).join('')}
+                    </div>` : ''}
                 </div>
             </div>
         `;
@@ -419,8 +473,7 @@ async function undoLastPoint() {
     });
 
     if (res.ok) {
-        // On cache le toast
-        const toast = document.getElementById('undo-toast');
+        const toast = document.getElementById('toast-notification');
         if (toast) toast.remove();
         // On rafraîchit les scores
         await updateAllData();
@@ -440,20 +493,35 @@ async function init() {
     }
 
     const userName = localStorage.getItem('my_user_name');
-    const displayEl = document.getElementById('current-user-display');
-    if (displayEl && userName) {
-        displayEl.innerText = userName;
+    const nameEl = document.getElementById('current-user-name');
+    const avatarEl = document.getElementById('current-user-avatar');
+    if (nameEl && userName) {
+        nameEl.innerText = userName;
+        if (avatarEl) avatarEl.innerText = userName[0].toUpperCase();
     }
 
     await Promise.all([
         loadCategories(),
         updateAllData()
     ]);
+    startEventSource();
 }
 
-setInterval(() => {
-    updateAllData();
-}, 30000);
+function startEventSource() {
+    const source = new EventSource('/api/events');
+
+    source.addEventListener('stats', (e) => {
+        if (isModalOpen || isTransitioning) return;
+        const users = JSON.parse(e.data);
+        renderUsers(users);
+        renderLeaderboardUI(users);
+    });
+
+    source.onerror = () => {
+        source.close();
+        setTimeout(startEventSource, 5000);
+    };
+}
 
 // Lancement
 if (document.readyState === 'loading') {
