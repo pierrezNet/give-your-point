@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stats — Donne Ton Point</title>
+    <link rel="stylesheet" href="/styles.css">
+    <style>
+        header {
+            background: linear-gradient(135deg, #1e3a8a, #2563eb, #4f46e5, #7c3aed, #2563eb);
+            background-size: 300% 300%;
+            animation: gradient-shift 8s ease infinite;
+        }
+        @keyframes gradient-shift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        .bar-fill { transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+        .week-bar { transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+        .heatmap-cell {
+            transition: transform 0.15s;
+        }
+        .heatmap-cell:hover { transform: scale(1.15); z-index: 10; position: relative; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen p-2 sm:p-4 lg:p-8">
+
+    <header class="relative flex justify-between items-center mb-6 rounded-xl shadow-lg p-3 lg:p-4">
+        <h1 class="text-xl lg:text-2xl font-black text-white flex items-center gap-2">
+            📊 <span>Statistiques</span>
+        </h1>
+        <a href="/" class="text-white/80 hover:text-white text-sm font-bold border border-white/25 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-full transition-colors">← Retour</a>
+    </header>
+
+    <div id="stats-content" class="space-y-6">
+        <div class="text-center py-20 text-slate-400 font-bold">Chargement des statistiques...</div>
+    </div>
+
+    <script>
+        async function loadStats() {
+            const res = await fetch('/api/stats');
+            if (!res.ok) { document.getElementById('stats-content').innerHTML = '<p class="text-center text-red-500">Erreur de chargement</p>'; return; }
+            const data = await res.json();
+            render(data);
+        }
+
+        function bar(value, max, color = 'bg-blue-500') {
+            const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+            return `
+                <div class="flex-1 bg-slate-100 rounded-full h-3 overflow-hidden">
+                    <div class="bar-fill ${color} h-3 rounded-full" style="width:0%" data-pct="${pct}"></div>
+                </div>`;
+        }
+
+        function render(data) {
+            const maxGiver    = data.givers[0]?.total || 1;
+            const maxReceiver = data.receivers[0]?.total || 1;
+            const maxCat      = data.categories[0]?.total || 1;
+            const maxWeek     = Math.max(...data.evolution.map(e => e.total), 1);
+
+            // Heatmap : liste des noms uniques
+            const names = [...new Set([
+                ...data.matrix.map(m => m.from_name),
+                ...data.matrix.map(m => m.to_name)
+            ])].sort();
+            const matrixMap = {};
+            data.matrix.forEach(m => { matrixMap[`${m.from_name}|${m.to_name}`] = m.total; });
+            const maxCell = Math.max(...data.matrix.map(m => m.total), 1);
+
+            document.getElementById('stats-content').innerHTML = `
+
+                <!-- KPIs -->
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    ${kpi('🎯', 'Points distribués', data.totalPoints, 'bg-blue-600')}
+                    ${kpi('🏆', 'Plus récompensé', data.receivers[0]?.name || '—', 'bg-yellow-500', data.receivers[0]?.total + ' pts')}
+                    ${kpi('🎁', 'Plus généreux', data.givers[0]?.name || '—', 'bg-emerald-500', data.givers[0]?.total + ' donnés')}
+                    ${kpi('🔥', 'Catégorie #1', (data.categories[0]?.emoji || '') + ' ' + (data.categories[0]?.name || '—'), 'bg-orange-500', data.categories[0]?.total + ' fois')}
+                </div>
+
+                <!-- Top donateurs / receveurs -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                        <h2 class="font-black text-slate-800 mb-4 flex items-center gap-2">
+                            <span class="w-2 h-5 bg-emerald-500 rounded-full"></span> Top donateurs
+                        </h2>
+                        <div class="space-y-3">
+                            ${data.givers.map((u, i) => `
+                                <div class="flex items-center gap-3">
+                                    <span class="text-xs font-black text-slate-400 w-5">#${i+1}</span>
+                                    <span class="text-sm font-bold text-slate-700 w-24 truncate">${u.name}</span>
+                                    ${bar(u.total, maxGiver, 'bg-emerald-400')}
+                                    <span class="text-sm font-black text-emerald-600 w-8 text-right">${u.total}</span>
+                                </div>`).join('')}
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                        <h2 class="font-black text-slate-800 mb-4 flex items-center gap-2">
+                            <span class="w-2 h-5 bg-blue-500 rounded-full"></span> Top receveurs
+                        </h2>
+                        <div class="space-y-3">
+                            ${data.receivers.map((u, i) => `
+                                <div class="flex items-center gap-3">
+                                    <span class="text-xs font-black text-slate-400 w-5">#${i+1}</span>
+                                    <span class="text-sm font-bold text-slate-700 w-24 truncate">${u.name}</span>
+                                    ${bar(u.total, maxReceiver, 'bg-blue-400')}
+                                    <span class="text-sm font-black text-blue-600 w-8 text-right">${u.total}</span>
+                                </div>`).join('')}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Catégories -->
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                    <h2 class="font-black text-slate-800 mb-4 flex items-center gap-2">
+                        <span class="w-2 h-5 bg-purple-500 rounded-full"></span> Catégories
+                    </h2>
+                    <div class="space-y-3">
+                        ${data.categories.map(c => `
+                            <div class="flex items-center gap-3">
+                                <span class="text-lg w-7 text-center">${c.emoji}</span>
+                                <span class="text-sm font-bold text-slate-700 w-32 truncate">${c.name}</span>
+                                ${bar(c.total, maxCat, 'bg-purple-400')}
+                                <span class="text-sm font-black text-purple-600 w-8 text-right">${c.total}</span>
+                            </div>`).join('')}
+                    </div>
+                </div>
+
+                <!-- Évolution -->
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                    <h2 class="font-black text-slate-800 mb-6 flex items-center gap-2">
+                        <span class="w-2 h-5 bg-indigo-500 rounded-full"></span> Évolution (12 semaines)
+                    </h2>
+                    <div class="flex items-end gap-2 h-32">
+                        ${data.evolution.map(w => {
+                            const pct = Math.round((w.total / maxWeek) * 100);
+                            const label = w.week.split('-W')[1] ? 'S' + w.week.split('-W')[1] : w.week;
+                            return `
+                                <div class="flex-1 flex flex-col items-center gap-1">
+                                    <span class="text-[10px] font-black text-indigo-600">${w.total}</span>
+                                    <div class="w-full bg-slate-100 rounded-t-md flex items-end" style="height:100px">
+                                        <div class="week-bar w-full bg-indigo-400 rounded-t-md" style="height:0%" data-pct="${pct}"></div>
+                                    </div>
+                                    <span class="text-[9px] text-slate-400 font-bold">${label}</span>
+                                </div>`;
+                        }).join('')}
+                    </div>
+                </div>
+
+                <!-- Heatmap -->
+                ${names.length > 1 ? `
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 overflow-x-auto">
+                    <h2 class="font-black text-slate-800 mb-4 flex items-center gap-2">
+                        <span class="w-2 h-5 bg-rose-500 rounded-full"></span> Qui donne à qui
+                    </h2>
+                    <p class="text-xs text-slate-400 mb-4">Ligne = donneur · Colonne = receveur</p>
+                    <table class="text-[11px] border-collapse">
+                        <thead>
+                            <tr>
+                                <th class="p-1 w-20"></th>
+                                ${names.map(n => `<th class="p-1 text-center font-bold text-slate-500 max-w-12"><div class="rotate-[-45deg] origin-left translate-x-3 whitespace-nowrap">${n.split(' ')[0]}</div></th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${names.map(from => `
+                                <tr>
+                                    <td class="p-1 font-bold text-slate-600 pr-3 whitespace-nowrap">${from.split(' ')[0]}</td>
+                                    ${names.map(to => {
+                                        const val = from === to ? null : (matrixMap[`${from}|${to}`] || 0);
+                                        if (val === null) return `<td class="p-1"><div class="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-300">—</div></td>`;
+                                        const alpha = val > 0 ? 0.15 + (val / maxCell) * 0.75 : 0;
+                                        const textColor = alpha > 0.5 ? 'text-white' : 'text-rose-700';
+                                        return `<td class="p-1">
+                                            <div class="heatmap-cell w-8 h-8 rounded flex items-center justify-center font-black ${textColor} cursor-default"
+                                                 style="background:rgba(244,63,94,${alpha})"
+                                                 title="${from} → ${to} : ${val} point(s)">
+                                                ${val > 0 ? val : ''}
+                                            </div>
+                                        </td>`;
+                                    }).join('')}
+                                </tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>` : ''}
+            `;
+
+            // Animer les barres après insertion
+            requestAnimationFrame(() => {
+                document.querySelectorAll('.bar-fill').forEach(el => {
+                    el.style.width = el.dataset.pct + '%';
+                });
+                document.querySelectorAll('.week-bar').forEach(el => {
+                    el.style.height = el.dataset.pct + '%';
+                });
+            });
+        }
+
+        function kpi(emoji, label, value, color, sub = '') {
+            return `
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col gap-1">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="w-2 h-2 rounded-full ${color}"></span>
+                        <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">${label}</span>
+                    </div>
+                    <span class="text-2xl font-black text-slate-800">${value}</span>
+                    ${sub ? `<span class="text-xs text-slate-400">${sub}</span>` : ''}
+                </div>`;
+        }
+
+        loadStats();
+    </script>
+</body>
+</html>

@@ -141,6 +141,50 @@ app.get('/api/users-stats', async (c) => {
   }
 });
 
+app.get('/api/stats', async (c) => {
+  const [giversRes, receiversRes, catsRes, matrixRes, evolutionRes] = await Promise.all([
+    c.env.DB.prepare(`
+      SELECT u.name, COUNT(*) as total
+      FROM points_log p JOIN users u ON p.from_user_id = u.id
+      WHERE u.active = 1 GROUP BY p.from_user_id ORDER BY total DESC LIMIT 10
+    `).all(),
+    c.env.DB.prepare(`
+      SELECT u.name, COUNT(*) as total
+      FROM points_log p JOIN users u ON p.to_user_id = u.id
+      WHERE u.active = 1 GROUP BY p.to_user_id ORDER BY total DESC LIMIT 10
+    `).all(),
+    c.env.DB.prepare(`
+      SELECT c.name, c.emoji, COUNT(*) as total
+      FROM points_log p JOIN categories c ON p.category_id = c.id
+      GROUP BY p.category_id ORDER BY total DESC
+    `).all(),
+    c.env.DB.prepare(`
+      SELECT u_from.name as from_name, u_to.name as to_name, COUNT(*) as total
+      FROM points_log p
+      JOIN users u_from ON p.from_user_id = u_from.id
+      JOIN users u_to ON p.to_user_id = u_to.id
+      WHERE u_from.active = 1 AND u_to.active = 1
+      GROUP BY p.from_user_id, p.to_user_id
+    `).all(),
+    c.env.DB.prepare(`
+      SELECT strftime('%Y-%W', created_at) as week, COUNT(*) as total
+      FROM points_log GROUP BY week ORDER BY week DESC LIMIT 12
+    `).all(),
+  ]);
+
+  const receivers = receiversRes.results || [];
+  const totalPoints = receivers.reduce((sum: number, u: any) => sum + u.total, 0);
+
+  return c.json({
+    totalPoints,
+    givers: giversRes.results || [],
+    receivers,
+    categories: catsRes.results || [],
+    matrix: matrixRes.results || [],
+    evolution: (evolutionRes.results || []).reverse(),
+  });
+});
+
 app.get('/api/events', async (c) => {
   return streamSSE(c, async (stream) => {
     const send = async () => {
@@ -206,7 +250,7 @@ app.patch('/api/admin/users/:id/restore', isAdmin, async (c) => {
 app.post('/api/admin/users', isAdmin, async (c) => {
   const { name } = await c.req.json();
   const id = crypto.randomUUID();
-  const token = crypto.randomUUID().split('-')[0];
+  const token = crypto.randomUUID();
   await c.env.DB.prepare("INSERT INTO users (id, name, token) VALUES (?, ?, ?)")
     .bind(id, name, token).run();
   return c.json({ success: true });
@@ -299,6 +343,15 @@ app.post('/api/admin/rules', isAdmin, async (c) => {
 app.delete('/api/admin/rules/:id', isAdmin, async (c) => {
   const id = c.req.param('id');
   await c.env.DB.prepare("DELETE FROM dare_rules WHERE id = ?").bind(id).run();
+  return c.json({ success: true });
+});
+
+app.patch('/api/admin/rules/:id', isAdmin, async (c) => {
+  const id = c.req.param('id');
+  const { threshold, dare_text } = await c.req.json();
+  await c.env.DB.prepare(
+    "UPDATE dare_rules SET threshold = ?, dare_text = ? WHERE id = ?"
+  ).bind(threshold, dare_text, id).run();
   return c.json({ success: true });
 });
 

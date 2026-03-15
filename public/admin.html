@@ -381,11 +381,46 @@
             const list = document.getElementById('rules-list');
             
             list.innerHTML = rules.map(r => `
-                <div class="flex justify-between items-center p-3 bg-white border border-slate-100 rounded-lg shadow-sm">
-                    <span class="text-sm">Si <b>${r.cat_emoji} ${r.cat_name}</b> atteint <b>${r.threshold}</b> → <span class="text-orange-600 font-bold">${r.dare_text}</span></span>
-                    <button onclick="deleteRule('${r.id}')" class="text-red-400 hover:text-red-600 text-xs font-bold">Supprimer</button>
+                <div id="rule-row-${r.id}" class="p-3 bg-white border border-slate-100 rounded-lg shadow-sm">
+                    <div class="rule-display flex justify-between items-center">
+                        <span class="text-sm">Si <b>${r.cat_emoji} ${r.cat_name}</b> atteint <b>${r.threshold}</b> → <span class="text-orange-600 font-bold">${r.dare_text}</span></span>
+                        <div class="flex gap-3 shrink-0 ml-3">
+                            <button onclick="editRule('${r.id}', ${r.threshold}, \`${r.dare_text}\`)" class="text-blue-400 hover:text-blue-600 text-xs font-bold">Modifier</button>
+                            <button onclick="deleteRule('${r.id}')" class="text-red-400 hover:text-red-600 text-xs font-bold">Supprimer</button>
+                        </div>
+                    </div>
+                    <div class="rule-edit hidden mt-2 flex gap-2 items-center">
+                        <input type="number" id="edit-threshold-${r.id}" class="w-20 p-2 rounded-lg border text-sm" value="${r.threshold}">
+                        <input type="text" id="edit-text-${r.id}" class="flex-1 p-2 rounded-lg border text-sm" value="${r.dare_text}">
+                        <button onclick="saveRule('${r.id}')" class="bg-orange-600 text-white px-3 py-2 rounded-lg text-xs font-bold">OK</button>
+                        <button onclick="cancelEdit('${r.id}')" class="text-slate-400 text-xs font-bold">Annuler</button>
+                    </div>
                 </div>
             `).join('');
+        }
+
+        function editRule(id) {
+            const row = document.getElementById(`rule-row-${id}`);
+            row.querySelector('.rule-display').classList.add('hidden');
+            row.querySelector('.rule-edit').classList.remove('hidden');
+        }
+
+        function cancelEdit(id) {
+            const row = document.getElementById(`rule-row-${id}`);
+            row.querySelector('.rule-display').classList.remove('hidden');
+            row.querySelector('.rule-edit').classList.add('hidden');
+        }
+
+        async function saveRule(id) {
+            const threshold = document.getElementById(`edit-threshold-${id}`).value;
+            const dare_text = document.getElementById(`edit-text-${id}`).value;
+            if (!dare_text || !threshold) return;
+            await adminFetch(`/api/admin/rules/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ threshold, dare_text })
+            });
+            loadRules();
         }
 
         async function deleteRule(id) {
