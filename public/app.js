@@ -22,7 +22,7 @@ document.addEventListener('click', (e) => {
 
 function showAbout() {
     document.body.insertAdjacentHTML('beforeend', `
-        <div id="about-modal" class="fixed inset-0 bg-black/85 flex items-center justify-center z-[100] p-4"
+        <div id="about-modal" class="fixed inset-0 bg-black/85 flex items-center justify-center z-100 p-4"
              onclick="if(event.target===this){this.remove();isModalOpen=false;}">
             <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-in fade-in zoom-in duration-200">
                 <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
@@ -44,7 +44,7 @@ function showAbout() {
 
 function showHelp() {
     document.body.insertAdjacentHTML('beforeend', `
-        <div id="help-modal" class="fixed inset-0 bg-black/85 flex items-center justify-center z-[100] p-4"
+        <div id="help-modal" class="fixed inset-0 bg-black/85 flex items-center justify-center z-100 p-4"
              onclick="if(event.target===this){this.remove();isModalOpen=false;}">
             <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-in fade-in zoom-in duration-200">
                 <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
@@ -127,7 +127,7 @@ function renderUsers(users) {
                 </svg>
             </button>
             <div class="rank-badge absolute top-3 right-3 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-sm"></div>
-            <div class="collapse lg:visible w-16 h-16 bg-gradient-to-br from-blue-100 to-blue-50 rounded-full mb-3 flex items-center justify-center text-blue-600 text-2xl font-bold border border-blue-100 shadow-inner">
+            <div class="collapse lg:visible w-16 h-16 bg-linear-to-br from-blue-100 to-blue-50 rounded-full mb-3 flex items-center justify-center text-blue-600 text-2xl font-bold border border-blue-100 shadow-inner">
                 ${(user.name || "U")[0].toUpperCase()}
             </div>
             <h3 class="font-bold text-gray-800 text-lg">${user.name} ${isMe ? '(Toi)' : ''}</h3>
@@ -411,7 +411,7 @@ async function showHistory(event, userId, userName) {
         isModalOpen = true;
 
         const historyHtml = `
-            <div id="history-modal" class="fixed inset-0 bg-black/85 flex items-center justify-center z-[100] p-4"
+            <div id="history-modal" class="fixed inset-0 bg-black/85 flex items-center justify-center z-100 p-4"
                  onclick="if(event.target === this) { this.remove(); isModalOpen = false; }">
                 <div class="bg-white rounded-3xl p-6 max-w-md w-full max-h-[85vh] overflow-y-auto shadow-2xl animate-in fade-in zoom-in duration-200">
                     <div class="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
