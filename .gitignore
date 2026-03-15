@@ -4,6 +4,7 @@ node_modules/
 # Données locales et DB (IMPORTANT)
 .wrangler/
 db_data/
+DB_FIX/
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
