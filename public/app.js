@@ -130,7 +130,7 @@ function renderUsers(users) {
             <div class="collapse lg:visible w-16 h-16 bg-linear-to-br from-blue-100 to-blue-50 rounded-full mb-3 flex items-center justify-center text-blue-600 text-2xl font-bold border border-blue-100 shadow-inner">
                 ${(user.name || "U")[0].toUpperCase()}
             </div>
-            <h3 class="font-bold text-gray-800 text-lg">${user.name} ${isMe ? '(Toi)' : ''}</h3>
+            <h3 class="font-bold text-gray-800 text-lg">${user.name} ${isMe ? '(toi)' : ''}</h3>
             <p class="user-points-total text-blue-600 font-black text-sm mb-3"></p>
             <div class="top-categories-container flex gap-2 mt-2"></div>
         `;
@@ -505,6 +505,7 @@ async function init() {
         updateAllData()
     ]);
     startEventSource();
+    initPushNotifications(); // fire-and-forget
 }
 
 function startEventSource() {
@@ -521,6 +522,54 @@ function startEventSource() {
         source.close();
         setTimeout(startEventSource, 5000);
     };
+}
+
+// === Push Notifications ===
+
+function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = atob(base64);
+    return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
+async function registerPushSubscription(subscription) {
+    const myId = localStorage.getItem('my_user_id');
+    if (!myId) return;
+    await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${myId}` },
+        body: JSON.stringify({ endpoint: subscription.endpoint, keys: subscription.toJSON().keys }),
+    });
+}
+
+async function initPushNotifications() {
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+    try {
+        const reg = await navigator.serviceWorker.register('/sw.js');
+
+        const vapidRes = await fetch('/api/push/vapid-key');
+        if (!vapidRes.ok) return;
+        const { publicKey } = await vapidRes.json();
+        if (!publicKey) return; // VAPID non configuré (local dev)
+
+        // Si déjà abonné, re-synchroniser avec le serveur
+        const existing = await reg.pushManager.getSubscription();
+        if (existing) { await registerPushSubscription(existing); return; }
+
+        // Demander la permission après 3 secondes pour ne pas être intrusif
+        setTimeout(async () => {
+            const permission = await Notification.requestPermission();
+            if (permission !== 'granted') return;
+            const subscription = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(publicKey),
+            });
+            await registerPushSubscription(subscription);
+        }, 3000);
+    } catch (e) {
+        console.log('Push non disponible:', e.message);
+    }
 }
 
 // Lancement

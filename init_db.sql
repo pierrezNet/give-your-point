@@ -4,6 +4,7 @@ PRAGMA foreign_keys = OFF;
 DROP TABLE IF EXISTS points_log;
 DROP TABLE IF EXISTS dare_log;
 DROP TABLE IF EXISTS dare_rules;
+DROP TABLE IF EXISTS push_subscriptions;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS categories;
 
@@ -44,6 +45,16 @@ CREATE TABLE dare_log (
     category_id TEXT,
     dare_text TEXT,
     cleared_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE push_subscriptions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,
+    endpoint TEXT NOT NULL,
+    p256dh TEXT NOT NULL,
+    auth TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, endpoint)
 );
 
 PRAGMA foreign_keys = ON;

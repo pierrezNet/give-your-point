@@ -5,6 +5,9 @@ import { streamSSE } from 'hono/streaming'
 type Bindings = {
   DB: D1Database
   ASSETS: Fetcher
+  VAPID_PUBLIC_KEY: string
+  VAPID_PRIVATE_KEY_JWK: string
+  VAPID_SUBJECT: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -60,6 +63,135 @@ async function getUsersStats(db: D1Database) {
              .map((u: any, index: number) => ({ ...u, rank: index + 1 }));
 }
 
+// === Push Notification Helpers (Web Crypto API, no npm needed) ===
+
+function b64url(buf: ArrayBuffer | Uint8Array): string {
+  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+function decodeb64url(s: string): Uint8Array {
+  const b64 = s.replace(/-/g, '+').replace(/_/g, '/').padEnd(s.length + (4 - s.length % 4) % 4, '=');
+  const binary = atob(b64);
+  return Uint8Array.from(binary, (c) => c.charCodeAt(0));
+}
+
+function concatBytes(...arrays: Uint8Array[]): Uint8Array {
+  const len = arrays.reduce((n, a) => n + a.length, 0);
+  const out = new Uint8Array(len);
+  let offset = 0;
+  for (const a of arrays) { out.set(a, offset); offset += a.length; }
+  return out;
+}
+
+async function hmacSha256(key: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
+  const k = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+  return new Uint8Array(await crypto.subtle.sign('HMAC', k, data));
+}
+
+async function hkdf(salt: Uint8Array, ikm: Uint8Array, info: Uint8Array, len: number): Promise<Uint8Array> {
+  const k = await crypto.subtle.importKey('raw', ikm, { name: 'HKDF' }, false, ['deriveBits']);
+  return new Uint8Array(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info }, k, len * 8));
+}
+
+async function encryptPushPayload(payload: string, p256dhB64url: string, authB64url: string): Promise<ArrayBuffer> {
+  const te = new TextEncoder();
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+
+  const receiverPubRaw = decodeb64url(p256dhB64url);
+  const receiverKey = await crypto.subtle.importKey('raw', receiverPubRaw, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+
+  const senderPair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']) as CryptoKeyPair;
+  const senderPubRaw = new Uint8Array(await crypto.subtle.exportKey('raw', senderPair.publicKey) as ArrayBuffer);
+
+  const ecdhBits = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: receiverKey } as any, senderPair.privateKey, 256));
+
+  // RFC 8291 key derivation
+  const authSecret = decodeb64url(authB64url);
+  const prk = await hmacSha256(authSecret, ecdhBits);
+  const ikm = await hmacSha256(prk, concatBytes(te.encode('WebPush: info\x00'), receiverPubRaw, senderPubRaw, new Uint8Array([1])));
+
+  const cek = await hkdf(salt, ikm, te.encode('Content-Encoding: aes128gcm\x00'), 16);
+  const nonce = await hkdf(salt, ikm, te.encode('Content-Encoding: nonce\x00'), 12);
+
+  const aesKey = await crypto.subtle.importKey('raw', cek, { name: 'AES-GCM' }, false, ['encrypt']);
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: nonce, tagLength: 128 },
+    aesKey,
+    concatBytes(te.encode(payload), new Uint8Array([2])) // payload + padding delimiter
+  ));
+
+  // RFC 8291 binary body: salt(16) | rs(4) | idlen(1) | sender_pub(65) | ciphertext
+  const header = new Uint8Array(21 + senderPubRaw.length);
+  header.set(salt, 0);
+  new DataView(header.buffer).setUint32(16, 4096, false);
+  header[20] = senderPubRaw.length;
+  header.set(senderPubRaw, 21);
+  return concatBytes(header, ciphertext).buffer as ArrayBuffer;
+}
+
+async function vapidJwt(endpoint: string, subject: string, privateKeyJwk: JsonWebKey): Promise<string> {
+  const te = new TextEncoder();
+  const url = new URL(endpoint);
+  const aud = `${url.protocol}//${url.host}`;
+  const exp = Math.floor(Date.now() / 1000) + 12 * 3600;
+
+  const header = b64url(te.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
+  const claims = b64url(te.encode(JSON.stringify({ aud, exp, sub: subject })));
+  const sigInput = `${header}.${claims}`;
+
+  const key = await crypto.subtle.importKey('jwk', privateKeyJwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
+  const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, te.encode(sigInput));
+  return `${sigInput}.${b64url(sig)}`;
+}
+
+async function sendPushToUser(env: Bindings, toUserId: string, fromUserName: string, categoryId: string): Promise<void> {
+  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY_JWK) return;
+
+  const [subsResult, catResult] = await Promise.all([
+    env.DB.prepare("SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?")
+      .bind(toUserId).all<{ id: number; endpoint: string; p256dh: string; auth: string }>(),
+    env.DB.prepare("SELECT name, emoji FROM categories WHERE id = ?")
+      .bind(categoryId).first<{ name: string; emoji: string }>(),
+  ]);
+
+  if (!subsResult.results?.length) return;
+
+  const privateKeyJwk: JsonWebKey = JSON.parse(
+    new TextDecoder().decode(decodeb64url(env.VAPID_PRIVATE_KEY_JWK))
+  );
+  const catStr = catResult ? `${catResult.emoji} ${catResult.name}` : 'un badge';
+  const payload = JSON.stringify({
+    title: '🎯 Donne Ton Point',
+    body: `${fromUserName} t'a donné un point pour ${catStr} !`,
+    url: '/',
+  });
+
+  await Promise.all(subsResult.results.map(async (sub) => {
+    try {
+      const jwt = await vapidJwt(sub.endpoint, env.VAPID_SUBJECT || 'mailto:admin@example.com', privateKeyJwk);
+      const encrypted = await encryptPushPayload(payload, sub.p256dh, sub.auth);
+      const res = await fetch(sub.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'Content-Encoding': 'aes128gcm',
+          'Authorization': `vapid t=${jwt},k=${env.VAPID_PUBLIC_KEY}`,
+          'TTL': '60',
+        },
+        body: encrypted,
+      });
+      if (res.status === 410 || res.status === 404) {
+        await env.DB.prepare("DELETE FROM push_subscriptions WHERE id = ?").bind(sub.id).run();
+      }
+    } catch (e) {
+      console.error('Push send error:', e);
+    }
+  }));
+}
+
 app.get('/api/me', async (c) => {
   const authHeader = c.req.header('Authorization');
   const token = authHeader?.replace('Bearer ', '');
@@ -102,9 +234,9 @@ app.post('/api/points', async (c) => {
     }
 
     // On cherche par ID
-    const fromUser = await c.env.DB.prepare("SELECT id, active FROM users WHERE id = ?")
+    const fromUser = await c.env.DB.prepare("SELECT id, name, active FROM users WHERE id = ?")
       .bind(fromUserId)
-      .first<{ id: string, active: number }>();
+      .first<{ id: string, name: string, active: number }>();
 
     if (!fromUser) {
       return c.json({ error: "Utilisateur non reconnu" }, 401);
@@ -123,6 +255,11 @@ app.post('/api/points', async (c) => {
     )
     .bind(fromUser.id, to_user_id, category_id)
     .run();
+
+    // Notification push non-bloquante
+    c.executionCtx.waitUntil(
+      sendPushToUser(c.env, to_user_id, fromUser.name, category_id).catch(() => {})
+    );
 
     return c.json({ success: true });
 
@@ -484,6 +621,25 @@ app.get('/api/admin/dare-log', isAdmin, async (c) => {
     LIMIT 50
   `).all();
   return c.json(results);
+});
+
+app.get('/api/push/vapid-key', async (c) => {
+  return c.json({ publicKey: c.env.VAPID_PUBLIC_KEY || null });
+});
+
+app.post('/api/push/subscribe', async (c) => {
+  const authHeader = c.req.header('Authorization');
+  const userId = authHeader?.replace('Bearer ', '');
+  if (!userId) return c.json({ error: 'Non autorisé' }, 401);
+
+  const { endpoint, keys } = await c.req.json();
+  await c.env.DB.prepare(`
+    INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
+    VALUES (?, ?, ?, ?)
+    ON CONFLICT(user_id, endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth
+  `).bind(userId, endpoint, keys.p256dh, keys.auth).run();
+
+  return c.json({ success: true });
 });
 
 app.get('/', async (c) => {
