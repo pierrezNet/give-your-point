@@ -3,7 +3,10 @@ node_modules/
 
 # Données locales et DB (IMPORTANT)
 .wrangler/
+db_data/
 *.sqlite
+*.sqlite-shm
+*.sqlite-wal
 data.json
 seed.sql
 prod_backup.sql
