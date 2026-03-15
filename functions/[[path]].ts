@@ -250,6 +250,15 @@ app.post('/api/points', async (c) => {
       return c.json({ error: "Interdit de s'auto-mousser ! 😅" }, 400);
     }
 
+    // Limite : 10 points donnés par jour
+    const todayCount = await c.env.DB.prepare(
+      "SELECT COUNT(*) as count FROM points_log WHERE from_user_id = ? AND created_at >= date('now')"
+    ).bind(fromUser.id).first<{ count: number }>();
+
+    if ((todayCount?.count ?? 0) >= 10) {
+      return c.json({ error: "Tu as distribué tes 10 points du jour ! Reviens demain 🌙" }, 429);
+    }
+
     await c.env.DB.prepare(
       'INSERT INTO points_log (from_user_id, to_user_id, category_id, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)'
     )

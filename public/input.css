@@ -1,1 +1,59 @@
 @import "tailwindcss";
+
+/* ============================================================
+   MODE SOMBRE — préférence système (prefers-color-scheme)
+   Les règles hors @layer priment sur les utilitaires Tailwind
+   ============================================================ */
+@media (prefers-color-scheme: dark) {
+  html { color-scheme: dark; }
+
+  /* Fond de page */
+  body { background-color: #0f172a; }
+
+  /* Surfaces */
+  .bg-white           { background-color: #1e293b; }
+  .bg-gray-50,
+  .bg-slate-50        { background-color: #283344; }
+  .bg-slate-100       { background-color: #334155; }  /* fond des barres de stats */
+  .bg-gray-100        { background-color: #0f172a; }
+
+  /* Textes */
+  .text-gray-800, .text-slate-800 { color: #f1f5f9; }
+  .text-gray-700, .text-slate-700 { color: #e2e8f0; }
+  .text-gray-600, .text-slate-600 { color: #cbd5e1; }
+  .text-gray-500, .text-slate-500 { color: #94a3b8; }
+  .text-gray-400, .text-slate-400 { color: #64748b; }
+
+  /* Bordures */
+  .border-slate-100, .border-gray-100 { border-color: #334155; }
+  .border-slate-200,  .border-gray-200 { border-color: #334155; }
+
+  /* Inputs (admin) */
+  input:not([type="checkbox"]):not([type="radio"]),
+  textarea,
+  select {
+    background-color: #0f172a;
+    color: #f1f5f9;
+    border-color: #475569;
+  }
+  input::placeholder,
+  textarea::placeholder { color: #64748b; }
+
+  /* Menu mobile */
+  #mobile-menu { background-color: #1e293b; border-color: #334155; }
+
+  /* Cartes catégories */
+  .category-card { background-color: #1e293b; }
+
+  /* Avatars (dégradé bleu → bleu nuit) */
+  .from-blue-100 { --tw-gradient-from: #1e3a5f !important; }
+  .to-blue-50    { --tw-gradient-to:   #172554 !important; }
+  .border-blue-100 { border-color: #1e40af; }
+
+  /* Éléments historique (fond subtil vert / orange) */
+  .border-emerald-100 { border-color: #064e3b; }
+  .border-orange-100  { border-color: #7c2d12; }
+
+  /* Ombres plus marquées sur fond sombre */
+  .shadow-sm { box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.4); }
+}
