@@ -10,7 +10,21 @@ type Bindings = {
   VAPID_SUBJECT: string
 }
 
-const app = new Hono<{ Bindings: Bindings }>()
+type Variables = {
+  user: AuthUser
+}
+
+interface AuthUser {
+  id: string
+  name: string
+  role: string
+  active: number
+  team_id: string
+  team_name: string
+  company_id: string
+}
+
+const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
 interface DareRule {
   id: string;
@@ -25,12 +39,47 @@ interface PointStat {
   total: number;
 }
 
-async function getUsersStats(db: D1Database) {
+async function getUserByToken(db: D1Database, token: string): Promise<AuthUser | null> {
+  return db.prepare(`
+    SELECT u.id, u.name, u.role, u.active, u.team_id, t.name AS team_name, t.company_id
+    FROM users u
+    LEFT JOIN teams t ON t.id = u.team_id
+    WHERE u.token = ? AND u.active = 1
+  `).bind(token).first<AuthUser>();
+}
+
+function extractToken(c: any): string | null {
+  const header = c.req.header('Authorization');
+  if (header) return header.replace('Bearer ', '');
+  // Pour SSE/EventSource qui n'accepte pas les headers custom
+  return c.req.query('t') || null;
+}
+
+const requireUser = async (c: any, next: any) => {
+  const token = extractToken(c);
+  if (!token) return c.json({ error: 'Non autorisé' }, 401);
+  const user = await getUserByToken(c.env.DB, token);
+  if (!user) return c.json({ error: 'Session invalide' }, 401);
+  c.set('user', user);
+  await next();
+};
+
+const requireAdmin = async (c: any, next: any) => {
+  const token = extractToken(c);
+  if (!token) return c.json({ error: 'Non autorisé' }, 401);
+  const user = await getUserByToken(c.env.DB, token);
+  if (!user) return c.json({ error: 'Session invalide' }, 401);
+  if (user.role !== 'admin') return c.json({ error: 'Accès admin requis' }, 403);
+  c.set('user', user);
+  await next();
+};
+
+async function getUsersStats(db: D1Database, teamId: string) {
   const [catRes, statsRes, rulesRes, usersRes] = await Promise.all([
-    db.prepare("SELECT id, name, emoji FROM categories").all(),
-    db.prepare("SELECT to_user_id, category_id, COUNT(*) as total FROM points_log GROUP BY to_user_id, category_id").all<PointStat>(),
-    db.prepare("SELECT * FROM dare_rules").all<DareRule>(),
-    db.prepare("SELECT id, name FROM users WHERE active = 1").all()
+    db.prepare("SELECT id, name, emoji FROM categories WHERE team_id = ?").bind(teamId).all(),
+    db.prepare("SELECT to_user_id, category_id, COUNT(*) as total FROM points_log WHERE team_id = ? GROUP BY to_user_id, category_id").bind(teamId).all<PointStat>(),
+    db.prepare("SELECT * FROM dare_rules WHERE team_id = ?").bind(teamId).all<DareRule>(),
+    db.prepare("SELECT id, name FROM users WHERE active = 1 AND team_id = ?").bind(teamId).all()
   ]);
 
   const catMap = new Map((catRes.results || []).map((cat: any) => [cat.id, cat]));
@@ -192,62 +241,74 @@ async function sendPushToUser(env: Bindings, toUserId: string, fromUserName: str
   }));
 }
 
-app.get('/api/me', async (c) => {
-  const authHeader = c.req.header('Authorization');
-  const token = authHeader?.replace('Bearer ', '');
-
-  if (!token) return c.json({ error: 'No token' }, 401);
-
-  const user = await c.env.DB.prepare("SELECT id, name FROM users WHERE token = ?")
-    .bind(token)
-    .first();
-
-  if (!user) return c.json({ error: 'Invalid token' }, 401);
-
-  return c.json(user);
+app.get('/api/me', requireUser, async (c) => {
+  const u = c.get('user');
+  return c.json({
+    id: u.id,
+    name: u.name,
+    role: u.role,
+    team_id: u.team_id,
+    team_name: u.team_name,
+    company_id: u.company_id,
+  });
 });
 
-// Route pour les données des utilisateurs (sans token)
-app.get('/api/users', async (c) => {
-  const { results } = await c.env.DB.prepare('SELECT id, name, active FROM users').all()
-  return c.json(results)
-})
-
-// Route pour récupérer les catégories
-app.get('/api/categories', async (c) => {
-  const { results } = await c.env.DB.prepare('SELECT * FROM categories WHERE active = 1').all();
+// Liste des membres de l'équipe de l'utilisateur authentifié
+app.get('/api/users', requireUser, async (c) => {
+  const u = c.get('user');
+  const { results } = await c.env.DB.prepare(
+    'SELECT id, name, active FROM users WHERE team_id = ?'
+  ).bind(u.team_id).all();
   return c.json(results);
 });
 
-// Route pour enregistrer un point
-app.post('/api/points', async (c) => {
+// Catégories actives de l'équipe
+app.get('/api/categories', requireUser, async (c) => {
+  const u = c.get('user');
+  const { results } = await c.env.DB.prepare(
+    'SELECT * FROM categories WHERE active = 1 AND team_id = ?'
+  ).bind(u.team_id).all();
+  return c.json(results);
+});
+
+// Enregistrer un point
+app.post('/api/points', requireUser, async (c) => {
   try {
     const body = await c.req.json();
     const { to_user_id, category_id } = body;
-
-    const authHeader = c.req.header('Authorization');
-    const fromUserId = authHeader?.replace('Bearer ', '');
-
-    // Sécurité : on vérifie que l'ID n'est pas vide avant de bind
-    if (!fromUserId) {
-        return c.json({ error: "Session manquante" }, 401);
-    }
-
-    // On cherche par ID
-    const fromUser = await c.env.DB.prepare("SELECT id, name, active FROM users WHERE id = ?")
-      .bind(fromUserId)
-      .first<{ id: string, name: string, active: number }>();
-
-    if (!fromUser) {
-      return c.json({ error: "Utilisateur non reconnu" }, 401);
-    }
-
-    if (fromUser.active !== 1) {
-      return c.json({ error: "Ton compte est désactivé, tu ne peux plus donner de points. 🛑" }, 403);
-    }
+    const fromUser = c.get('user');
 
     if (fromUser.id === to_user_id) {
       return c.json({ error: "Interdit de s'auto-mousser ! 😅" }, 400);
+    }
+
+    // Vérifier que le destinataire est dans la même équipe
+    const toUser = await c.env.DB.prepare(
+      "SELECT id, name, team_id, active FROM users WHERE id = ?"
+    ).bind(to_user_id).first<{ id: string; name: string; team_id: string; active: number }>();
+
+    if (!toUser || toUser.active !== 1 || toUser.team_id !== fromUser.team_id) {
+      return c.json({ error: "Ce collègue n'est pas dans ton équipe." }, 403);
+    }
+
+    // Vérifier que la catégorie est dans la même équipe
+    const cat = await c.env.DB.prepare(
+      "SELECT id FROM categories WHERE id = ? AND team_id = ? AND active = 1"
+    ).bind(category_id, fromUser.team_id).first();
+
+    if (!cat) {
+      return c.json({ error: "Catégorie invalide pour ton équipe." }, 400);
+    }
+
+    // Anti-doublon : même badge au même collègue dans les 5 dernières minutes
+    const recentDupe = await c.env.DB.prepare(`
+      SELECT 1 FROM points_log
+      WHERE from_user_id = ? AND to_user_id = ? AND category_id = ?
+      AND created_at >= datetime('now', '-5 minutes')
+    `).bind(fromUser.id, to_user_id, category_id).first();
+
+    if (recentDupe) {
+      return c.json({ error: "Tu viens déjà d'offrir ce badge à cette personne ! 😄" }, 429);
     }
 
     // Limite : 10 points donnés par jour
@@ -260,17 +321,43 @@ app.post('/api/points', async (c) => {
     }
 
     await c.env.DB.prepare(
-      'INSERT INTO points_log (from_user_id, to_user_id, category_id, created_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)'
+      'INSERT INTO points_log (team_id, from_user_id, to_user_id, category_id, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)'
     )
-    .bind(fromUser.id, to_user_id, category_id)
+    .bind(fromUser.team_id, fromUser.id, to_user_id, category_id)
     .run();
+
+    // Vérifier si un gage vient d'être déclenché ou est à 1 point
+    const [newCountRes, rulesRes] = await Promise.all([
+      c.env.DB.prepare(
+        "SELECT COUNT(*) as count FROM points_log WHERE team_id = ? AND to_user_id = ? AND category_id = ?"
+      ).bind(fromUser.team_id, to_user_id, category_id).first<{ count: number }>(),
+      c.env.DB.prepare(
+        "SELECT dare_text, threshold FROM dare_rules WHERE team_id = ? AND category_id = ? ORDER BY threshold ASC"
+      ).bind(fromUser.team_id, category_id).all<{ dare_text: string; threshold: number }>(),
+    ]);
+
+    const newCount = newCountRes?.count ?? 0;
+    const toName = toUser.name;
+    let gageTriggered = null;
+    let gageWarning = null;
+
+    for (const rule of (rulesRes.results ?? [])) {
+      if (newCount === rule.threshold) {
+        gageTriggered = { name: toName, dare: rule.dare_text };
+        break;
+      }
+      if (newCount === rule.threshold - 1) {
+        gageWarning = { name: toName };
+        break;
+      }
+    }
 
     // Notification push non-bloquante
     c.executionCtx.waitUntil(
       sendPushToUser(c.env, to_user_id, fromUser.name, category_id).catch(() => {})
     );
 
-    return c.json({ success: true });
+    return c.json({ success: true, gageTriggered, gageWarning });
 
   } catch (err) {
     console.error("Erreur D1:", err);
@@ -278,44 +365,52 @@ app.post('/api/points', async (c) => {
   }
 });
 
-app.get('/api/users-stats', async (c) => {
+app.get('/api/users-stats', requireUser, async (c) => {
   try {
-    return c.json(await getUsersStats(c.env.DB));
+    const u = c.get('user');
+    return c.json(await getUsersStats(c.env.DB, u.team_id));
   } catch (e: any) {
     console.error("🔥 Erreur Stats:", e.message);
     return c.json({ error: "Erreur calcul stats", details: e.message }, 500);
   }
 });
 
-app.get('/api/stats', async (c) => {
+app.get('/api/stats', requireUser, async (c) => {
+  const u = c.get('user');
+  const teamId = u.team_id;
+
   const [giversRes, receiversRes, catsRes, matrixRes, evolutionRes] = await Promise.all([
     c.env.DB.prepare(`
       SELECT u.name, COUNT(*) as total
       FROM points_log p JOIN users u ON p.from_user_id = u.id
-      WHERE u.active = 1 GROUP BY p.from_user_id ORDER BY total DESC LIMIT 10
-    `).all(),
+      WHERE u.active = 1 AND p.team_id = ?
+      GROUP BY p.from_user_id ORDER BY total DESC LIMIT 10
+    `).bind(teamId).all(),
     c.env.DB.prepare(`
       SELECT u.name, COUNT(*) as total
       FROM points_log p JOIN users u ON p.to_user_id = u.id
-      WHERE u.active = 1 GROUP BY p.to_user_id ORDER BY total DESC LIMIT 10
-    `).all(),
+      WHERE u.active = 1 AND p.team_id = ?
+      GROUP BY p.to_user_id ORDER BY total DESC LIMIT 10
+    `).bind(teamId).all(),
     c.env.DB.prepare(`
       SELECT c.name, c.emoji, COUNT(*) as total
       FROM points_log p JOIN categories c ON p.category_id = c.id
+      WHERE p.team_id = ?
       GROUP BY p.category_id ORDER BY total DESC
-    `).all(),
+    `).bind(teamId).all(),
     c.env.DB.prepare(`
       SELECT u_from.name as from_name, u_to.name as to_name, COUNT(*) as total
       FROM points_log p
       JOIN users u_from ON p.from_user_id = u_from.id
       JOIN users u_to ON p.to_user_id = u_to.id
-      WHERE u_from.active = 1 AND u_to.active = 1
+      WHERE u_from.active = 1 AND u_to.active = 1 AND p.team_id = ?
       GROUP BY p.from_user_id, p.to_user_id
-    `).all(),
+    `).bind(teamId).all(),
     c.env.DB.prepare(`
       SELECT strftime('%Y-%W', created_at) as week, COUNT(*) as total
-      FROM points_log GROUP BY week ORDER BY week DESC LIMIT 12
-    `).all(),
+      FROM points_log WHERE team_id = ?
+      GROUP BY week ORDER BY week DESC LIMIT 12
+    `).bind(teamId).all(),
   ]);
 
   const receivers = receiversRes.results || [];
@@ -331,10 +426,12 @@ app.get('/api/stats', async (c) => {
   });
 });
 
-app.get('/api/events', async (c) => {
+app.get('/api/events', requireUser, async (c) => {
+  const u = c.get('user');
+  const teamId = u.team_id;
   return streamSSE(c, async (stream) => {
     const send = async () => {
-      const data = await getUsersStats(c.env.DB);
+      const data = await getUsersStats(c.env.DB, teamId);
       await stream.writeSSE({ data: JSON.stringify(data), event: 'stats' });
     };
     await send();
@@ -349,7 +446,7 @@ app.get('/api/events', async (c) => {
 // Route pour le lien magique : /login/ton-token-unique
 app.get('/login/:token', async (c) => {
   const token = c.req.param('token');
-  
+
   const user = await c.env.DB.prepare(
     'SELECT id, name FROM users WHERE token = ?'
   ).bind(token).first();
@@ -364,85 +461,92 @@ app.get('/login/:token', async (c) => {
     `, 404);
   }
 
-  // On redirige vers l'accueil avec les infos en paramètres d'URL
-  // Le Frontend les récupérera et les stockera
   return c.redirect(`/?login_id=${user.id}&login_name=${encodeURIComponent(user.name as string)}`);
 });
 
-// 1. Définition du middleware (Le Gardien)
-const isAdmin = async (c: any, next: any) => {
-  const clientPass = c.req.header('X-Admin-Password');
-  const serverPass = c.env.ADMIN_PASSWORD;
-  // Sécurité : si le serveur n'a pas de pass défini, on bloque tout par défaut
-  if (!serverPass || !clientPass || clientPass !== serverPass) {
-    return c.json({ error: 'Accès non autorisé' }, 401);
-  }
-  await next();
-};
+// === Routes admin (scope = équipe de l'admin) ===
 
-// 2. Routes d'administration PROTÉGÉES (Une seule fois !)
-app.get('/api/admin/users', isAdmin, async (c) => {
-  const users = await c.env.DB.prepare("SELECT * FROM users ORDER BY active DESC, name ASC").all();
+app.get('/api/admin/users', requireAdmin, async (c) => {
+  const admin = c.get('user');
+  const users = await c.env.DB.prepare(
+    "SELECT * FROM users WHERE team_id = ? ORDER BY active DESC, name ASC"
+  ).bind(admin.team_id).all();
   return c.json(users.results);
 });
 
-// Réactiver un utilisateur
-app.patch('/api/admin/users/:id/restore', isAdmin, async (c) => {
+app.patch('/api/admin/users/:id/restore', requireAdmin, async (c) => {
+  const admin = c.get('user');
   const id = c.req.param('id');
-  await c.env.DB.prepare("UPDATE users SET active = 1 WHERE id = ?").bind(id).run();
+  await c.env.DB.prepare(
+    "UPDATE users SET active = 1 WHERE id = ? AND team_id = ?"
+  ).bind(id, admin.team_id).run();
   return c.json({ success: true });
 });
 
-app.post('/api/admin/users', isAdmin, async (c) => {
+app.post('/api/admin/users', requireAdmin, async (c) => {
+  const admin = c.get('user');
   const { name } = await c.req.json();
   const id = crypto.randomUUID();
   const token = crypto.randomUUID();
-  await c.env.DB.prepare("INSERT INTO users (id, name, token) VALUES (?, ?, ?)")
-    .bind(id, name, token).run();
+  await c.env.DB.prepare(
+    "INSERT INTO users (id, team_id, name, role, active, token) VALUES (?, ?, ?, 'member', 1, ?)"
+  ).bind(id, admin.team_id, name, token).run();
   return c.json({ success: true });
 });
 
-// Route pour les catégories (protégée aussi)
-app.post('/api/admin/categories', isAdmin, async (c) => {
+app.post('/api/admin/categories', requireAdmin, async (c) => {
+  const admin = c.get('user');
   const { name, emoji } = await c.req.json();
   const id = crypto.randomUUID();
-  await c.env.DB.prepare("INSERT INTO categories (id, name, emoji) VALUES (?, ?, ?)")
-    .bind(id, name, emoji).run();
+  await c.env.DB.prepare(
+    "INSERT INTO categories (id, team_id, name, emoji) VALUES (?, ?, ?, ?)"
+  ).bind(id, admin.team_id, name, emoji).run();
   return c.json({ success: true });
 });
 
-// Supprimer un utilisateur
-app.delete('/api/admin/users/:id', isAdmin, async (c) => {
+app.delete('/api/admin/users/:id', requireAdmin, async (c) => {
+  const admin = c.get('user');
   const id = c.req.param('id');
-  await c.env.DB.prepare("UPDATE users SET active = 0 WHERE id = ?").bind(id).run();
+  await c.env.DB.prepare(
+    "UPDATE users SET active = 0 WHERE id = ? AND team_id = ?"
+  ).bind(id, admin.team_id).run();
   return c.json({ success: true });
 });
 
-// Lister les catégories pour l'admin
-app.get('/api/admin/categories', isAdmin, async (c) => {
-  const cats = await c.env.DB.prepare("SELECT * FROM categories").all();
+app.get('/api/admin/categories', requireAdmin, async (c) => {
+  const admin = c.get('user');
+  const cats = await c.env.DB.prepare(
+    "SELECT * FROM categories WHERE team_id = ?"
+  ).bind(admin.team_id).all();
   return c.json(cats.results);
 });
 
-// Désactiver une catégorie (Soft Delete)
-app.delete('/api/admin/categories/:id', isAdmin, async (c) => {
+app.delete('/api/admin/categories/:id', requireAdmin, async (c) => {
+  const admin = c.get('user');
   const id = c.req.param('id');
-  await c.env.DB.prepare("UPDATE categories SET active = 0 WHERE id = ?").bind(id).run();
+  await c.env.DB.prepare(
+    "UPDATE categories SET active = 0 WHERE id = ? AND team_id = ?"
+  ).bind(id, admin.team_id).run();
   return c.json({ success: true });
 });
 
-// Réactiver une catégorie
-app.patch('/api/admin/categories/:id/restore', isAdmin, async (c) => {
+app.patch('/api/admin/categories/:id/restore', requireAdmin, async (c) => {
+  const admin = c.get('user');
   const id = c.req.param('id');
-  await c.env.DB.prepare("UPDATE categories SET active = 1 WHERE id = ?").bind(id).run();
+  await c.env.DB.prepare(
+    "UPDATE categories SET active = 1 WHERE id = ? AND team_id = ?"
+  ).bind(id, admin.team_id).run();
   return c.json({ success: true });
 });
 
-// Lister les gages actifs (utilisateurs ayant dépassé un seuil)
-app.get('/api/admin/dares', isAdmin, async (c) => {
+app.get('/api/admin/dares', requireAdmin, async (c) => {
+  const admin = c.get('user');
+  const teamId = admin.team_id;
   const [rulesRes, statsRes] = await Promise.all([
-    c.env.DB.prepare("SELECT * FROM dare_rules").all<DareRule>(),
-    c.env.DB.prepare("SELECT to_user_id, category_id, COUNT(*) as total FROM points_log GROUP BY to_user_id, category_id").all<PointStat>(),
+    c.env.DB.prepare("SELECT * FROM dare_rules WHERE team_id = ?").bind(teamId).all<DareRule>(),
+    c.env.DB.prepare(
+      "SELECT to_user_id, category_id, COUNT(*) as total FROM points_log WHERE team_id = ? GROUP BY to_user_id, category_id"
+    ).bind(teamId).all<PointStat>(),
   ]);
 
   const rules = rulesRes.results || [];
@@ -465,119 +569,138 @@ app.get('/api/admin/dares', isAdmin, async (c) => {
   return c.json(activeDares);
 });
 
-// Lister les règles avec le nom de la catégorie (JOIN)
-app.get('/api/admin/rules', isAdmin, async (c) => {
+app.get('/api/admin/rules', requireAdmin, async (c) => {
+  const admin = c.get('user');
   const rules = await c.env.DB.prepare(`
-    SELECT r.*, c.name as cat_name, c.emoji as cat_emoji 
-    FROM dare_rules r 
+    SELECT r.*, c.name as cat_name, c.emoji as cat_emoji
+    FROM dare_rules r
     JOIN categories c ON r.category_id = c.id
-  `).all();
+    WHERE r.team_id = ?
+  `).bind(admin.team_id).all();
   return c.json(rules.results);
 });
 
-// Créer une règle
-app.post('/api/admin/rules', isAdmin, async (c) => {
+app.post('/api/admin/rules', requireAdmin, async (c) => {
+  const admin = c.get('user');
   const { category_id, threshold, dare_text } = await c.req.json();
+
+  // Vérifier que la catégorie appartient à l'équipe de l'admin
+  const cat = await c.env.DB.prepare(
+    "SELECT id FROM categories WHERE id = ? AND team_id = ?"
+  ).bind(category_id, admin.team_id).first();
+
+  if (!cat) {
+    return c.json({ error: "Catégorie invalide pour cette équipe." }, 400);
+  }
+
   const id = crypto.randomUUID();
   await c.env.DB.prepare(
-    "INSERT INTO dare_rules (id, category_id, threshold, dare_text) VALUES (?, ?, ?, ?)"
-  ).bind(id, category_id, threshold, dare_text).run();
+    "INSERT INTO dare_rules (id, team_id, category_id, threshold, dare_text) VALUES (?, ?, ?, ?, ?)"
+  ).bind(id, admin.team_id, category_id, threshold, dare_text).run();
   return c.json({ success: true });
 });
 
-// Supprimer une règle
-app.delete('/api/admin/rules/:id', isAdmin, async (c) => {
+app.delete('/api/admin/rules/:id', requireAdmin, async (c) => {
+  const admin = c.get('user');
   const id = c.req.param('id');
-  await c.env.DB.prepare("DELETE FROM dare_rules WHERE id = ?").bind(id).run();
+  await c.env.DB.prepare(
+    "DELETE FROM dare_rules WHERE id = ? AND team_id = ?"
+  ).bind(id, admin.team_id).run();
   return c.json({ success: true });
 });
 
-app.patch('/api/admin/rules/:id', isAdmin, async (c) => {
+app.patch('/api/admin/rules/:id', requireAdmin, async (c) => {
+  const admin = c.get('user');
   const id = c.req.param('id');
   const { threshold, dare_text } = await c.req.json();
   await c.env.DB.prepare(
-    "UPDATE dare_rules SET threshold = ?, dare_text = ? WHERE id = ?"
-  ).bind(threshold, dare_text, id).run();
+    "UPDATE dare_rules SET threshold = ?, dare_text = ? WHERE id = ? AND team_id = ?"
+  ).bind(threshold, dare_text, id, admin.team_id).run();
   return c.json({ success: true });
 });
 
-// Afficher l'historique
-app.get('/api/users/:id/history', async (c) => {
+// Historique d'un utilisateur (lisible uniquement par les membres de la même équipe)
+app.get('/api/users/:id/history', requireUser, async (c) => {
+  const me = c.get('user');
   const id = c.req.param('id');
 
-  // Points reçus par cet utilisateur
+  // Vérifier que l'utilisateur cible est dans la même équipe
+  const target = await c.env.DB.prepare(
+    "SELECT team_id FROM users WHERE id = ?"
+  ).bind(id).first<{ team_id: string }>();
+
+  if (!target || target.team_id !== me.team_id) {
+    return c.json({ error: "Utilisateur introuvable dans ton équipe." }, 403);
+  }
+
   const received = await c.env.DB.prepare(`
-      SELECT p.*, u.name as from_name, c.emoji, c.name as cat_name 
+      SELECT p.*, u.name as from_name, c.emoji, c.name as cat_name
       FROM points_log p
       JOIN users u ON p.from_user_id = u.id
       JOIN categories c ON p.category_id = c.id
-      WHERE p.to_user_id = ?
+      WHERE p.to_user_id = ? AND p.team_id = ?
       ORDER BY p.created_at DESC LIMIT 20
-  `).bind(id).all();
+  `).bind(id, me.team_id).all();
 
-  // Points donnés par cet utilisateur
   const given = await c.env.DB.prepare(`
     SELECT p.*, u.name as to_name, c.emoji, c.name as cat_name
     FROM points_log p
     JOIN users u ON p.to_user_id = u.id
     JOIN categories c ON p.category_id = c.id
-    WHERE p.from_user_id = ?
+    WHERE p.from_user_id = ? AND p.team_id = ?
     ORDER BY p.created_at DESC LIMIT 20
-  `).bind(id).all();
+  `).bind(id, me.team_id).all();
 
-  // Gages acquittés par cet utilisateur
   const dares = await c.env.DB.prepare(`
     SELECT dl.*, c.emoji, c.name as cat_name
     FROM dare_log dl
     JOIN categories c ON dl.category_id = c.id
-    WHERE dl.user_id = ?
+    WHERE dl.user_id = ? AND dl.team_id = ?
     ORDER BY dl.cleared_at DESC LIMIT 10
-  `).bind(id).all();
+  `).bind(id, me.team_id).all();
 
   return c.json({ received: received.results, given: given.results, dares: dares.results });
 });
 
-app.get('/api/admin/points-log', isAdmin, async (c) => {
+app.get('/api/admin/points-log', requireAdmin, async (c) => {
+  const admin = c.get('user');
   const { results } = await c.env.DB.prepare(`
-    SELECT 
-      p.id, 
-      p.created_at, 
-      u_from.name as from_name, 
-      u_to.name as to_name, 
-      c.name as cat_name, 
+    SELECT
+      p.id,
+      p.created_at,
+      u_from.name as from_name,
+      u_to.name as to_name,
+      c.name as cat_name,
       c.emoji
     FROM points_log p
     JOIN users u_from ON p.from_user_id = u_from.id
     JOIN users u_to ON p.to_user_id = u_to.id
     JOIN categories c ON p.category_id = c.id
-    ORDER BY p.created_at DESC 
+    WHERE p.team_id = ?
+    ORDER BY p.created_at DESC
     LIMIT 50
-  `).all();
+  `).bind(admin.team_id).all();
   return c.json(results);
 });
 
-// Supprimer un point spécifique (Admin uniquement)
-app.delete('/api/admin/points/:id', isAdmin, async (c) => {
+app.delete('/api/admin/points/:id', requireAdmin, async (c) => {
+  const admin = c.get('user');
   const id = c.req.param('id');
-  
-  const result = await c.env.DB.prepare("DELETE FROM points_log WHERE id = ?")
-    .bind(id)
-    .run();
 
-  if (result.success) {
-    return c.json({ success: true, message: "Point supprimé avec succès" });
-  } else {
-    return c.json({ error: "Erreur lors de la suppression" }, 500);
+  const result = await c.env.DB.prepare(
+    "DELETE FROM points_log WHERE id = ? AND team_id = ?"
+  ).bind(id, admin.team_id).run();
+
+  if (result.meta.changes === 0) {
+    return c.json({ error: "Point introuvable dans ton équipe" }, 404);
   }
+
+  return c.json({ success: true, message: "Point supprimé avec succès" });
 });
 
-app.post('/api/points/undo', async (c) => {
-  const authHeader = c.req.header('Authorization');
-  const userId = authHeader?.replace('Bearer ', '');
+app.post('/api/points/undo', requireUser, async (c) => {
+  const me = c.get('user');
 
-  if (!userId) return c.json({ error: "Non autorisé" }, 401);
-
-  // On supprime le point le plus récent créé par cet utilisateur, uniquement dans les 15 dernières secondes
   const result = await c.env.DB.prepare(`
     DELETE FROM points_log
     WHERE id = (
@@ -586,7 +709,7 @@ app.post('/api/points/undo', async (c) => {
         AND created_at >= datetime('now', '-15 seconds')
         ORDER BY created_at DESC LIMIT 1
     )
-  `).bind(userId).run();
+  `).bind(me.id).run();
 
   if (result.meta.changes === 0) {
     return c.json({ error: "Délai d'annulation dépassé" }, 403);
@@ -595,24 +718,34 @@ app.post('/api/points/undo', async (c) => {
   return c.json({ success: true });
 });
 
-app.post('/api/admin/clear-category/:userId/:categoryId', isAdmin, async (c) => {
+app.post('/api/admin/clear-category/:userId/:categoryId', requireAdmin, async (c) => {
+  const admin = c.get('user');
   const { userId, categoryId } = c.req.param();
 
   try {
+    // Vérifier que l'utilisateur cible est dans la team de l'admin
+    const target = await c.env.DB.prepare(
+      "SELECT team_id FROM users WHERE id = ?"
+    ).bind(userId).first<{ team_id: string }>();
+
+    if (!target || target.team_id !== admin.team_id) {
+      return c.json({ error: "Utilisateur hors de ton équipe." }, 403);
+    }
+
     const rule = await c.env.DB.prepare(
-      "SELECT dare_text FROM dare_rules WHERE category_id = ?"
-    ).bind(categoryId).first<{ dare_text: string }>();
+      "SELECT dare_text FROM dare_rules WHERE category_id = ? AND team_id = ?"
+    ).bind(categoryId, admin.team_id).first<{ dare_text: string }>();
 
     if (rule) {
       await c.env.DB.prepare(
-        "INSERT INTO dare_log (user_id, category_id, dare_text) VALUES (?, ?, ?)"
-      ).bind(userId, categoryId, rule.dare_text).run();
+        "INSERT INTO dare_log (team_id, user_id, category_id, dare_text) VALUES (?, ?, ?, ?)"
+      ).bind(admin.team_id, userId, categoryId, rule.dare_text).run();
     }
 
     await c.env.DB.prepare(`
       DELETE FROM points_log
-      WHERE to_user_id = ? AND category_id = ?
-    `).bind(userId, categoryId).run();
+      WHERE to_user_id = ? AND category_id = ? AND team_id = ?
+    `).bind(userId, categoryId, admin.team_id).run();
 
     return c.json({ success: true, message: "Compteur catégorie réinitialisé." });
   } catch (err) {
@@ -620,15 +753,17 @@ app.post('/api/admin/clear-category/:userId/:categoryId', isAdmin, async (c) => 
   }
 });
 
-app.get('/api/admin/dare-log', isAdmin, async (c) => {
+app.get('/api/admin/dare-log', requireAdmin, async (c) => {
+  const admin = c.get('user');
   const { results } = await c.env.DB.prepare(`
     SELECT dl.*, u.name as user_name, c.name as cat_name, c.emoji
     FROM dare_log dl
     JOIN users u ON dl.user_id = u.id
     JOIN categories c ON dl.category_id = c.id
+    WHERE dl.team_id = ?
     ORDER BY dl.cleared_at DESC
     LIMIT 50
-  `).all();
+  `).bind(admin.team_id).all();
   return c.json(results);
 });
 
@@ -636,17 +771,14 @@ app.get('/api/push/vapid-key', async (c) => {
   return c.json({ publicKey: c.env.VAPID_PUBLIC_KEY || null });
 });
 
-app.post('/api/push/subscribe', async (c) => {
-  const authHeader = c.req.header('Authorization');
-  const userId = authHeader?.replace('Bearer ', '');
-  if (!userId) return c.json({ error: 'Non autorisé' }, 401);
-
+app.post('/api/push/subscribe', requireUser, async (c) => {
+  const me = c.get('user');
   const { endpoint, keys } = await c.req.json();
   await c.env.DB.prepare(`
     INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
     VALUES (?, ?, ?, ?)
     ON CONFLICT(user_id, endpoint) DO UPDATE SET p256dh = excluded.p256dh, auth = excluded.auth
-  `).bind(userId, endpoint, keys.p256dh, keys.auth).run();
+  `).bind(me.id, endpoint, keys.p256dh, keys.auth).run();
 
   return c.json({ success: true });
 });

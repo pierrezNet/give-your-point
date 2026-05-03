@@ -80,12 +80,38 @@ function handleAuth() {
     return localStorage.getItem('my_user_id');
 }
 
+function authHeaders() {
+    const myId = localStorage.getItem('my_user_id');
+    return myId ? { 'Authorization': `Bearer ${myId}` } : {};
+}
+
+async function authFetch(url, options = {}) {
+    options.headers = { ...(options.headers || {}), ...authHeaders() };
+    return fetch(url, options);
+}
+
+async function loadMe() {
+    const myId = localStorage.getItem('my_user_id');
+    if (!myId) return null;
+    try {
+        const res = await authFetch('/api/me');
+        if (!res.ok) return null;
+        const me = await res.json();
+        localStorage.setItem('my_team_id', me.team_id || '');
+        localStorage.setItem('my_team_name', me.team_name || '');
+        localStorage.setItem('my_role', me.role || 'member');
+        return me;
+    } catch {
+        return null;
+    }
+}
+
 async function loadCategories() {
     const catList = document.getElementById('categories-list');
     
     if (!catList) return;
 
-    const res = await fetch('/api/categories');
+    const res = await authFetch('/api/categories');
     const categories = await res.json();
 
     catList.innerHTML = '';
@@ -135,8 +161,27 @@ function renderUsers(users) {
             <div class="top-categories-container flex gap-2 mt-2"></div>
         `;
 
-        // Événements : Uniquement si ce n'est PAS ma carte
-        if (!isMe) {
+        if (isMe) {
+            // Ma carte : feedback visuel + message si on essaie quand même
+            div.ondragover = (e) => { e.preventDefault(); div.classList.add('border-red-400', 'bg-red-50'); };
+            div.ondragleave = () => div.classList.remove('border-red-400', 'bg-red-50');
+            div.ondrop = (e) => {
+                e.preventDefault();
+                div.classList.remove('border-red-400', 'bg-red-50');
+                if (e.dataTransfer.getData('text/plain')) {
+                    showToast("Interdit de s'auto-mousser ! 😅", 'error');
+                    selectedCategoryId = null;
+                    clearSelection();
+                }
+            };
+            div.onclick = () => {
+                if (selectedCategoryId) {
+                    showToast("Interdit de s'auto-mousser ! 😅", 'error');
+                    selectedCategoryId = null;
+                    clearSelection();
+                }
+            };
+        } else {
             div.ondragover = (e) => { e.preventDefault(); div.classList.add('border-blue-400', 'bg-blue-50'); };
             div.ondragleave = () => div.classList.remove('border-blue-400', 'bg-blue-50');
             div.ondrop = async (e) => {
@@ -212,7 +257,7 @@ function selectCategory(el, id) {
 }
 
 async function openUserSelector(catId, emoji) {
-    const res = await fetch('/api/users-stats');
+    const res = await authFetch('/api/users-stats');
     const users = await res.json();
     const myId = localStorage.getItem('my_user_id');
 
@@ -277,21 +322,27 @@ function clearSelection() {
 }
 
 async function addPoint(userId, cardEl, catId) {
-    const myId = localStorage.getItem('my_user_id');
     try {
-        const res = await fetch('/api/points', {
+        const res = await authFetch('/api/points', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${myId}` },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ to_user_id: String(userId), category_id: String(catId) })
         });
 
         if (res.ok) {
+            const data = await res.json();
             selectedCategoryId = null;
             clearSelection();
             if (document.activeElement) document.activeElement.blur();
 
             cardEl.classList.add('ring-4', 'ring-green-500');
-            showToast("Point envoyé !", 'success');
+            if (data.gageTriggered) {
+                showToast(`🚨 Gage activé pour ${data.gageTriggered.name} : ${data.gageTriggered.dare} !`, 'danger');
+            } else if (data.gageWarning) {
+                showToast(`⚠️ Encore 1 point pour déclencher le gage de ${data.gageWarning.name} !`, 'warning');
+            } else {
+                showToast('Point envoyé !', 'success');
+            }
             await updateAllData();
 
             setTimeout(() => {
@@ -315,35 +366,34 @@ function showToast(message, type = 'success') {
 
     const toast = document.createElement('div');
     toast.id = 'toast-notification';
-    
-    // On change la couleur selon le type (Succès = sombre, Erreur = orange/rouge)
-    const bgColor = type === 'success' ? 'bg-slate-800' : 'bg-orange-600';
-    
-    toast.className = `fixed bottom-8 left-1/2 -translate-x-1/2 ${bgColor} text-white px-6 py-3 rounded-full shadow-2xl z-[200] flex items-center gap-4 animate-in slide-in-from-bottom-10`;
-    
-    // Si c'est un succès, on ajoute le bouton "Annuler"
-    const undoButton = type === 'success' 
-        ? `<button onclick="undoLastPoint()" class="text-yellow-400 font-black uppercase text-xs hover:text-yellow-300 transition-colors">Annuler</button>` 
+
+    const styles = {
+        success: { bg: 'bg-slate-800',  duration: 5000 },
+        error:   { bg: 'bg-orange-600', duration: 5000 },
+        warning: { bg: 'bg-amber-500',  duration: 6000 },
+        danger:  { bg: 'bg-rose-600',   duration: 8000 },
+    };
+    const { bg, duration } = styles[type] ?? styles.error;
+
+    const undoButton = (type === 'success' || type === 'warning' || type === 'danger')
+        ? `<button onclick="undoLastPoint()" class="text-yellow-200 font-black uppercase text-xs hover:text-white transition-colors shrink-0">Annuler</button>`
         : '';
 
-    toast.innerHTML = `
-        <span class="text-sm font-medium">${message}</span>
-        ${undoButton}
-    `;
-    
+    toast.className = `fixed bottom-8 left-1/2 -translate-x-1/2 ${bg} text-white px-6 py-3 rounded-full shadow-2xl z-[200] flex items-center gap-4 animate-in slide-in-from-bottom-10 max-w-[90vw]`;
+    toast.innerHTML = `<span class="text-sm font-medium">${message}</span>${undoButton}`;
     document.body.appendChild(toast);
 
     setTimeout(() => {
-        if (toast) {
+        if (toast.isConnected) {
             toast.classList.add('animate-out', 'fade-out', 'slide-out-to-bottom-10');
             setTimeout(() => toast.remove(), 1000);
         }
-    }, 5000);
+    }, duration);
 }
 
 async function updateAllData() {
     try {
-        const statsRes = await fetch('/api/users-stats');
+        const statsRes = await authFetch('/api/users-stats');
         if (!statsRes.ok) throw new Error(`Erreur Serveur: Stats(${statsRes.status})`);
         const users = await statsRes.json();
 
@@ -385,7 +435,7 @@ async function showHistory(event, userId, userName) {
     event.stopPropagation();
     
     try {
-        const res = await fetch(`/api/users/${userId}/history`);
+        const res = await authFetch(`/api/users/${userId}/history`);
         if (!res.ok) throw new Error("Impossible de charger l'historique");
         
         const data = await res.json();
@@ -466,10 +516,8 @@ async function showHistory(event, userId, userName) {
 }
 
 async function undoLastPoint() {
-    const myId = localStorage.getItem('my_user_id');
-    const res = await fetch('/api/points/undo', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${myId}` }
+    const res = await authFetch('/api/points/undo', {
+        method: 'POST'
     });
 
     if (res.ok) {
@@ -492,12 +540,31 @@ async function init() {
         return;
     }
 
-    const userName = localStorage.getItem('my_user_name');
+    const me = await loadMe();
+    if (!me) {
+        localStorage.removeItem('my_user_id');
+        localStorage.removeItem('my_user_name');
+        document.body.innerHTML = `
+            <div class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4 font-sans">
+                <h1 class="text-2xl font-bold text-gray-800">Session invalide 🔒</h1>
+                <p class="text-gray-600 mt-2">Demande un nouveau lien magique à ton admin.</p>
+            </div>`;
+        return;
+    }
+
     const nameEl = document.getElementById('current-user-name');
     const avatarEl = document.getElementById('current-user-avatar');
-    if (nameEl && userName) {
-        nameEl.innerText = userName;
-        if (avatarEl) avatarEl.innerText = userName[0].toUpperCase();
+    if (nameEl) {
+        nameEl.innerText = me.name;
+        if (avatarEl) avatarEl.innerText = (me.name || '?')[0].toUpperCase();
+    }
+
+    const teamEl = document.getElementById('current-team-name');
+    if (teamEl) teamEl.innerText = me.team_name || '';
+
+    // Cacher le lien admin si l'utilisateur n'a pas le rôle
+    if (me.role !== 'admin') {
+        document.querySelectorAll('.nav-btn-admin').forEach(el => el.style.display = 'none');
     }
 
     await Promise.all([
@@ -509,7 +576,9 @@ async function init() {
 }
 
 function startEventSource() {
-    const source = new EventSource('/api/events');
+    const myId = localStorage.getItem('my_user_id');
+    if (!myId) return;
+    const source = new EventSource(`/api/events?t=${encodeURIComponent(myId)}`);
 
     source.addEventListener('stats', (e) => {
         if (isModalOpen || isTransitioning) return;

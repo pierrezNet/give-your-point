@@ -19,7 +19,10 @@
 <body class="bg-slate-50 min-h-screen p-4 md:p-8 opacity-0 transition-opacity duration-500" id="admin-body">
     <div class="max-w-4xl mx-auto">
         <header class="flex justify-between items-center mb-8">
-            <h1 class="text-xl md:text-3xl font-black text-slate-800">Console Admin 🛠️</h1>
+            <div>
+                <h1 class="text-xl md:text-3xl font-black text-slate-800">Console Admin 🛠️</h1>
+                <p class="text-xs md:text-sm font-bold text-slate-500 mt-1" id="admin-scope">Équipe : <span id="admin-team-name">…</span></p>
+            </div>
             <a href="/" class="text-blue-600 font-bold hover:underline">← Retour à l'App</a>
         </header>
 
@@ -102,50 +105,55 @@
     </div>
 
     <script>
-        // 1. On vérifie immédiatement le secret
-        let adminPass = sessionStorage.getItem('ADMIN_PASSWORD');
+        // Auth admin : on s'appuie sur le magic link (token user dans localStorage)
+        // et on vérifie via /api/me que le role === 'admin'.
+        const myUserId = localStorage.getItem('my_user_id');
 
         async function checkAndLoad() {
-            if (!adminPass) {
-                adminPass = prompt("Mot de passe administrateur requis :");
-                if (!adminPass) return window.location.href = "/";
-                sessionStorage.setItem('ADMIN_PASSWORD', adminPass);
+            if (!myUserId) {
+                alert("Connecte-toi via ton lien magique avant d'accéder à l'admin.");
+                return window.location.href = "/";
             }
 
-            // On tente un premier appel pour vérifier le mot de passe
-            const res = await adminFetch('/api/admin/users', {
-                headers: { 'X-Admin-Password': adminPass }
+            const res = await fetch('/api/me', {
+                headers: { 'Authorization': `Bearer ${myUserId}` }
             });
 
-            if (res.ok) {
-                // C'est le bon mot de passe ! On affiche la page
-                document.getElementById('admin-body').classList.remove('opacity-0');
-                loadAdminUsers();
-                loadAdminCategories();
-                loadCategoriesForRules();
-                loadRules();
-                loadDareLog();
-                loadGlobalLog();
-            } else {
-                // Mauvais mot de passe
-                alert("Accès refusé ❌");
-                sessionStorage.removeItem('admin_pass');
-                window.location.href = "/";
+            if (!res.ok) {
+                alert("Session invalide. Reconnecte-toi via ton lien magique.");
+                return window.location.href = "/";
             }
+
+            const me = await res.json();
+
+            if (me.role !== 'admin') {
+                alert("Accès refusé : tu n'es pas administrateur de ton équipe.");
+                return window.location.href = "/";
+            }
+
+            const teamLabel = document.getElementById('admin-team-name');
+            if (teamLabel) teamLabel.textContent = me.team_name || '?';
+
+            document.getElementById('admin-body').classList.remove('opacity-0');
+            loadAdminUsers();
+            loadAdminCategories();
+            loadCategoriesForRules();
+            loadRules();
+            loadDareLog();
+            loadGlobalLog();
         }
 
-        // 2. Fonction fetch sécurisée
+        // Fonction fetch sécurisée — passe le token user en Bearer
         async function adminFetch(url, options = {}) {
             options.headers = {
                 ...options.headers,
-                'X-Admin-Password': adminPass
+                'Authorization': `Bearer ${myUserId}`
             };
             const res = await fetch(url, options);
-            
-            if (res.status === 401) {
-                alert("Accès refusé. Mot de passe incorrect.");
-                sessionStorage.removeItem('admin_pass');
-                window.location.href = "/"; // On dégage l'intrus
+
+            if (res.status === 401 || res.status === 403) {
+                alert("Accès refusé.");
+                window.location.href = "/";
                 return;
             }
             return res;
