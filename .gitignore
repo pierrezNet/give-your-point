@@ -11,6 +11,7 @@ DB_FIX/
 data.json
 seed.sql
 prod_backup*.sql
+migrations/
 migrate.js
 local-data.json
 
