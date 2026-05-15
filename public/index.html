@@ -166,6 +166,32 @@
             transition: background 0.2s;
         }
         .nav-btn-admin:hover { background: rgba(253,230,138,0.2); }
+        .nav-btn-superadmin {
+            color: #e9d5ff;
+            font-size: 0.8rem;
+            font-weight: 800;
+            padding: 0.4rem 0.9rem;
+            border-radius: 9999px;
+            border: 1px solid rgba(233,213,255,0.4);
+            background: rgba(192,132,252,0.15);
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+        .nav-btn-superadmin:hover { background: rgba(192,132,252,0.3); }
+        .nav-btn-owner {
+            color: #a7f3d0;
+            font-size: 0.8rem;
+            font-weight: 800;
+            padding: 0.4rem 0.9rem;
+            border-radius: 9999px;
+            border: 1px solid rgba(167,243,208,0.4);
+            background: rgba(16,185,129,0.15);
+            cursor: pointer;
+            text-decoration: none;
+            transition: background 0.2s;
+        }
+        .nav-btn-owner:hover { background: rgba(16,185,129,0.3); }
         #mobile-menu {
             transform-origin: top right;
             transition: opacity 0.15s ease, transform 0.15s ease;
@@ -208,6 +234,8 @@
             <button onclick="showAbout()" class="nav-btn">À propos</button>
             <button onclick="showHelp()" class="nav-btn">Aide</button>
             <a href="/admin" class="nav-btn-admin">Admin 🔐</a>
+            <a href="/superadmin" class="nav-btn-superadmin" style="display:none;">Société 🏛️</a>
+            <a href="/owner" class="nav-btn-owner" style="display:none;">Owner 🌐</a>
         </nav>
 
         <!-- Hamburger mobile -->
@@ -223,7 +251,9 @@
             <a href="/stats" class="px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">Stats 📊</a>
             <button onclick="showAbout(); toggleMenu()" class="text-left px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">À propos</button>
             <button onclick="showHelp(); toggleMenu()" class="text-left px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">Aide</button>
-            <a href="/admin" class="px-4 py-3 rounded-xl text-sm font-bold text-yellow-600 hover:bg-yellow-50 transition-colors">Admin 🔐</a>
+            <a href="/admin" class="nav-btn-admin px-4 py-3 rounded-xl text-sm font-bold text-yellow-600 hover:bg-yellow-50 transition-colors">Admin 🔐</a>
+            <a href="/superadmin" class="nav-btn-superadmin px-4 py-3 rounded-xl text-sm font-bold text-purple-600 hover:bg-purple-50 transition-colors" style="display:none;">Société 🏛️</a>
+            <a href="/owner" class="nav-btn-owner px-4 py-3 rounded-xl text-sm font-bold text-emerald-600 hover:bg-emerald-50 transition-colors" style="display:none;">Owner 🌐</a>
         </div>
     </header>
     <div class="grid grid-cols-1 md:grid-cols-4 gap-8">

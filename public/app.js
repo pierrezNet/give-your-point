@@ -532,11 +532,7 @@ async function init() {
     const myId = handleAuth();
 
     if (!myId) {
-        document.body.innerHTML = `
-            <div class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4 font-sans">
-                <h1 class="text-2xl font-bold text-gray-800">Accès restreint 🔒</h1>
-                <p class="text-gray-600 mt-2">Utilise ton lien magique pour te connecter.</p>
-            </div>`;
+        await renderLanding();
         return;
     }
 
@@ -562,9 +558,18 @@ async function init() {
     const teamEl = document.getElementById('current-team-name');
     if (teamEl) teamEl.innerText = me.team_name || '';
 
-    // Cacher le lien admin si l'utilisateur n'a pas le rôle
-    if (me.role !== 'admin') {
+    // Visibilité conditionnelle des liens admin / superadmin / owner
+    const isAdmin = me.role === 'admin' || me.role === 'superadmin' || me.role === 'owner';
+    const isSuperadmin = me.role === 'superadmin' || me.role === 'owner';
+    const isOwner = me.role === 'owner';
+    if (!isAdmin) {
         document.querySelectorAll('.nav-btn-admin').forEach(el => el.style.display = 'none');
+    }
+    if (isSuperadmin) {
+        document.querySelectorAll('.nav-btn-superadmin').forEach(el => el.style.display = '');
+    }
+    if (isOwner) {
+        document.querySelectorAll('.nav-btn-owner').forEach(el => el.style.display = '');
     }
 
     await Promise.all([
@@ -573,6 +578,93 @@ async function init() {
     ]);
     startEventSource();
     initPushNotifications(); // fire-and-forget
+}
+
+async function renderLanding() {
+    let cfg = {};
+    try {
+        const res = await fetch('/api/config');
+        if (res.ok) cfg = await res.json();
+    } catch {}
+
+    document.body.innerHTML = `
+        <div class="min-h-screen bg-gray-100 p-4 flex flex-col items-center justify-center">
+            <div class="max-w-md w-full bg-white rounded-3xl shadow-xl p-8 space-y-5">
+                <div class="text-center">
+                    <h1 class="text-3xl font-black text-slate-800">🎯 Donne Ton Point</h1>
+                    <p class="text-sm text-slate-500 mt-2">Le rituel d'équipe pour s'offrir points et gages.</p>
+                </div>
+
+                <div class="bg-slate-50 rounded-xl p-4 text-sm text-slate-700 border border-slate-200">
+                    <h2 class="font-bold text-slate-800 mb-1">Tu as déjà un lien magique ?</h2>
+                    <p class="text-xs text-slate-600">Clique simplement dessus pour te connecter (format <span class="font-mono text-[11px] bg-slate-100 px-1 py-0.5 rounded">/login/&lt;token&gt;</span>).</p>
+                </div>
+
+                <div class="border border-slate-200 rounded-xl p-4">
+                    <h2 class="font-bold text-slate-800 mb-3">✨ Crée ton espace</h2>
+                    <form id="onboarding-form" class="space-y-3">
+                        <input id="ob-company" type="text" required minlength="2" maxlength="60" placeholder="Nom de ta société ou équipe" class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
+                        <input id="ob-admin" type="text" required minlength="1" maxlength="40" placeholder="Ton prénom" class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
+                        <div class="cf-turnstile" data-sitekey="${cfg.turnstileSiteKey || ''}" data-size="flexible"></div>
+                        <button type="submit" id="ob-submit" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition disabled:opacity-50">Lancer mon équipe 🚀</button>
+                        <p id="ob-error" class="text-red-600 text-xs text-center hidden"></p>
+                    </form>
+                </div>
+
+                <p class="text-[10px] text-slate-400 text-center">En créant ton espace, tu deviens son administrateur et reçois ton lien magique de connexion.</p>
+            </div>
+        </div>`;
+
+    if (cfg.turnstileSiteKey && !document.querySelector('script[src*="turnstile"]')) {
+        const s = document.createElement('script');
+        s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+        s.async = true;
+        s.defer = true;
+        document.head.appendChild(s);
+    }
+
+    document.getElementById('onboarding-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errEl = document.getElementById('ob-error');
+        const submitBtn = document.getElementById('ob-submit');
+        errEl.classList.add('hidden');
+
+        const company = document.getElementById('ob-company').value.trim();
+        const admin = document.getElementById('ob-admin').value.trim();
+        const ts = document.querySelector('[name="cf-turnstile-response"]')?.value || '';
+
+        if (!ts) {
+            errEl.textContent = "Patiente quelques secondes pour la vérification anti-bot…";
+            errEl.classList.remove('hidden');
+            return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = "Création en cours…";
+
+        try {
+            const res = await fetch('/api/onboarding', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ company_name: company, admin_name: admin, turnstile_token: ts })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                window.location.href = `/login/${data.token}`;
+                return;
+            }
+            const err = await res.json().catch(() => ({}));
+            errEl.textContent = err.error || "Erreur lors de la création";
+            errEl.classList.remove('hidden');
+        } catch {
+            errEl.textContent = "Impossible de joindre le serveur";
+            errEl.classList.remove('hidden');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "Lancer mon équipe 🚀";
+        }
+    });
 }
 
 function startEventSource() {

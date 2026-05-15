@@ -23,7 +23,11 @@
                 <h1 class="text-xl md:text-3xl font-black text-slate-800">Console Admin 🛠️</h1>
                 <p class="text-xs md:text-sm font-bold text-slate-500 mt-1" id="admin-scope">Équipe : <span id="admin-team-name">…</span></p>
             </div>
-            <a href="/" class="text-blue-600 font-bold hover:underline">← Retour à l'App</a>
+            <div class="flex gap-3 items-center text-sm">
+                <a href="/owner" id="link-owner" class="text-emerald-600 font-bold hover:underline" style="display:none;">Owner 🌐</a>
+                <a href="/superadmin" id="link-superadmin" class="text-purple-600 font-bold hover:underline" style="display:none;">Société 🏛️</a>
+                <a href="/" class="text-blue-600 font-bold hover:underline">← App</a>
+            </div>
         </header>
 
         <div class="bg-white p-2 md:p-6 rounded-2xl shadow-sm border border-slate-200 mt-8">
@@ -126,13 +130,22 @@
 
             const me = await res.json();
 
-            if (me.role !== 'admin') {
+            if (me.role !== 'admin' && me.role !== 'superadmin' && me.role !== 'owner') {
                 alert("Accès refusé : tu n'es pas administrateur de ton équipe.");
                 return window.location.href = "/";
             }
 
             const teamLabel = document.getElementById('admin-team-name');
             if (teamLabel) teamLabel.textContent = me.team_name || '?';
+
+            if (me.role === 'superadmin' || me.role === 'owner') {
+                const saLink = document.getElementById('link-superadmin');
+                if (saLink) saLink.style.display = '';
+            }
+            if (me.role === 'owner') {
+                const ownerLink = document.getElementById('link-owner');
+                if (ownerLink) ownerLink.style.display = '';
+            }
 
             document.getElementById('admin-body').classList.remove('opacity-0');
             loadAdminUsers();

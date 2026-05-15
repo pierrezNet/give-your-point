@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Superadmin DSAF - Donne Ton Point</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="app.js"></script>
+</head>
+<body class="bg-slate-50 min-h-screen p-4 md:p-8 opacity-0 transition-opacity duration-500" id="superadmin-body">
+    <div class="max-w-5xl mx-auto">
+        <header class="flex justify-between items-center mb-8">
+            <div>
+                <h1 class="text-xl md:text-3xl font-black text-slate-800">Console Superadmin 🏛️</h1>
+                <p class="text-xs md:text-sm font-bold text-slate-500 mt-1">Société : <span id="superadmin-company-name">…</span></p>
+            </div>
+            <div class="flex gap-3 items-center text-sm">
+                <a href="/owner" id="link-owner" class="text-emerald-600 font-bold hover:underline" style="display:none;">Owner 🌐</a>
+                <a href="/admin" class="text-purple-600 font-bold hover:underline">Admin équipe →</a>
+                <a href="/" class="text-blue-600 font-bold hover:underline">← App</a>
+            </div>
+        </header>
+
+        <!-- Bloc Équipes -->
+        <div class="bg-white p-2 md:p-6 rounded-2xl shadow-sm border border-slate-200">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-slate-800">Équipes</h2>
+                <button onclick="openCreateTeam()" class="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-emerald-700 transition-colors text-sm">
+                    + Créer une équipe
+                </button>
+            </div>
+            <table class="w-full text-left">
+                <thead class="bg-slate-100 border-b border-slate-200">
+                    <tr>
+                        <th class="p-4 font-bold text-slate-600">Nom</th>
+                        <th class="p-4 font-bold text-slate-600 hidden md:table-cell">Admin(s)</th>
+                        <th class="p-4 font-bold text-slate-600 hidden sm:table-cell">Membres</th>
+                        <th class="p-4 font-bold text-slate-600 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="teams-list"></tbody>
+            </table>
+        </div>
+
+        <!-- Bloc Administrateurs -->
+        <div class="bg-white p-2 md:p-6 rounded-2xl shadow-sm border border-slate-200 mt-8">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold text-slate-800">Administrateurs</h2>
+                <button onclick="openPromote()" class="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-blue-700 transition-colors text-sm">
+                    + Promouvoir un membre
+                </button>
+            </div>
+            <div id="admins-list" class="space-y-3"></div>
+        </div>
+    </div>
+
+    <script>
+        const myUserId = localStorage.getItem('my_user_id');
+
+        async function checkAndLoad() {
+            if (!myUserId) {
+                alert("Connecte-toi via ton lien magique avant d'accéder à la console superadmin.");
+                return window.location.href = "/";
+            }
+
+            const res = await fetch('/api/me', { headers: { 'Authorization': `Bearer ${myUserId}` } });
+            if (!res.ok) {
+                alert("Session invalide. Reconnecte-toi via ton lien magique.");
+                return window.location.href = "/";
+            }
+
+            const me = await res.json();
+            if (me.role !== 'superadmin' && me.role !== 'owner') {
+                alert("Accès refusé : tu n'es pas superadmin.");
+                return window.location.href = "/";
+            }
+
+            document.getElementById('superadmin-company-name').textContent = me.company_name || me.team_name || 'Mon espace';
+
+            if (me.role === 'owner') {
+                const ownerLink = document.getElementById('link-owner');
+                if (ownerLink) ownerLink.style.display = '';
+            }
+            document.getElementById('superadmin-body').classList.remove('opacity-0');
+
+            await Promise.all([loadTeams(), loadAdmins()]);
+        }
+
+        async function saFetch(url, options = {}) {
+            options.headers = { ...(options.headers || {}), 'Authorization': `Bearer ${myUserId}` };
+            const res = await fetch(url, options);
+            if (res.status === 401 || res.status === 403) {
+                alert("Accès refusé.");
+                window.location.href = "/";
+                return;
+            }
+            return res;
+        }
+
+        async function loadTeams() {
+            const res = await saFetch('/api/superadmin/teams');
+            const teams = await res.json();
+            const list = document.getElementById('teams-list');
+            list.innerHTML = teams.map(t => {
+                const isActive = t.active === 1;
+                return `
+                    <tr class="border-b border-slate-100 ${!isActive ? 'opacity-50' : ''}">
+                        <td class="p-4">
+                            <div class="font-bold text-slate-800">${t.name}</div>
+                            ${!isActive ? '<div class="text-[10px] font-bold uppercase text-slate-400">Désactivée</div>' : ''}
+                        </td>
+                        <td class="p-4 hidden md:table-cell text-sm text-slate-600">${t.admins || '<i class="text-slate-400">aucun</i>'}</td>
+                        <td class="p-4 hidden sm:table-cell text-sm">${t.member_count}</td>
+                        <td class="p-4">
+                            <div class="flex justify-end items-center gap-2 flex-wrap">
+                                ${isActive ? `
+                                    <button onclick="addUserToTeam('${t.id}', '${t.name.replace(/'/g, "\\'")}')" class="text-xs font-black text-emerald-600 hover:underline uppercase">+ Membre</button>
+                                    <button onclick="renameTeam('${t.id}', '${t.name.replace(/'/g, "\\'")}')" class="text-xs font-black text-blue-600 hover:underline uppercase">Renommer</button>
+                                    <button onclick="toggleTeam('${t.id}', false)" class="text-xs font-black text-red-500 hover:text-red-700 uppercase">Désactiver</button>
+                                ` : `
+                                    <button onclick="toggleTeam('${t.id}', true)" class="text-xs font-black text-emerald-600 uppercase">Réactiver</button>
+                                `}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        async function loadAdmins() {
+            const res = await saFetch('/api/superadmin/admins');
+            const admins = await res.json();
+            const list = document.getElementById('admins-list');
+            if (!admins.length) {
+                list.innerHTML = '<p class="text-sm italic text-slate-400 py-4">Aucun administrateur pour le moment.</p>';
+                return;
+            }
+            // Grouper par équipe
+            const byTeam = admins.reduce((acc, a) => {
+                (acc[a.team_name] = acc[a.team_name] || []).push(a);
+                return acc;
+            }, {});
+
+            list.innerHTML = Object.entries(byTeam).map(([teamName, members]) => `
+                <div class="bg-slate-50 rounded-xl border border-slate-100 p-4">
+                    <h3 class="font-black text-xs uppercase tracking-widest text-slate-500 mb-3">Équipe ${teamName}</h3>
+                    <div class="space-y-2">
+                        ${members.map(a => `
+                            <div class="flex items-center justify-between gap-2 bg-white rounded-lg p-3 border border-slate-100">
+                                <div class="text-sm">
+                                    <span class="font-bold text-slate-800">${a.name}</span>
+                                    <span class="ml-2 inline-block px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${a.role === 'superadmin' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}">${a.role}</span>
+                                    ${a.active === 0 ? '<span class="ml-2 text-[10px] text-slate-400">(désactivé)</span>' : ''}
+                                </div>
+                                <div class="flex gap-3 items-center shrink-0">
+                                    <button onclick="copyMagicLink('${a.token}')" class="text-xs font-black text-blue-600 hover:underline uppercase">Lien</button>
+                                    <button onclick="demote('${a.id}', '${a.name.replace(/'/g, "\\'")}', '${a.role}')" class="text-xs font-black text-red-400 hover:text-red-600 uppercase">Révoquer</button>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function openCreateTeam() {
+            const name = prompt("Nom de la nouvelle équipe :");
+            if (!name || !name.trim()) return;
+            const res = await saFetch('/api/superadmin/teams', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name.trim() })
+            });
+            if (res && res.ok) loadTeams();
+        }
+
+        async function addUserToTeam(teamId, teamName) {
+            const name = prompt(`Ajouter un membre à l'équipe "${teamName}".\n\nNom du nouveau collègue :`);
+            if (!name || !name.trim()) return;
+            const makeAdmin = confirm(`Faire de "${name.trim()}" l'admin de ${teamName} ?\n\nOK = admin, Annuler = simple membre.`);
+            const res = await saFetch(`/api/superadmin/teams/${teamId}/users`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name.trim(), role: makeAdmin ? 'admin' : 'member' })
+            });
+            if (res && res.ok) {
+                const data = await res.json();
+                const url = `${window.location.origin}/login/${data.token}`;
+                if (confirm(`✅ "${name.trim()}" créé.\n\nLien magique :\n${url}\n\nCopier dans le presse-papier ?`)) {
+                    navigator.clipboard.writeText(url);
+                }
+                await loadTeams();
+                if (makeAdmin) await loadAdmins();
+            } else if (res) {
+                const err = await res.json().catch(() => ({}));
+                alert(err.error || "Erreur");
+            }
+        }
+
+        async function renameTeam(id, currentName) {
+            const name = prompt("Nouveau nom :", currentName);
+            if (!name || !name.trim() || name === currentName) return;
+            const res = await saFetch(`/api/superadmin/teams/${id}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name.trim() })
+            });
+            if (res && res.ok) loadTeams();
+        }
+
+        async function toggleTeam(id, shouldActivate) {
+            const verb = shouldActivate ? "Réactiver" : "Désactiver";
+            if (!confirm(`${verb} cette équipe ?`)) return;
+            const url = shouldActivate ? `/api/superadmin/teams/${id}/restore` : `/api/superadmin/teams/${id}`;
+            const method = shouldActivate ? 'PATCH' : 'DELETE';
+            const res = await saFetch(url, { method });
+            if (res && res.ok) loadTeams();
+            else if (res) {
+                const err = await res.json().catch(() => ({}));
+                alert(err.error || "Erreur");
+            }
+        }
+
+        function copyMagicLink(token) {
+            const url = `${window.location.origin}/login/${token}`;
+            navigator.clipboard.writeText(url);
+            alert("Lien magique copié ! ✅");
+        }
+
+        async function demote(userId, name, currentRole) {
+            if (!confirm(`Révoquer le rôle ${currentRole} de ${name} (retour au statut member) ?`)) return;
+            const res = await saFetch(`/api/superadmin/users/${userId}/demote`, { method: 'POST' });
+            if (res && res.ok) {
+                await loadAdmins();
+                await loadTeams();
+            } else if (res) {
+                const err = await res.json().catch(() => ({}));
+                alert(err.error || "Erreur");
+            }
+        }
+
+        async function openPromote() {
+            const res = await saFetch('/api/superadmin/users');
+            const users = await res.json();
+            // Filtrer les members actifs uniquement
+            const candidates = users.filter(u => u.role === 'member' && u.active === 1);
+            if (!candidates.length) {
+                alert("Aucun member actif à promouvoir.");
+                return;
+            }
+            const choices = candidates.map((u, i) => `${i + 1}. ${u.name} (${u.team_name})`).join('\n');
+            const pick = prompt(`Choisis le numéro du membre à promouvoir :\n\n${choices}`);
+            const idx = parseInt(pick, 10) - 1;
+            if (isNaN(idx) || idx < 0 || idx >= candidates.length) return;
+            const target = candidates[idx];
+            const role = confirm(`Promouvoir ${target.name} en superadmin ?\nOK = superadmin, Annuler = admin de ${target.team_name}.`)
+                ? 'superadmin' : 'admin';
+            const res2 = await saFetch(`/api/superadmin/users/${target.id}/promote`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ role })
+            });
+            if (res2 && res2.ok) {
+                await loadAdmins();
+                await loadTeams();
+            }
+        }
+
+        checkAndLoad();
+    </script>
+</body>
+</html>

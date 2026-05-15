@@ -8,6 +8,36 @@ type Bindings = {
   VAPID_PUBLIC_KEY: string
   VAPID_PRIVATE_KEY_JWK: string
   VAPID_SUBJECT: string
+  TURNSTILE_SITE_KEY: string
+  TURNSTILE_SECRET_KEY: string
+}
+
+const DEFAULT_CATEGORIES = [
+  { name: 'Méchanceté',         emoji: '👿', forfeit: 'Viennoiseries' },
+  { name: 'Super blague',       emoji: '😂', forfeit: 'Continue ainsi' },
+  { name: 'Flemme',             emoji: '😴', forfeit: 'Chouquettes' },
+  { name: 'Désespérance',       emoji: '😩', forfeit: '1 séance chez le psy' },
+  { name: 'Colère',             emoji: '😡', forfeit: 'Chocolats' },
+  { name: 'Blague affligeante', emoji: '😓', forfeit: 'Bonbons' },
+  { name: 'Mauvaise foi',       emoji: '🤷', forfeit: 'Jus de fruits' },
+];
+
+async function verifyTurnstile(token: string, secret: string, ip?: string): Promise<boolean> {
+  if (!token || !secret) return false;
+  const form = new FormData();
+  form.append('secret', secret);
+  form.append('response', token);
+  if (ip) form.append('remoteip', ip);
+  try {
+    const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+      method: 'POST',
+      body: form,
+    });
+    const data: any = await res.json();
+    return data.success === true;
+  } catch {
+    return false;
+  }
 }
 
 type Variables = {
@@ -22,6 +52,7 @@ interface AuthUser {
   team_id: string
   team_name: string
   company_id: string
+  company_name: string
 }
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
@@ -41,9 +72,12 @@ interface PointStat {
 
 async function getUserByToken(db: D1Database, token: string): Promise<AuthUser | null> {
   return db.prepare(`
-    SELECT u.id, u.name, u.role, u.active, u.team_id, t.name AS team_name, t.company_id
+    SELECT u.id, u.name, u.role, u.active, u.team_id,
+           t.name AS team_name, t.company_id,
+           c.name AS company_name
     FROM users u
     LEFT JOIN teams t ON t.id = u.team_id
+    LEFT JOIN companies c ON c.id = t.company_id
     WHERE u.token = ? AND u.active = 1
   `).bind(token).first<AuthUser>();
 }
@@ -64,12 +98,35 @@ const requireUser = async (c: any, next: any) => {
   await next();
 };
 
+const ADMIN_ROLES = ['admin', 'superadmin', 'owner'];
+const SUPERADMIN_ROLES = ['superadmin', 'owner'];
+
 const requireAdmin = async (c: any, next: any) => {
   const token = extractToken(c);
   if (!token) return c.json({ error: 'Non autorisé' }, 401);
   const user = await getUserByToken(c.env.DB, token);
   if (!user) return c.json({ error: 'Session invalide' }, 401);
-  if (user.role !== 'admin') return c.json({ error: 'Accès admin requis' }, 403);
+  if (!ADMIN_ROLES.includes(user.role)) return c.json({ error: 'Accès admin requis' }, 403);
+  c.set('user', user);
+  await next();
+};
+
+const requireSuperadmin = async (c: any, next: any) => {
+  const token = extractToken(c);
+  if (!token) return c.json({ error: 'Non autorisé' }, 401);
+  const user = await getUserByToken(c.env.DB, token);
+  if (!user) return c.json({ error: 'Session invalide' }, 401);
+  if (!SUPERADMIN_ROLES.includes(user.role)) return c.json({ error: 'Accès superadmin requis' }, 403);
+  c.set('user', user);
+  await next();
+};
+
+const requireOwner = async (c: any, next: any) => {
+  const token = extractToken(c);
+  if (!token) return c.json({ error: 'Non autorisé' }, 401);
+  const user = await getUserByToken(c.env.DB, token);
+  if (!user) return c.json({ error: 'Session invalide' }, 401);
+  if (user.role !== 'owner') return c.json({ error: 'Accès owner requis' }, 403);
   c.set('user', user);
   await next();
 };
@@ -250,6 +307,7 @@ app.get('/api/me', requireUser, async (c) => {
     team_id: u.team_id,
     team_name: u.team_name,
     company_id: u.company_id,
+    company_name: u.company_name,
   });
 });
 
@@ -443,6 +501,82 @@ app.get('/api/events', requireUser, async (c) => {
   });
 });
 
+// === Console owner : vue globale des sociétés inscrites ===
+
+app.get('/api/owner/companies', requireOwner, async (c) => {
+  const { results } = await c.env.DB.prepare(`
+    SELECT
+      c.id,
+      c.name,
+      c.active,
+      c.created_at,
+      (SELECT COUNT(*) FROM teams WHERE company_id = c.id AND active = 1) AS team_count,
+      (SELECT COUNT(*) FROM users u JOIN teams t ON t.id = u.team_id
+         WHERE t.company_id = c.id AND u.active = 1) AS member_count,
+      (SELECT GROUP_CONCAT(u.name, ', ') FROM users u JOIN teams t ON t.id = u.team_id
+         WHERE t.company_id = c.id AND u.active = 1
+           AND u.role IN ('admin','superadmin','owner')) AS admins,
+      (SELECT COUNT(*) FROM points_log p JOIN teams t ON t.id = p.team_id
+         WHERE t.company_id = c.id) AS total_points,
+      (SELECT MAX(p.created_at) FROM points_log p JOIN teams t ON t.id = p.team_id
+         WHERE t.company_id = c.id) AS last_point_at,
+      (SELECT COUNT(*) FROM points_log p JOIN teams t ON t.id = p.team_id
+         WHERE t.company_id = c.id AND p.created_at >= datetime('now', '-7 days')) AS points_last_7d
+    FROM companies c
+    ORDER BY c.created_at DESC
+  `).all();
+  return c.json(results);
+});
+
+// Config publique (clé Turnstile exposée au frontend)
+app.get('/api/config', async (c) => {
+  return c.json({ turnstileSiteKey: c.env.TURNSTILE_SITE_KEY || null });
+});
+
+// Onboarding autonome : crée company + team + superadmin + 7 catégories
+app.post('/api/onboarding', async (c) => {
+  try {
+    const { company_name, admin_name, turnstile_token } = await c.req.json();
+
+    const company = (company_name || '').trim();
+    const admin = (admin_name || '').trim();
+
+    if (!company || company.length < 2 || company.length > 60) {
+      return c.json({ error: "Nom de société requis (2 à 60 caractères)" }, 400);
+    }
+    if (!admin || admin.length < 1 || admin.length > 40) {
+      return c.json({ error: "Prénom requis (1 à 40 caractères)" }, 400);
+    }
+
+    const ip = c.req.header('CF-Connecting-IP') || undefined;
+    const ok = await verifyTurnstile(turnstile_token, c.env.TURNSTILE_SECRET_KEY, ip);
+    if (!ok) {
+      return c.json({ error: "Vérification anti-bot échouée. Réessaie." }, 403);
+    }
+
+    const companyId = crypto.randomUUID();
+    const teamId = crypto.randomUUID();
+    const userId = crypto.randomUUID();
+
+    const statements = [
+      c.env.DB.prepare("INSERT INTO companies (id, name, active) VALUES (?, ?, 1)").bind(companyId, company),
+      c.env.DB.prepare("INSERT INTO teams (id, company_id, name, active) VALUES (?, ?, ?, 1)").bind(teamId, companyId, company),
+      c.env.DB.prepare("INSERT INTO users (id, team_id, name, role, active, token) VALUES (?, ?, ?, 'superadmin', 1, ?)").bind(userId, teamId, admin, userId),
+      ...DEFAULT_CATEGORIES.map(cat =>
+        c.env.DB.prepare("INSERT INTO categories (id, team_id, name, emoji, forfeit, active) VALUES (?, ?, ?, ?, ?, 1)")
+          .bind(crypto.randomUUID(), teamId, cat.name, cat.emoji, cat.forfeit)
+      ),
+    ];
+
+    await c.env.DB.batch(statements);
+
+    return c.json({ success: true, token: userId });
+  } catch (err: any) {
+    console.error("Erreur onboarding:", err);
+    return c.json({ error: "Erreur lors de la création de l'espace" }, 500);
+  }
+});
+
 // Route pour le lien magique : /login/ton-token-unique
 app.get('/login/:token', async (c) => {
   const token = c.req.param('token');
@@ -487,10 +621,9 @@ app.post('/api/admin/users', requireAdmin, async (c) => {
   const admin = c.get('user');
   const { name } = await c.req.json();
   const id = crypto.randomUUID();
-  const token = crypto.randomUUID();
   await c.env.DB.prepare(
     "INSERT INTO users (id, team_id, name, role, active, token) VALUES (?, ?, ?, 'member', 1, ?)"
-  ).bind(id, admin.team_id, name, token).run();
+  ).bind(id, admin.team_id, name, id).run();
   return c.json({ success: true });
 });
 
@@ -765,6 +898,182 @@ app.get('/api/admin/dare-log', requireAdmin, async (c) => {
     LIMIT 50
   `).bind(admin.team_id).all();
   return c.json(results);
+});
+
+// === Routes superadmin (scope = société du superadmin) ===
+
+// Liste les équipes de la société, avec admins et nombre de membres actifs
+app.get('/api/superadmin/teams', requireSuperadmin, async (c) => {
+  const sa = c.get('user');
+  const { results } = await c.env.DB.prepare(`
+    SELECT
+      t.id,
+      t.name,
+      t.active,
+      t.created_at,
+      (SELECT COUNT(*) FROM users WHERE team_id = t.id AND active = 1) AS member_count,
+      (SELECT GROUP_CONCAT(u.name, ', ')
+         FROM users u
+         WHERE u.team_id = t.id
+           AND u.active = 1
+           AND u.role IN ('admin','superadmin','owner')
+      ) AS admins
+    FROM teams t
+    WHERE t.company_id = ?
+    ORDER BY t.active DESC, t.name ASC
+  `).bind(sa.company_id).all();
+  return c.json(results);
+});
+
+// Créer une équipe dans la société du superadmin
+app.post('/api/superadmin/teams', requireSuperadmin, async (c) => {
+  const sa = c.get('user');
+  const { name } = await c.req.json();
+  if (!name || typeof name !== 'string' || !name.trim()) {
+    return c.json({ error: 'Nom requis' }, 400);
+  }
+  const id = crypto.randomUUID();
+  await c.env.DB.prepare(
+    "INSERT INTO teams (id, company_id, name, active) VALUES (?, ?, ?, 1)"
+  ).bind(id, sa.company_id, name.trim()).run();
+  return c.json({ success: true, id });
+});
+
+// Renommer une équipe
+app.patch('/api/superadmin/teams/:id', requireSuperadmin, async (c) => {
+  const sa = c.get('user');
+  const id = c.req.param('id');
+  const { name } = await c.req.json();
+  if (!name || !name.trim()) return c.json({ error: 'Nom requis' }, 400);
+  const result = await c.env.DB.prepare(
+    "UPDATE teams SET name = ? WHERE id = ? AND company_id = ?"
+  ).bind(name.trim(), id, sa.company_id).run();
+  if (result.meta.changes === 0) return c.json({ error: "Équipe introuvable" }, 404);
+  return c.json({ success: true });
+});
+
+// Désactiver une équipe (soft delete)
+app.delete('/api/superadmin/teams/:id', requireSuperadmin, async (c) => {
+  const sa = c.get('user');
+  const id = c.req.param('id');
+  // Refuser si c'est la team du superadmin lui-même (sinon il se locke dehors)
+  if (id === sa.team_id) {
+    return c.json({ error: "Tu ne peux pas désactiver ta propre équipe." }, 400);
+  }
+  const result = await c.env.DB.prepare(
+    "UPDATE teams SET active = 0 WHERE id = ? AND company_id = ?"
+  ).bind(id, sa.company_id).run();
+  if (result.meta.changes === 0) return c.json({ error: "Équipe introuvable" }, 404);
+  return c.json({ success: true });
+});
+
+// Réactiver une équipe
+app.patch('/api/superadmin/teams/:id/restore', requireSuperadmin, async (c) => {
+  const sa = c.get('user');
+  const id = c.req.param('id');
+  const result = await c.env.DB.prepare(
+    "UPDATE teams SET active = 1 WHERE id = ? AND company_id = ?"
+  ).bind(id, sa.company_id).run();
+  if (result.meta.changes === 0) return c.json({ error: "Équipe introuvable" }, 404);
+  return c.json({ success: true });
+});
+
+// Créer un user directement dans une équipe (avec option admin)
+app.post('/api/superadmin/teams/:id/users', requireSuperadmin, async (c) => {
+  const sa = c.get('user');
+  const teamId = c.req.param('id');
+  const { name, role } = await c.req.json();
+  if (!name || !name.trim()) return c.json({ error: 'Nom requis' }, 400);
+  const userRole = (role === 'admin' || role === 'superadmin') ? role : 'member';
+
+  // Vérifier que la team appartient à la société du superadmin
+  const team = await c.env.DB.prepare(
+    "SELECT id FROM teams WHERE id = ? AND company_id = ?"
+  ).bind(teamId, sa.company_id).first();
+  if (!team) return c.json({ error: "Équipe introuvable dans ta société" }, 404);
+
+  const id = crypto.randomUUID();
+  await c.env.DB.prepare(
+    "INSERT INTO users (id, team_id, name, role, active, token) VALUES (?, ?, ?, ?, 1, ?)"
+  ).bind(id, teamId, name.trim(), userRole, id).run();
+  return c.json({ success: true, id, token: id });
+});
+
+// Liste les admins et superadmins de la société (pour gestion + récupération magic link)
+app.get('/api/superadmin/admins', requireSuperadmin, async (c) => {
+  const sa = c.get('user');
+  const { results } = await c.env.DB.prepare(`
+    SELECT u.id, u.name, u.role, u.token, u.active, u.team_id, t.name AS team_name
+    FROM users u
+    JOIN teams t ON t.id = u.team_id
+    WHERE t.company_id = ?
+      AND u.role IN ('admin', 'superadmin', 'owner')
+    ORDER BY t.name ASC, u.name ASC
+  `).bind(sa.company_id).all();
+  return c.json(results);
+});
+
+// Liste tous les users actifs de la société (pour pouvoir choisir qui promouvoir)
+app.get('/api/superadmin/users', requireSuperadmin, async (c) => {
+  const sa = c.get('user');
+  const { results } = await c.env.DB.prepare(`
+    SELECT u.id, u.name, u.role, u.active, u.team_id, t.name AS team_name
+    FROM users u
+    JOIN teams t ON t.id = u.team_id
+    WHERE t.company_id = ?
+    ORDER BY t.name ASC, u.active DESC, u.name ASC
+  `).bind(sa.company_id).all();
+  return c.json(results);
+});
+
+// Promouvoir un user en admin ou superadmin
+app.post('/api/superadmin/users/:id/promote', requireSuperadmin, async (c) => {
+  const sa = c.get('user');
+  const id = c.req.param('id');
+  const { role } = await c.req.json();
+  if (role !== 'admin' && role !== 'superadmin') {
+    return c.json({ error: "Rôle invalide (admin ou superadmin uniquement)" }, 400);
+  }
+  // Vérifier que le user cible est dans la société du superadmin
+  const target = await c.env.DB.prepare(`
+    SELECT u.id FROM users u JOIN teams t ON t.id = u.team_id
+    WHERE u.id = ? AND t.company_id = ?
+  `).bind(id, sa.company_id).first();
+  if (!target) return c.json({ error: "Utilisateur introuvable dans ta société." }, 404);
+
+  await c.env.DB.prepare("UPDATE users SET role = ? WHERE id = ?").bind(role, id).run();
+  return c.json({ success: true });
+});
+
+// Révoquer le rôle admin/superadmin (retour à member)
+app.post('/api/superadmin/users/:id/demote', requireSuperadmin, async (c) => {
+  const sa = c.get('user');
+  const id = c.req.param('id');
+
+  // Anti-lockout : refuser si c'est le dernier superadmin actif de la société
+  const target = await c.env.DB.prepare(`
+    SELECT u.id, u.role FROM users u JOIN teams t ON t.id = u.team_id
+    WHERE u.id = ? AND t.company_id = ?
+  `).bind(id, sa.company_id).first<{ id: string; role: string }>();
+
+  if (!target) return c.json({ error: "Utilisateur introuvable dans ta société." }, 404);
+
+  if (target.role === 'owner') {
+    return c.json({ error: "Impossible de révoquer un owner." }, 403);
+  }
+
+  if (target.role === 'superadmin') {
+    const others = await c.env.DB.prepare(`
+      SELECT COUNT(*) as n FROM users u JOIN teams t ON t.id = u.team_id
+      WHERE t.company_id = ? AND u.role = 'superadmin' AND u.active = 1 AND u.id != ?
+    `).bind(sa.company_id, id).first<{ n: number }>();
+    if ((others?.n ?? 0) === 0) {
+      return c.json({ error: "Impossible : c'est le dernier superadmin de la société." }, 400);
+    }
+  }
+
+  await c.env.DB.prepare("UPDATE users SET role = 'member' WHERE id = ?").bind(id).run();
+  return c.json({ success: true });
 });
 
 app.get('/api/push/vapid-key', async (c) => {

@@ -11,8 +11,12 @@
     "db:migrate:prod": "wrangler d1 execute give-your-point --remote --command=\"CREATE TABLE IF NOT EXISTS dare_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, category_id TEXT, dare_text TEXT, cleared_at DATETIME DEFAULT CURRENT_TIMESTAMP); CREATE TABLE IF NOT EXISTS push_subscriptions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, endpoint TEXT NOT NULL, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, endpoint));\"",
     "db:migrate:multitenant": "wrangler d1 execute give-your-point --remote --file=migrations/2026-05-multitenant.sql",
     "db:migrate:multitenant:local": "wrangler d1 execute give-your-point --local --persist-to=./db_data --file=migrations/2026-05-multitenant.sql",
+    "db:migrate:superadmin": "wrangler d1 execute give-your-point --remote --file=migrations/2026-06-superadmin.sql",
+    "db:migrate:superadmin:local": "wrangler d1 execute give-your-point --local --persist-to=./db_data --file=migrations/2026-06-superadmin.sql",
+    "db:migrate:owner": "wrangler d1 execute give-your-point --remote --file=migrations/2026-07-owner.sql",
+    "db:migrate:owner:local": "wrangler d1 execute give-your-point --local --persist-to=./db_data --file=migrations/2026-07-owner.sql",
     "generate:vapid": "node generate-vapid.mjs",
-    "deploy": "wrangler pages deploy dist",
+    "deploy": "npm run build && wrangler pages deploy dist",
     "build": "mkdir -p dist && npx @tailwindcss/cli -i public/input.css -o dist/styles.css --minify && cp -r public/* dist/"
   },
   "keywords": [],
