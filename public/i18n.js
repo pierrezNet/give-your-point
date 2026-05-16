@@ -1,0 +1,519 @@
+// Système d'internationalisation léger pour Donne Ton Point.
+// Convention : t('section.clé') ; les éléments HTML utilisent data-i18n / data-i18n-placeholder / data-i18n-title.
+// Chargé en premier dans toutes les pages, AVANT app.js.
+
+const translations = {
+  fr: {
+    // Commun
+    'common.save': 'Enregistrer',
+    'common.cancel': 'Annuler',
+    'common.delete': 'Supprimer',
+    'common.remove': 'Retirer',
+    'common.restore': 'Réactiver',
+    'common.deactivate': 'Désactiver',
+    'common.rename': 'Renommer',
+    'common.add': 'Ajouter',
+    'common.create': 'Créer',
+    'common.edit': 'Modifier',
+    'common.confirm': 'Confirmer',
+    'common.back_to_app': '← App',
+    'common.back_to_admin': '← Admin',
+    'common.copy_link': 'Lien',
+    'common.loading': 'Chargement…',
+    'common.error': 'Erreur',
+    'common.access_denied': 'Accès refusé',
+
+    // Header app principale
+    'app.title': 'Donne Ton Point',
+    'app.tagline': "Le rituel d'équipe pour s'offrir points et gages.",
+    'app.connecting': 'Connexion en cours…',
+    'app.edit_email_title': 'Modifier mon email pour les notifications',
+
+    // Navigation
+    'nav.stats': 'Stats 📊',
+    'nav.about': 'À propos',
+    'nav.help': 'Aide',
+    'nav.admin': 'Admin 🔐',
+    'nav.superadmin': 'Société 🏛️',
+    'nav.owner': 'Owner 🌐',
+
+    // Page d'accueil (index)
+    'index.section_categories': 'Offrir un point',
+    'index.section_team': 'Équipe :',
+    'index.you_label': '(toi)',
+    'index.no_badge': 'Aucun badge',
+    'index.pts_short': 'pts',
+    'index.gage_label': '🚨 GAGE : {dare}',
+
+    // Auth restreint / session invalide
+    'auth.restricted_title': 'Accès restreint 🔒',
+    'auth.restricted_msg': 'Utilise ton lien magique pour te connecter.',
+    'auth.session_invalid_title': 'Session invalide 🔒',
+    'auth.session_invalid_msg': 'Demande un nouveau lien magique à ton admin.',
+
+    // Onboarding (landing publique)
+    'onboarding.have_link_title': 'Tu as déjà un lien magique ?',
+    'onboarding.have_link_desc': 'Clique simplement dessus pour te connecter (format <span class="font-mono text-[11px] bg-slate-100 px-1 py-0.5 rounded">/login/&lt;token&gt;</span>).',
+    'onboarding.create_title': '✨ Crée ton espace',
+    'onboarding.company_placeholder': 'Nom de ta société ou équipe',
+    'onboarding.admin_placeholder': 'Ton prénom',
+    'onboarding.email_placeholder': 'Ton email (optionnel, pour les notifications)',
+    'onboarding.submit': 'Lancer mon équipe 🚀',
+    'onboarding.submit_loading': 'Création en cours…',
+    'onboarding.footer_note': 'En créant ton espace, tu deviens son administrateur et reçois ton lien magique de connexion.',
+    'onboarding.error_turnstile_pending': 'Patiente quelques secondes pour la vérification anti-bot…',
+    'onboarding.error_server': 'Impossible de joindre le serveur',
+    'onboarding.error_generic': 'Erreur lors de la création',
+
+    // Modale profil email
+    'profile.title': 'Mon email ✉️',
+    'profile.desc': "Recevoir un email à chaque fois qu'un collègue te donne un point.",
+    'profile.placeholder': 'ton.email@exemple.fr',
+    'profile.error_invalid': 'Email invalide',
+    'profile.error_save': "Erreur lors de l'enregistrement",
+    'profile.confirm_remove': "Retirer ton email ? Tu ne recevras plus les notifications par mail.",
+    'profile.toast_saved': 'Email enregistré ✉️',
+    'profile.toast_removed': 'Email retiré',
+
+    // À propos
+    'about.title': 'À propos 🎯',
+    'about.body1': "<b>Donne Ton Point</b> est un outil de gamification interne pour célébrer (et taquiner) les comportements de l'équipe.",
+    'about.body2': "Chaque collègue peut offrir des badges dans différentes catégories. Quand un seuil est atteint… un gage s'impose !",
+    'about.footer': 'Fait avec ❤️ pour l\'équipe par Emmanuel et Claude.',
+
+    // Aide
+    'help.title': 'Comment ça marche ? 💡',
+    'help.step1': 'Sélectionne une catégorie dans la colonne de gauche.',
+    'help.step2': "Clique sur la carte d'un collègue pour lui offrir le badge.",
+    'help.step3': 'Sur mobile, appuie sur la catégorie puis choisis ton collègue.',
+    'help.step4': 'Tu as 15 secondes pour annuler via le bouton qui apparaît.',
+    'help.step5': "Quand le seuil d'une catégorie est atteint, un gage s'active !",
+
+    // Toasts (donner un point)
+    'toast.point_sent': 'Point envoyé !',
+    'toast.self_forbidden': "Interdit de s'auto-mousser ! 😅",
+    'toast.gage_triggered': '🚨 Gage activé pour {name} : {dare} !',
+    'toast.gage_warning': '⚠️ Encore 1 point pour déclencher le gage de {name} !',
+    'toast.generic_error': 'Une erreur est survenue',
+    'toast.server_unreachable': 'Impossible de contacter le serveur',
+    'toast.undo': 'Annuler',
+
+    // Sélecteur destinataire (mobile)
+    'selector.who': 'À qui offres-tu ce badge ?',
+
+    // Historique
+    'history.title': 'Historique de {name}',
+    'history.received': 'Derniers points reçus',
+    'history.given': 'Derniers points donnés',
+    'history.dares': 'Gages accomplis',
+    'history.empty_received': 'Aucun point reçu pour le moment',
+    'history.empty_given': 'Aucun point donné pour le moment',
+    'history.received_for': 'pour',
+    'history.received_from': 'de',
+    'history.given_to': 'à',
+    'history.gave': 'Offert',
+    'history.error': "Erreur lors de la récupération de l'historique.",
+
+    // Date formatée
+    'date.today_at': "Aujourd'hui à {time}",
+    'date.yesterday_at': 'Hier à {time}',
+    'date.day_month_at': '{date} à {time}',
+
+    // Page Admin équipe
+    'admin.title': 'Console Admin 🛠️',
+    'admin.scope': 'Équipe :',
+    'admin.add_user_title': 'Ajouter un collègue',
+    'admin.user_name_placeholder': 'Nom du collègue…',
+    'admin.user_email_placeholder': 'Email (optionnel)',
+    'admin.col_name': 'Nom',
+    'admin.col_magic_link': 'Lien Magique',
+    'admin.col_actions': 'Actions',
+    'admin.user_deactivated': '(Désactivé)',
+    'admin.has_gage': '⚠️ Oups, un gage',
+    'admin.confirm_deactivate_user': 'Désactiver ce collègue ?',
+    'admin.confirm_restore_user': 'Réactiver ce collègue ?',
+    'admin.toast_link_copied': 'Lien copié dans le presse-papier ! ✅',
+    'admin.badges_title': 'Gestion des Badges',
+    'admin.badge_emoji_placeholder': 'Emoji',
+    'admin.badge_name_placeholder': 'Nom du badge (ex: Humour)',
+    'admin.create_badge': 'Créer le badge',
+    'admin.fill_required': "Merci de remplir le nom et l'émoji !",
+    'admin.badge_active': '● Actif',
+    'admin.badge_inactive': '○ Désactivé',
+    'admin.confirm_deactivate_badge': 'Désactiver ce badge ?',
+    'admin.confirm_restore_badge': 'Réactiver ce badge ?',
+    'admin.rules_title': '⚖️ Paramétrage des Gages',
+    'admin.rule_badge': 'Badge',
+    'admin.rule_threshold': 'Seuil (points)',
+    'admin.rule_dare_text': 'Gage à accomplir',
+    'admin.rule_dare_placeholder': 'Ex: Amener des croissants',
+    'admin.rule_if': 'Si',
+    'admin.rule_reaches': 'atteint',
+    'admin.rule_then': '→',
+    'admin.rule_confirm_delete': 'Supprimer cette règle ?',
+    'admin.dare_log_title': 'Historique des gages acquittés',
+    'admin.dare_log_empty': 'Aucun gage acquitté pour le moment',
+    'admin.dare_log_did': 'a accompli :',
+    'admin.global_log_title': 'Historique global des points',
+    'admin.global_log_gave': 'a donné à',
+    'admin.confirm_clear_category': 'Confirmer la rédemption pour "{cat}" pour {user} ?',
+    'admin.confirm_delete_point': 'Supprimer définitivement ce point ?',
+    'admin.toast_point_deleted': 'Point supprimé !',
+    'admin.connect_first': "Connecte-toi via ton lien magique avant d'accéder à l'admin.",
+    'admin.session_invalid': 'Session invalide. Reconnecte-toi via ton lien magique.',
+    'admin.not_admin': "Accès refusé : tu n'es pas administrateur de ton équipe.",
+
+    // Page Superadmin
+    'superadmin.title': 'Console Superadmin 🏛️',
+    'superadmin.company_label': 'Société :',
+    'superadmin.teams_title': 'Équipes',
+    'superadmin.btn_create_team': '+ Créer une équipe',
+    'superadmin.col_team_name': 'Nom',
+    'superadmin.col_admins': 'Admin(s)',
+    'superadmin.col_members': 'Membres',
+    'superadmin.col_actions': 'Actions',
+    'superadmin.no_admin': 'aucun',
+    'superadmin.team_disabled': 'Désactivée',
+    'superadmin.btn_add_member': '+ Membre',
+    'superadmin.admins_title': 'Administrateurs',
+    'superadmin.btn_promote': '+ Promouvoir un membre',
+    'superadmin.no_admins_yet': 'Aucun administrateur pour le moment.',
+    'superadmin.team_label': 'Équipe',
+    'superadmin.user_disabled': '(désactivé)',
+    'superadmin.btn_revoke': 'Révoquer',
+    'superadmin.prompt_team_name': 'Nom de la nouvelle équipe :',
+    'superadmin.prompt_new_team_name': 'Nouveau nom :',
+    'superadmin.confirm_deactivate_team': 'Désactiver cette équipe ?',
+    'superadmin.confirm_restore_team': 'Réactiver cette équipe ?',
+    'superadmin.prompt_add_member_intro': "Ajouter un membre à l'équipe \"{team}\".\n\nNom du nouveau collègue :",
+    'superadmin.prompt_add_member_email': 'Email de {name} (optionnel, pour les notifications) :',
+    'superadmin.confirm_make_admin': 'Faire de "{name}" l\'admin de {team} ?\n\nOK = admin, Annuler = simple membre.',
+    'superadmin.member_created_link': '✅ "{name}" créé.\n\nLien magique :\n{url}\n\nCopier dans le presse-papier ?',
+    'superadmin.confirm_revoke': 'Révoquer le rôle {role} de {name} (retour au statut member) ?',
+    'superadmin.prompt_promote_pick': "Choisis le numéro du membre à promouvoir :\n\n{choices}",
+    'superadmin.no_member_to_promote': 'Aucun member actif à promouvoir.',
+    'superadmin.confirm_promote': 'Promouvoir {name} en superadmin ?\nOK = superadmin, Annuler = admin de {team}.',
+    'superadmin.toast_link_copied': 'Lien magique copié ! ✅',
+    'superadmin.connect_first': "Connecte-toi via ton lien magique avant d'accéder à la console superadmin.",
+    'superadmin.not_superadmin': "Accès refusé : tu n'es pas superadmin.",
+    'superadmin.label_default_space': 'Mon espace',
+
+    // Page Owner
+    'owner.title': 'Console Owner 🌐',
+    'owner.subtitle': 'Vue globale des sociétés inscrites',
+    'owner.kpi_companies': 'Sociétés',
+    'owner.kpi_teams': 'Équipes',
+    'owner.kpi_members': 'Membres actifs',
+    'owner.kpi_points_7d': 'Points (7j)',
+    'owner.companies_title': 'Sociétés',
+    'owner.col_company': 'Société',
+    'owner.col_admins': 'Admin(s)',
+    'owner.col_teams': 'Équipes',
+    'owner.col_members': 'Membres',
+    'owner.col_total_points': 'Points totaux',
+    'owner.col_7d': '7 derniers j.',
+    'owner.col_last_activity': 'Dernière activité',
+    'owner.col_registered': 'Inscrite le',
+    'owner.company_disabled': 'désactivée',
+    'owner.activity_active': 'vivante',
+    'owner.activity_idle': 'au ralenti',
+    'owner.activity_dormant': 'dormante',
+    'owner.activity_never': 'jamais',
+    'owner.date_today': "aujourd'hui",
+    'owner.date_yesterday': 'hier',
+    'owner.date_n_days_ago': 'il y a {n} j',
+    'owner.connect_first': 'Connecte-toi via ton lien magique.',
+    'owner.not_owner': "Accès refusé : tu n'es pas owner de l'application.",
+
+    // Page Stats
+    'stats.title': 'Stats 📊',
+    'stats.loading': 'Chargement des statistiques…',
+    'stats.error': 'Erreur de chargement',
+    'stats.connect_first': 'Connecte-toi via ton lien magique pour voir les stats.',
+    'stats.total_points': 'Points distribués',
+    'stats.givers': 'Top donneurs',
+    'stats.receivers': 'Top receveurs',
+    'stats.categories': 'Catégories les plus utilisées',
+    'stats.evolution': 'Évolution hebdomadaire',
+  },
+
+  en: {
+    'common.save': 'Save',
+    'common.cancel': 'Cancel',
+    'common.delete': 'Delete',
+    'common.remove': 'Remove',
+    'common.restore': 'Restore',
+    'common.deactivate': 'Disable',
+    'common.rename': 'Rename',
+    'common.add': 'Add',
+    'common.create': 'Create',
+    'common.edit': 'Edit',
+    'common.confirm': 'Confirm',
+    'common.back_to_app': '← App',
+    'common.back_to_admin': '← Admin',
+    'common.copy_link': 'Link',
+    'common.loading': 'Loading…',
+    'common.error': 'Error',
+    'common.access_denied': 'Access denied',
+
+    'app.title': 'Give Your Point',
+    'app.tagline': 'The team ritual to give points and dares.',
+    'app.connecting': 'Connecting…',
+    'app.edit_email_title': 'Edit my email for notifications',
+
+    'nav.stats': 'Stats 📊',
+    'nav.about': 'About',
+    'nav.help': 'Help',
+    'nav.admin': 'Admin 🔐',
+    'nav.superadmin': 'Company 🏛️',
+    'nav.owner': 'Owner 🌐',
+
+    'index.section_categories': 'Give a point',
+    'index.section_team': 'Team:',
+    'index.you_label': '(you)',
+    'index.no_badge': 'No badge',
+    'index.pts_short': 'pts',
+    'index.gage_label': '🚨 DARE: {dare}',
+
+    'auth.restricted_title': 'Restricted access 🔒',
+    'auth.restricted_msg': 'Use your magic link to log in.',
+    'auth.session_invalid_title': 'Invalid session 🔒',
+    'auth.session_invalid_msg': 'Ask your admin for a new magic link.',
+
+    'onboarding.have_link_title': 'You already have a magic link?',
+    'onboarding.have_link_desc': 'Just click it to log in (format <span class="font-mono text-[11px] bg-slate-100 px-1 py-0.5 rounded">/login/&lt;token&gt;</span>).',
+    'onboarding.create_title': '✨ Create your space',
+    'onboarding.company_placeholder': 'Your company or team name',
+    'onboarding.admin_placeholder': 'Your first name',
+    'onboarding.email_placeholder': 'Your email (optional, for notifications)',
+    'onboarding.submit': 'Launch my team 🚀',
+    'onboarding.submit_loading': 'Creating…',
+    'onboarding.footer_note': 'By creating your space, you become its administrator and receive your magic link.',
+    'onboarding.error_turnstile_pending': 'Wait a few seconds for the anti-bot check…',
+    'onboarding.error_server': 'Cannot reach the server',
+    'onboarding.error_generic': 'Error during creation',
+
+    'profile.title': 'My email ✉️',
+    'profile.desc': 'Get an email every time a colleague gives you a point.',
+    'profile.placeholder': 'your.email@example.com',
+    'profile.error_invalid': 'Invalid email',
+    'profile.error_save': 'Error while saving',
+    'profile.confirm_remove': 'Remove your email? You will no longer receive notifications.',
+    'profile.toast_saved': 'Email saved ✉️',
+    'profile.toast_removed': 'Email removed',
+
+    'about.title': 'About 🎯',
+    'about.body1': "<b>Give Your Point</b> is an internal gamification tool to celebrate (and tease) team behaviors.",
+    'about.body2': 'Each colleague can give badges in different categories. When a threshold is reached… a dare is triggered!',
+    'about.footer': 'Made with ❤️ for the team by Emmanuel and Claude.',
+
+    'help.title': 'How does it work? 💡',
+    'help.step1': 'Select a category in the left column.',
+    'help.step2': "Click on a colleague's card to give them the badge.",
+    'help.step3': 'On mobile, tap the category then pick your colleague.',
+    'help.step4': 'You have 15 seconds to undo via the button that appears.',
+    'help.step5': "When a category threshold is reached, a dare is activated!",
+
+    'toast.point_sent': 'Point sent!',
+    'toast.self_forbidden': "You can't give yourself a point! 😅",
+    'toast.gage_triggered': '🚨 Dare activated for {name}: {dare}!',
+    'toast.gage_warning': '⚠️ One more point and {name} gets a dare!',
+    'toast.generic_error': 'An error occurred',
+    'toast.server_unreachable': 'Cannot reach the server',
+    'toast.undo': 'Undo',
+
+    'selector.who': 'Who do you give this badge to?',
+
+    'history.title': "{name}'s history",
+    'history.received': 'Recent points received',
+    'history.given': 'Recent points given',
+    'history.dares': 'Completed dares',
+    'history.empty_received': 'No point received yet',
+    'history.empty_given': 'No point given yet',
+    'history.received_for': 'for',
+    'history.received_from': 'from',
+    'history.given_to': 'to',
+    'history.gave': 'Gave',
+    'history.error': 'Error fetching history.',
+
+    'date.today_at': 'Today at {time}',
+    'date.yesterday_at': 'Yesterday at {time}',
+    'date.day_month_at': '{date} at {time}',
+
+    'admin.title': 'Admin Console 🛠️',
+    'admin.scope': 'Team:',
+    'admin.add_user_title': 'Add a colleague',
+    'admin.user_name_placeholder': "Colleague's name…",
+    'admin.user_email_placeholder': 'Email (optional)',
+    'admin.col_name': 'Name',
+    'admin.col_magic_link': 'Magic Link',
+    'admin.col_actions': 'Actions',
+    'admin.user_deactivated': '(Disabled)',
+    'admin.has_gage': '⚠️ Pending dare',
+    'admin.confirm_deactivate_user': 'Disable this colleague?',
+    'admin.confirm_restore_user': 'Re-enable this colleague?',
+    'admin.toast_link_copied': 'Link copied to clipboard! ✅',
+    'admin.badges_title': 'Badges',
+    'admin.badge_emoji_placeholder': 'Emoji',
+    'admin.badge_name_placeholder': 'Badge name (e.g. Humor)',
+    'admin.create_badge': 'Create badge',
+    'admin.fill_required': 'Please fill in the name and emoji!',
+    'admin.badge_active': '● Active',
+    'admin.badge_inactive': '○ Disabled',
+    'admin.confirm_deactivate_badge': 'Disable this badge?',
+    'admin.confirm_restore_badge': 'Re-enable this badge?',
+    'admin.rules_title': '⚖️ Dare rules',
+    'admin.rule_badge': 'Badge',
+    'admin.rule_threshold': 'Threshold (points)',
+    'admin.rule_dare_text': 'Dare to complete',
+    'admin.rule_dare_placeholder': 'E.g. Bring croissants',
+    'admin.rule_if': 'If',
+    'admin.rule_reaches': 'reaches',
+    'admin.rule_then': '→',
+    'admin.rule_confirm_delete': 'Delete this rule?',
+    'admin.dare_log_title': 'Completed dares history',
+    'admin.dare_log_empty': 'No dare completed yet',
+    'admin.dare_log_did': 'completed:',
+    'admin.global_log_title': 'Global points history',
+    'admin.global_log_gave': 'gave to',
+    'admin.confirm_clear_category': 'Confirm redemption for "{cat}" for {user}?',
+    'admin.confirm_delete_point': 'Permanently delete this point?',
+    'admin.toast_point_deleted': 'Point deleted!',
+    'admin.connect_first': 'Log in via your magic link to access admin.',
+    'admin.session_invalid': 'Invalid session. Log in again via your magic link.',
+    'admin.not_admin': 'Access denied: you are not an admin of your team.',
+
+    'superadmin.title': 'Superadmin Console 🏛️',
+    'superadmin.company_label': 'Company:',
+    'superadmin.teams_title': 'Teams',
+    'superadmin.btn_create_team': '+ Create a team',
+    'superadmin.col_team_name': 'Name',
+    'superadmin.col_admins': 'Admin(s)',
+    'superadmin.col_members': 'Members',
+    'superadmin.col_actions': 'Actions',
+    'superadmin.no_admin': 'none',
+    'superadmin.team_disabled': 'Disabled',
+    'superadmin.btn_add_member': '+ Member',
+    'superadmin.admins_title': 'Administrators',
+    'superadmin.btn_promote': '+ Promote a member',
+    'superadmin.no_admins_yet': 'No administrator yet.',
+    'superadmin.team_label': 'Team',
+    'superadmin.user_disabled': '(disabled)',
+    'superadmin.btn_revoke': 'Revoke',
+    'superadmin.prompt_team_name': 'Name of the new team:',
+    'superadmin.prompt_new_team_name': 'New name:',
+    'superadmin.confirm_deactivate_team': 'Disable this team?',
+    'superadmin.confirm_restore_team': 'Re-enable this team?',
+    'superadmin.prompt_add_member_intro': 'Add a member to team "{team}".\n\nName of the new colleague:',
+    'superadmin.prompt_add_member_email': "Email of {name} (optional, for notifications):",
+    'superadmin.confirm_make_admin': 'Make "{name}" the admin of {team}?\n\nOK = admin, Cancel = regular member.',
+    'superadmin.member_created_link': '✅ "{name}" created.\n\nMagic link:\n{url}\n\nCopy to clipboard?',
+    'superadmin.confirm_revoke': 'Revoke role {role} of {name} (back to member status)?',
+    'superadmin.prompt_promote_pick': 'Pick the number of the member to promote:\n\n{choices}',
+    'superadmin.no_member_to_promote': 'No active member to promote.',
+    'superadmin.confirm_promote': 'Promote {name} to superadmin?\nOK = superadmin, Cancel = admin of {team}.',
+    'superadmin.toast_link_copied': 'Magic link copied! ✅',
+    'superadmin.connect_first': 'Log in via your magic link to access the superadmin console.',
+    'superadmin.not_superadmin': 'Access denied: you are not a superadmin.',
+    'superadmin.label_default_space': 'My space',
+
+    'owner.title': 'Owner Console 🌐',
+    'owner.subtitle': 'Global view of registered companies',
+    'owner.kpi_companies': 'Companies',
+    'owner.kpi_teams': 'Teams',
+    'owner.kpi_members': 'Active members',
+    'owner.kpi_points_7d': 'Points (7d)',
+    'owner.companies_title': 'Companies',
+    'owner.col_company': 'Company',
+    'owner.col_admins': 'Admin(s)',
+    'owner.col_teams': 'Teams',
+    'owner.col_members': 'Members',
+    'owner.col_total_points': 'Total points',
+    'owner.col_7d': 'Last 7 days',
+    'owner.col_last_activity': 'Last activity',
+    'owner.col_registered': 'Registered on',
+    'owner.company_disabled': 'disabled',
+    'owner.activity_active': 'active',
+    'owner.activity_idle': 'idle',
+    'owner.activity_dormant': 'dormant',
+    'owner.activity_never': 'never',
+    'owner.date_today': 'today',
+    'owner.date_yesterday': 'yesterday',
+    'owner.date_n_days_ago': '{n} days ago',
+    'owner.connect_first': 'Log in via your magic link.',
+    'owner.not_owner': 'Access denied: you are not an owner of the app.',
+
+    'stats.title': 'Stats 📊',
+    'stats.loading': 'Loading statistics…',
+    'stats.error': 'Loading error',
+    'stats.connect_first': 'Log in via your magic link to see stats.',
+    'stats.total_points': 'Points distributed',
+    'stats.givers': 'Top givers',
+    'stats.receivers': 'Top receivers',
+    'stats.categories': 'Most used categories',
+    'stats.evolution': 'Weekly evolution',
+  },
+};
+
+function getLang() {
+  const stored = localStorage.getItem('lang');
+  if (stored && translations[stored]) return stored;
+  const nav = (navigator.language || 'fr').toLowerCase();
+  return nav.startsWith('en') ? 'en' : 'fr';
+}
+
+async function setLang(lang) {
+  if (!translations[lang]) return;
+  localStorage.setItem('lang', lang);
+  // Synchroniser côté serveur si connecté
+  const myId = localStorage.getItem('my_user_id');
+  if (myId) {
+    try {
+      await fetch('/api/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${myId}` },
+        body: JSON.stringify({ locale: lang }),
+      });
+    } catch {}
+  }
+  location.reload();
+}
+
+function t(key, vars = {}) {
+  const lang = getLang();
+  let s = translations[lang]?.[key] ?? translations.fr[key] ?? key;
+  for (const [k, v] of Object.entries(vars)) {
+    s = s.replace(new RegExp(`\\{${k}\\}`, 'g'), v);
+  }
+  return s;
+}
+
+function applyI18n(root = document) {
+  root.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  root.querySelectorAll('[data-i18n-html]').forEach(el => {
+    el.innerHTML = t(el.dataset.i18nHtml);
+  });
+  root.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+    el.placeholder = t(el.dataset.i18nPlaceholder);
+  });
+  root.querySelectorAll('[data-i18n-title]').forEach(el => {
+    el.title = t(el.dataset.i18nTitle);
+  });
+  // Mettre à jour les boutons FR/EN
+  const lang = getLang();
+  root.querySelectorAll('[data-lang-toggle]').forEach(btn => {
+    const target = btn.dataset.langToggle;
+    btn.classList.toggle('active', target === lang);
+  });
+  // Mettre à jour <html lang>
+  document.documentElement.setAttribute('lang', lang);
+}
+
+// Auto-apply au DOMContentLoaded pour les chaînes statiques (avant que app.js prenne le relai)
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => applyI18n());
+} else {
+  applyI18n();
+}

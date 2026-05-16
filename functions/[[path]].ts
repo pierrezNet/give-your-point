@@ -10,9 +10,11 @@ type Bindings = {
   VAPID_SUBJECT: string
   TURNSTILE_SITE_KEY: string
   TURNSTILE_SECRET_KEY: string
+  RESEND_API_KEY: string
+  RESEND_FROM_EMAIL: string
 }
 
-const DEFAULT_CATEGORIES = [
+const DEFAULT_CATEGORIES_FR = [
   { name: 'Méchanceté',         emoji: '👿', forfeit: 'Viennoiseries' },
   { name: 'Super blague',       emoji: '😂', forfeit: 'Continue ainsi' },
   { name: 'Flemme',             emoji: '😴', forfeit: 'Chouquettes' },
@@ -22,8 +24,49 @@ const DEFAULT_CATEGORIES = [
   { name: 'Mauvaise foi',       emoji: '🤷', forfeit: 'Jus de fruits' },
 ];
 
+const DEFAULT_CATEGORIES_EN = [
+  { name: 'Meanness',     emoji: '👿', forfeit: 'Pastries' },
+  { name: 'Great joke',   emoji: '😂', forfeit: 'Keep going' },
+  { name: 'Laziness',     emoji: '😴', forfeit: 'Donuts' },
+  { name: 'Despair',      emoji: '😩', forfeit: 'Therapy session' },
+  { name: 'Anger',        emoji: '😡', forfeit: 'Chocolates' },
+  { name: 'Bad joke',     emoji: '😓', forfeit: 'Candy' },
+  { name: 'Bad faith',    emoji: '🤷', forfeit: 'Juice' },
+];
+
+function defaultCategoriesFor(locale: string | null | undefined) {
+  return locale === 'en' ? DEFAULT_CATEGORIES_EN : DEFAULT_CATEGORIES_FR;
+}
+
+function isValidEmail(s: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+
+async function sendEmail(env: Bindings, to: string, subject: string, html: string): Promise<void> {
+  if (!env.RESEND_API_KEY || !env.RESEND_FROM_EMAIL || !to) return;
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.RESEND_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ from: env.RESEND_FROM_EMAIL, to, subject, html }),
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      console.error(`Resend ${res.status}:`, body);
+    }
+  } catch (e) {
+    console.error('Email error:', e);
+  }
+}
+
 async function verifyTurnstile(token: string, secret: string, ip?: string): Promise<boolean> {
-  if (!token || !secret) return false;
+  if (!token || !secret) {
+    console.log('[turnstile] missing input', { hasToken: !!token, tokenLen: token?.length, hasSecret: !!secret });
+    return false;
+  }
   const form = new FormData();
   form.append('secret', secret);
   form.append('response', token);
@@ -34,8 +77,12 @@ async function verifyTurnstile(token: string, secret: string, ip?: string): Prom
       body: form,
     });
     const data: any = await res.json();
+    if (!data.success) {
+      console.log('[turnstile] rejected', { 'error-codes': data['error-codes'], hostname: data.hostname, action: data.action, ip });
+    }
     return data.success === true;
-  } catch {
+  } catch (e) {
+    console.error('[turnstile] fetch error:', e);
     return false;
   }
 }
@@ -53,6 +100,8 @@ interface AuthUser {
   team_name: string
   company_id: string
   company_name: string
+  email: string | null
+  locale: string | null
 }
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
@@ -72,7 +121,7 @@ interface PointStat {
 
 async function getUserByToken(db: D1Database, token: string): Promise<AuthUser | null> {
   return db.prepare(`
-    SELECT u.id, u.name, u.role, u.active, u.team_id,
+    SELECT u.id, u.name, u.role, u.active, u.team_id, u.email, u.locale,
            t.name AS team_name, t.company_id,
            c.name AS company_name
     FROM users u
@@ -308,7 +357,41 @@ app.get('/api/me', requireUser, async (c) => {
     team_name: u.team_name,
     company_id: u.company_id,
     company_name: u.company_name,
+    email: u.email,
+    locale: u.locale,
   });
+});
+
+// Mise à jour de son propre profil (email et/ou locale)
+app.patch('/api/me', requireUser, async (c) => {
+  const u = c.get('user');
+  const body = await c.req.json();
+  const hasEmail = Object.prototype.hasOwnProperty.call(body, 'email');
+  const hasLocale = Object.prototype.hasOwnProperty.call(body, 'locale');
+
+  let cleanEmail = u.email;
+  if (hasEmail) {
+    const emailRaw = (body.email || '').trim();
+    cleanEmail = emailRaw === '' ? null : (isValidEmail(emailRaw) ? emailRaw : null);
+    if (emailRaw !== '' && cleanEmail === null) {
+      return c.json({ error: "Email invalide" }, 400);
+    }
+    await c.env.DB.prepare("UPDATE users SET email = ? WHERE id = ?").bind(cleanEmail, u.id).run();
+  }
+
+  let cleanLocale = u.locale;
+  if (hasLocale) {
+    const localeRaw = body.locale;
+    if (localeRaw === 'fr' || localeRaw === 'en') {
+      cleanLocale = localeRaw;
+      await c.env.DB.prepare("UPDATE users SET locale = ? WHERE id = ?").bind(cleanLocale, u.id).run();
+    } else if (localeRaw === null || localeRaw === '') {
+      cleanLocale = null;
+      await c.env.DB.prepare("UPDATE users SET locale = NULL WHERE id = ?").bind(u.id).run();
+    }
+  }
+
+  return c.json({ success: true, email: cleanEmail, locale: cleanLocale });
 });
 
 // Liste des membres de l'équipe de l'utilisateur authentifié
@@ -342,17 +425,17 @@ app.post('/api/points', requireUser, async (c) => {
 
     // Vérifier que le destinataire est dans la même équipe
     const toUser = await c.env.DB.prepare(
-      "SELECT id, name, team_id, active FROM users WHERE id = ?"
-    ).bind(to_user_id).first<{ id: string; name: string; team_id: string; active: number }>();
+      "SELECT id, name, team_id, active, email, locale FROM users WHERE id = ?"
+    ).bind(to_user_id).first<{ id: string; name: string; team_id: string; active: number; email: string | null; locale: string | null }>();
 
     if (!toUser || toUser.active !== 1 || toUser.team_id !== fromUser.team_id) {
       return c.json({ error: "Ce collègue n'est pas dans ton équipe." }, 403);
     }
 
-    // Vérifier que la catégorie est dans la même équipe
+    // Vérifier que la catégorie est dans la même équipe (et récupérer name+emoji pour notifs)
     const cat = await c.env.DB.prepare(
-      "SELECT id FROM categories WHERE id = ? AND team_id = ? AND active = 1"
-    ).bind(category_id, fromUser.team_id).first();
+      "SELECT id, name, emoji FROM categories WHERE id = ? AND team_id = ? AND active = 1"
+    ).bind(category_id, fromUser.team_id).first<{ id: string; name: string; emoji: string }>();
 
     if (!cat) {
       return c.json({ error: "Catégorie invalide pour ton équipe." }, 400);
@@ -414,6 +497,52 @@ app.post('/api/points', requireUser, async (c) => {
     c.executionCtx.waitUntil(
       sendPushToUser(c.env, to_user_id, fromUser.name, category_id).catch(() => {})
     );
+
+    // Notification email non-bloquante (si destinataire a un email renseigné)
+    if (toUser.email) {
+      const isEn = toUser.locale === 'en';
+      const subject = isEn
+        ? `🎯 ${fromUser.name} gave you a point!`
+        : `🎯 ${fromUser.name} t'a donné un point !`;
+      const html = isEn ? `
+        <div style="font-family:sans-serif;max-width:480px;margin:auto">
+          <h2 style="color:#1e293b">Hi ${toUser.name},</h2>
+          <p style="color:#334155;font-size:15px">
+            <b>${fromUser.name}</b> just gave you a point for
+            <b>${cat.emoji} ${cat.name}</b>.
+          </p>
+          <p style="margin-top:24px">
+            <a href="https://give-your-point.pages.dev/"
+               style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">
+              See on Give Your Point
+            </a>
+          </p>
+          <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">
+            📭 This mailbox is not monitored — please don't reply.<br>
+            You receive this message because your email is linked to your account.
+            To unsubscribe, ask an admin to remove your email.
+          </p>
+        </div>` : `
+        <div style="font-family:sans-serif;max-width:480px;margin:auto">
+          <h2 style="color:#1e293b">Bonjour ${toUser.name},</h2>
+          <p style="color:#334155;font-size:15px">
+            <b>${fromUser.name}</b> vient de t'offrir un point pour
+            <b>${cat.emoji} ${cat.name}</b>.
+          </p>
+          <p style="margin-top:24px">
+            <a href="https://give-your-point.pages.dev/"
+               style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">
+              Voir sur Donne Ton Point
+            </a>
+          </p>
+          <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">
+            📭 Cette boîte mail n'est pas surveillée — ne réponds pas à ce message.<br>
+            Tu reçois ce mail parce que ton email est associé à ton compte.
+            Pour ne plus en recevoir, demande à un admin de retirer ton email.
+          </p>
+        </div>`;
+      c.executionCtx.waitUntil(sendEmail(c.env, toUser.email, subject, html));
+    }
 
     return c.json({ success: true, gageTriggered, gageWarning });
 
@@ -536,10 +665,13 @@ app.get('/api/config', async (c) => {
 // Onboarding autonome : crée company + team + superadmin + 7 catégories
 app.post('/api/onboarding', async (c) => {
   try {
-    const { company_name, admin_name, turnstile_token } = await c.req.json();
+    const { company_name, admin_name, admin_email, locale, turnstile_token } = await c.req.json();
 
     const company = (company_name || '').trim();
     const admin = (admin_name || '').trim();
+    const emailRaw = (admin_email || '').trim();
+    const email = emailRaw && isValidEmail(emailRaw) ? emailRaw : null;
+    const userLocale = locale === 'en' ? 'en' : 'fr';
 
     if (!company || company.length < 2 || company.length > 60) {
       return c.json({ error: "Nom de société requis (2 à 60 caractères)" }, 400);
@@ -557,12 +689,13 @@ app.post('/api/onboarding', async (c) => {
     const companyId = crypto.randomUUID();
     const teamId = crypto.randomUUID();
     const userId = crypto.randomUUID();
+    const categories = defaultCategoriesFor(userLocale);
 
     const statements = [
       c.env.DB.prepare("INSERT INTO companies (id, name, active) VALUES (?, ?, 1)").bind(companyId, company),
       c.env.DB.prepare("INSERT INTO teams (id, company_id, name, active) VALUES (?, ?, ?, 1)").bind(teamId, companyId, company),
-      c.env.DB.prepare("INSERT INTO users (id, team_id, name, role, active, token) VALUES (?, ?, ?, 'superadmin', 1, ?)").bind(userId, teamId, admin, userId),
-      ...DEFAULT_CATEGORIES.map(cat =>
+      c.env.DB.prepare("INSERT INTO users (id, team_id, name, role, active, token, email, locale) VALUES (?, ?, ?, 'superadmin', 1, ?, ?, ?)").bind(userId, teamId, admin, userId, email, userLocale),
+      ...categories.map(cat =>
         c.env.DB.prepare("INSERT INTO categories (id, team_id, name, emoji, forfeit, active) VALUES (?, ?, ?, ?, ?, 1)")
           .bind(crypto.randomUUID(), teamId, cat.name, cat.emoji, cat.forfeit)
       ),
@@ -619,11 +752,13 @@ app.patch('/api/admin/users/:id/restore', requireAdmin, async (c) => {
 
 app.post('/api/admin/users', requireAdmin, async (c) => {
   const admin = c.get('user');
-  const { name } = await c.req.json();
+  const { name, email } = await c.req.json();
   const id = crypto.randomUUID();
+  const emailRaw = (email || '').trim();
+  const cleanEmail = emailRaw && isValidEmail(emailRaw) ? emailRaw : null;
   await c.env.DB.prepare(
-    "INSERT INTO users (id, team_id, name, role, active, token) VALUES (?, ?, ?, 'member', 1, ?)"
-  ).bind(id, admin.team_id, name, id).run();
+    "INSERT INTO users (id, team_id, name, role, active, token, email) VALUES (?, ?, ?, 'member', 1, ?, ?)"
+  ).bind(id, admin.team_id, name, id, cleanEmail).run();
   return c.json({ success: true });
 });
 
@@ -982,9 +1117,11 @@ app.patch('/api/superadmin/teams/:id/restore', requireSuperadmin, async (c) => {
 app.post('/api/superadmin/teams/:id/users', requireSuperadmin, async (c) => {
   const sa = c.get('user');
   const teamId = c.req.param('id');
-  const { name, role } = await c.req.json();
+  const { name, role, email } = await c.req.json();
   if (!name || !name.trim()) return c.json({ error: 'Nom requis' }, 400);
   const userRole = (role === 'admin' || role === 'superadmin') ? role : 'member';
+  const emailRaw = (email || '').trim();
+  const cleanEmail = emailRaw && isValidEmail(emailRaw) ? emailRaw : null;
 
   // Vérifier que la team appartient à la société du superadmin
   const team = await c.env.DB.prepare(
@@ -994,8 +1131,8 @@ app.post('/api/superadmin/teams/:id/users', requireSuperadmin, async (c) => {
 
   const id = crypto.randomUUID();
   await c.env.DB.prepare(
-    "INSERT INTO users (id, team_id, name, role, active, token) VALUES (?, ?, ?, ?, 1, ?)"
-  ).bind(id, teamId, name.trim(), userRole, id).run();
+    "INSERT INTO users (id, team_id, name, role, active, token, email) VALUES (?, ?, ?, ?, 1, ?, ?)"
+  ).bind(id, teamId, name.trim(), userRole, id, cleanEmail).run();
   return c.json({ success: true, id, token: id });
 });
 

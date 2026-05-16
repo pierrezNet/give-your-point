@@ -26,16 +26,12 @@ function showAbout() {
              onclick="if(event.target===this){this.remove();isModalOpen=false;}">
             <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-in fade-in zoom-in duration-200">
                 <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
-                    <h2 class="text-xl font-black text-slate-800">À propos 🎯</h2>
+                    <h2 class="text-xl font-black text-slate-800">${t('about.title')}</h2>
                     <button onclick="document.getElementById('about-modal').remove();isModalOpen=false;" class="text-slate-400 hover:text-slate-600 text-3xl leading-none">&times;</button>
                 </div>
-                <p class="text-sm text-slate-600 mb-3">
-                    <b>Donne Ton Point</b> est un outil de gamification interne pour célébrer (et taquiner) les comportements de l'équipe.
-                </p>
-                <p class="text-sm text-slate-600 mb-3">
-                    Chaque collègue peut offrir des badges dans différentes catégories. Quand un seuil est atteint… un gage s'impose !
-                </p>
-                <p class="text-xs text-slate-400 mt-4 italic">Fait avec ❤️ pour l'équipe par Emmanuel et Claude.</p>
+                <p class="text-sm text-slate-600 mb-3">${t('about.body1')}</p>
+                <p class="text-sm text-slate-600 mb-3">${t('about.body2')}</p>
+                <p class="text-xs text-slate-400 mt-4 italic">${t('about.footer')}</p>
             </div>
         </div>
     `);
@@ -48,15 +44,15 @@ function showHelp() {
              onclick="if(event.target===this){this.remove();isModalOpen=false;}">
             <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-in fade-in zoom-in duration-200">
                 <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
-                    <h2 class="text-xl font-black text-slate-800">Comment ça marche ? 💡</h2>
+                    <h2 class="text-xl font-black text-slate-800">${t('help.title')}</h2>
                     <button onclick="document.getElementById('help-modal').remove();isModalOpen=false;" class="text-slate-400 hover:text-slate-600 text-3xl leading-none">&times;</button>
                 </div>
                 <ol class="text-sm text-slate-600 space-y-3 list-none">
-                    <li class="flex gap-3"><span class="font-black text-blue-500 shrink-0">1.</span> Sélectionne une catégorie dans la colonne de gauche.</li>
-                    <li class="flex gap-3"><span class="font-black text-blue-500 shrink-0">2.</span> Clique sur la carte d'un collègue pour lui offrir le badge.</li>
-                    <li class="flex gap-3"><span class="font-black text-blue-500 shrink-0">3.</span> Sur mobile, appuie sur la catégorie puis choisis ton collègue.</li>
-                    <li class="flex gap-3"><span class="font-black text-blue-500 shrink-0">4.</span> Tu as 15 secondes pour annuler via le bouton qui apparaît.</li>
-                    <li class="flex gap-3"><span class="font-black text-orange-500 shrink-0">⚠️</span> Quand le seuil d'une catégorie est atteint, un gage s'active !</li>
+                    <li class="flex gap-3"><span class="font-black text-blue-500 shrink-0">1.</span> ${t('help.step1')}</li>
+                    <li class="flex gap-3"><span class="font-black text-blue-500 shrink-0">2.</span> ${t('help.step2')}</li>
+                    <li class="flex gap-3"><span class="font-black text-blue-500 shrink-0">3.</span> ${t('help.step3')}</li>
+                    <li class="flex gap-3"><span class="font-black text-blue-500 shrink-0">4.</span> ${t('help.step4')}</li>
+                    <li class="flex gap-3"><span class="font-black text-orange-500 shrink-0">⚠️</span> ${t('help.step5')}</li>
                 </ol>
             </div>
         </div>
@@ -88,6 +84,66 @@ function authHeaders() {
 async function authFetch(url, options = {}) {
     options.headers = { ...(options.headers || {}), ...authHeaders() };
     return fetch(url, options);
+}
+
+async function showProfileModal() {
+    const me = await loadMe();
+    if (!me) return;
+    const currentEmail = me.email || '';
+
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="profile-modal" class="fixed inset-0 bg-black/85 flex items-center justify-center z-100 p-4"
+             onclick="if(event.target===this){this.remove();isModalOpen=false;}">
+            <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-in fade-in zoom-in duration-200">
+                <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
+                    <h2 class="text-xl font-black text-slate-800">${t('profile.title')}</h2>
+                    <button onclick="document.getElementById('profile-modal').remove();isModalOpen=false;" class="text-slate-400 hover:text-slate-600 text-3xl leading-none">&times;</button>
+                </div>
+                <p class="text-sm text-slate-600 mb-4">${t('profile.desc')}</p>
+                <form id="profile-form" class="space-y-3">
+                    <input id="profile-email" type="email" maxlength="120"
+                           value="${currentEmail.replace(/"/g, '&quot;')}"
+                           placeholder="${t('profile.placeholder')}"
+                           class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
+                    <p id="profile-error" class="text-red-600 text-xs hidden"></p>
+                    <div class="flex gap-2 justify-end">
+                        ${currentEmail ? `<button type="button" onclick="removeProfileEmail()" class="text-red-500 hover:text-red-700 text-sm font-bold px-3">${t('common.remove')}</button>` : ''}
+                        <button type="button" onclick="document.getElementById('profile-modal').remove();isModalOpen=false;" class="text-slate-500 hover:text-slate-700 text-sm font-bold px-3">${t('common.cancel')}</button>
+                        <button type="submit" class="bg-blue-600 text-white px-5 py-2 rounded-xl font-bold hover:bg-blue-700 transition">${t('common.save')}</button>
+                    </div>
+                </form>
+            </div>
+        </div>`);
+    isModalOpen = true;
+
+    document.getElementById('profile-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await saveProfileEmail(document.getElementById('profile-email').value.trim());
+    });
+}
+
+async function saveProfileEmail(email) {
+    const errEl = document.getElementById('profile-error');
+    errEl.classList.add('hidden');
+    const res = await authFetch('/api/me', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+    });
+    if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        errEl.textContent = err.error || t('profile.error_save');
+        errEl.classList.remove('hidden');
+        return;
+    }
+    document.getElementById('profile-modal').remove();
+    isModalOpen = false;
+    showToast(email ? t('profile.toast_saved') : t('profile.toast_removed'), 'success');
+}
+
+async function removeProfileEmail() {
+    if (!confirm(t('profile.confirm_remove'))) return;
+    await saveProfileEmail('');
 }
 
 async function loadMe() {
@@ -156,7 +212,7 @@ function renderUsers(users) {
             <div class="collapse lg:visible w-16 h-16 bg-linear-to-br from-blue-100 to-blue-50 rounded-full mb-3 flex items-center justify-center text-blue-600 text-2xl font-bold border border-blue-100 shadow-inner">
                 ${(user.name || "U")[0].toUpperCase()}
             </div>
-            <h3 class="font-bold text-gray-800 text-lg">${user.name} ${isMe ? '(toi)' : ''}</h3>
+            <h3 class="font-bold text-gray-800 text-lg">${user.name} ${isMe ? t('index.you_label') : ''}</h3>
             <p class="user-points-total text-blue-600 font-black text-sm mb-3"></p>
             <div class="top-categories-container flex gap-2 mt-2"></div>
         `;
@@ -169,14 +225,14 @@ function renderUsers(users) {
                 e.preventDefault();
                 div.classList.remove('border-red-400', 'bg-red-50');
                 if (e.dataTransfer.getData('text/plain')) {
-                    showToast("Interdit de s'auto-mousser ! 😅", 'error');
+                    showToast(t('toast.self_forbidden'), 'error');
                     selectedCategoryId = null;
                     clearSelection();
                 }
             };
             div.onclick = () => {
                 if (selectedCategoryId) {
-                    showToast("Interdit de s'auto-mousser ! 😅", 'error');
+                    showToast(t('toast.self_forbidden'), 'error');
                     selectedCategoryId = null;
                     clearSelection();
                 }
@@ -201,7 +257,7 @@ function renderUsers(users) {
 }
 
 function updateCardUI(card, user) {
-    card.querySelector('.user-points-total').innerText = `${user.total_points || 0} pts`;
+    card.querySelector('.user-points-total').innerText = `${user.total_points || 0} ${t('index.pts_short')}`;
     
     const rankBadge = card.querySelector('.rank-badge');
     rankBadge.innerText = `#${user.rank}`;
@@ -213,7 +269,7 @@ function updateCardUI(card, user) {
         <div class="flex items-center bg-gray-50 px-2 py-1 rounded-md border border-gray-100">
             <span class="text-sm">${cat.emoji}</span>
             <span class="text-[10px] font-bold ml-1 text-gray-500">${cat.count}</span>
-        </div>`).join('') || '<span class="text-[10px] text-gray-400 italic">Aucun badge</span>';
+        </div>`).join('') || `<span class="text-[10px] text-gray-400 italic">${t('index.no_badge')}</span>`;
 
     // Gestion du gage
     const banner = card.querySelector('.gage-banner');
@@ -224,7 +280,7 @@ function updateCardUI(card, user) {
             b.className = 'gage-banner absolute -top-3 left-1/2 -translate-x-1/2 bg-orange-600 text-white px-3 py-1 rounded-full text-[10px] font-black shadow-lg z-10 whitespace-nowrap';
             card.appendChild(b);
         }
-        card.querySelector('.gage-banner').innerText = `🚨 GAGE : ${user.gage.toUpperCase()}`;
+        card.querySelector('.gage-banner').innerText = t('index.gage_label', { dare: user.gage.toUpperCase() });
     } else {
         card.classList.remove('gage-active', 'border-orange-500');
         if (banner) banner.remove();
@@ -274,7 +330,7 @@ async function openUserSelector(catId, emoji) {
         <div class="bg-white rounded-[40px] w-full max-w-sm p-6 animate-pop shadow-2xl text-center">
             <div class="mb-6">
                 <div class="text-5xl mb-2">${emoji}</div>
-                <p class="text-slate-500 text-sm font-medium">À qui offres-tu ce badge ?</p>
+                <p class="text-slate-500 text-sm font-medium">${t('selector.who')}</p>
             </div>
             
             <div class="grid grid-cols-3 gap-4 mb-6">
@@ -291,7 +347,7 @@ async function openUserSelector(catId, emoji) {
 
             <button onclick="document.getElementById('wheel-selector').remove(); isModalOpen = false;"
                     class="text-slate-400 font-bold text-xs uppercase tracking-widest py-2">
-                Annuler
+                ${t('common.cancel')}
             </button>
         </div>
     `;
@@ -337,11 +393,11 @@ async function addPoint(userId, cardEl, catId) {
 
             cardEl.classList.add('ring-4', 'ring-green-500');
             if (data.gageTriggered) {
-                showToast(`🚨 Gage activé pour ${data.gageTriggered.name} : ${data.gageTriggered.dare} !`, 'danger');
+                showToast(t('toast.gage_triggered', { name: data.gageTriggered.name, dare: data.gageTriggered.dare }), 'danger');
             } else if (data.gageWarning) {
-                showToast(`⚠️ Encore 1 point pour déclencher le gage de ${data.gageWarning.name} !`, 'warning');
+                showToast(t('toast.gage_warning', { name: data.gageWarning.name }), 'warning');
             } else {
-                showToast('Point envoyé !', 'success');
+                showToast(t('toast.point_sent'), 'success');
             }
             await updateAllData();
 
@@ -350,13 +406,13 @@ async function addPoint(userId, cardEl, catId) {
             }, 500);
         } else {
             const errorData = await res.json();
-            showToast(errorData.error || "Une erreur est survenue", "bg-orange-500");
+            showToast(errorData.error || t('toast.generic_error'), "bg-orange-500");
             selectedCategoryId = null;
             clearSelection();
         }
     } catch (e) {
         console.error("Erreur réseau :", e);
-        showToast("Impossible de contacter le serveur", "bg-red-600");
+        showToast(t('toast.server_unreachable'), "bg-red-600");
     }
 }
 
@@ -376,7 +432,7 @@ function showToast(message, type = 'success') {
     const { bg, duration } = styles[type] ?? styles.error;
 
     const undoButton = (type === 'success' || type === 'warning' || type === 'danger')
-        ? `<button onclick="undoLastPoint()" class="text-yellow-200 font-black uppercase text-xs hover:text-white transition-colors shrink-0">Annuler</button>`
+        ? `<button onclick="undoLastPoint()" class="text-yellow-200 font-black uppercase text-xs hover:text-white transition-colors shrink-0">${t('toast.undo')}</button>`
         : '';
 
     toast.className = `fixed bottom-8 left-1/2 -translate-x-1/2 ${bg} text-white px-6 py-3 rounded-full shadow-2xl z-[200] flex items-center gap-4 animate-in slide-in-from-bottom-10 max-w-[90vw]`;
@@ -445,19 +501,19 @@ async function showHistory(event, userId, userName) {
             const date = new Date(dateIso);
             const now = new Date();
             const diffInDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-
-            const time = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            const locale = getLang() === 'en' ? 'en-US' : 'fr-FR';
+            const time = date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 
             if (diffInDays === 0 && date.getDate() === now.getDate()) {
-                return `Aujourd'hui à ${time}`;
+                return t('date.today_at', { time });
             } else if (diffInDays === 1 || (diffInDays === 0 && date.getDate() !== now.getDate())) {
-                return `Hier à ${time}`;
+                return t('date.yesterday_at', { time });
             } else {
-                const dayMonth = date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
-                return `${dayMonth} à ${time}`;
+                const dayMonth = date.toLocaleDateString(locale, { day: '2-digit', month: '2-digit' });
+                return t('date.day_month_at', { date: dayMonth, time });
             }
         }
-        
+
         isModalOpen = true;
 
         const historyHtml = `
@@ -465,37 +521,37 @@ async function showHistory(event, userId, userName) {
                  onclick="if(event.target === this) { this.remove(); isModalOpen = false; }">
                 <div class="bg-white rounded-3xl p-6 max-w-md w-full max-h-[85vh] overflow-y-auto shadow-2xl animate-in fade-in zoom-in duration-200">
                     <div class="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
-                        <h2 class="text-xl font-black text-slate-800">Historique de ${userName}</h2>
+                        <h2 class="text-xl font-black text-slate-800">${t('history.title', { name: userName })}</h2>
                         <button onclick="document.getElementById('history-modal').remove(); isModalOpen = false;" class="text-slate-400 hover:text-slate-600 text-3xl leading-none">&times;</button>
                     </div>
-                    
+
                     <h3 class="font-black text-[10px] uppercase tracking-widest text-blue-500 mb-4 flex items-center gap-2">
-                        <span class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span> Derniers points reçus
+                        <span class="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span> ${t('history.received')}
                     </h3>
                     <div class="space-y-3 mb-8">
                         ${data.received.length > 0 ? data.received.map(p => `
                             <div class="flex items-center justify-between text-sm bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                <span class="text-slate-700">${p.emoji} <b>${p.cat_name}</b> <span class="text-slate-400 text-xs">de</span> ${p.from_name}</span>
+                                <span class="text-slate-700">${p.emoji} <b>${p.cat_name}</b> <span class="text-slate-400 text-xs">${t('history.received_from')}</span> ${p.from_name}</span>
                                 <span class="text-[10px] font-bold text-slate-400 bg-white px-2 py-1 rounded-md shadow-sm">${formatSmartDate(p.created_at)}</span>
                             </div>
-                        `).join('') : '<p class="text-xs italic text-slate-400 py-2 text-center">Aucun point reçu pour le moment</p>'}
+                        `).join('') : `<p class="text-xs italic text-slate-400 py-2 text-center">${t('history.empty_received')}</p>`}
                     </div>
 
                     <h3 class="font-black text-[10px] uppercase tracking-widest text-emerald-500 mb-4 flex items-center gap-2">
-                        <span class="w-2 h-2 bg-emerald-500 rounded-full"></span> Derniers points donnés
+                        <span class="w-2 h-2 bg-emerald-500 rounded-full"></span> ${t('history.given')}
                     </h3>
                     <div class="space-y-3">
                         ${data.given.length > 0 ? data.given.map(p => `
                             <div class="flex items-center justify-between text-sm bg-emerald-50/30 p-3 rounded-xl border border-emerald-100">
-                                <span class="text-slate-700">Offert ${p.emoji} <b>${p.cat_name}</b> <span class="text-slate-400 text-xs">à</span> ${p.to_name}</span>
+                                <span class="text-slate-700">${t('history.gave')} ${p.emoji} <b>${p.cat_name}</b> <span class="text-slate-400 text-xs">${t('history.given_to')}</span> ${p.to_name}</span>
                                 <span class="text-[10px] font-bold text-emerald-600/50 bg-white px-2 py-1 rounded-md shadow-sm">${formatSmartDate(p.created_at)}</span>
                             </div>
-                        `).join('') : '<p class="text-xs italic text-slate-400 py-2 text-center">Aucun point donné pour le moment</p>'}
+                        `).join('') : `<p class="text-xs italic text-slate-400 py-2 text-center">${t('history.empty_given')}</p>`}
                     </div>
 
                     ${data.dares && data.dares.length > 0 ? `
                     <h3 class="font-black text-[10px] uppercase tracking-widest text-orange-500 mb-4 mt-8 flex items-center gap-2">
-                        <span class="w-2 h-2 bg-orange-500 rounded-full"></span> Gages accomplis
+                        <span class="w-2 h-2 bg-orange-500 rounded-full"></span> ${t('history.dares')}
                     </h3>
                     <div class="space-y-3">
                         ${data.dares.map(d => `
@@ -511,7 +567,7 @@ async function showHistory(event, userId, userName) {
         document.body.insertAdjacentHTML('beforeend', historyHtml);
     } catch (err) {
         console.error(err);
-        alert("Erreur lors de la récupération de l'historique.");
+        alert(t('history.error'));
     }
 }
 
@@ -542,8 +598,8 @@ async function init() {
         localStorage.removeItem('my_user_name');
         document.body.innerHTML = `
             <div class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4 font-sans">
-                <h1 class="text-2xl font-bold text-gray-800">Session invalide 🔒</h1>
-                <p class="text-gray-600 mt-2">Demande un nouveau lien magique à ton admin.</p>
+                <h1 class="text-2xl font-bold text-gray-800">${t('auth.session_invalid_title')}</h1>
+                <p class="text-gray-600 mt-2">${t('auth.session_invalid_msg')}</p>
             </div>`;
         return;
     }
@@ -589,31 +645,38 @@ async function renderLanding() {
 
     document.body.innerHTML = `
         <div class="min-h-screen bg-gray-100 p-4 flex flex-col items-center justify-center">
-            <div class="max-w-md w-full bg-white rounded-3xl shadow-xl p-8 space-y-5">
+            <div class="max-w-md w-full bg-white rounded-3xl shadow-xl p-8 space-y-5 relative">
+                <div class="absolute top-4 right-4 text-xs font-bold text-slate-400 flex gap-2">
+                    <button data-lang-toggle="fr" onclick="setLang('fr')" class="px-1">FR</button>
+                    <span class="text-slate-300">|</span>
+                    <button data-lang-toggle="en" onclick="setLang('en')" class="px-1">EN</button>
+                </div>
                 <div class="text-center">
-                    <h1 class="text-3xl font-black text-slate-800">🎯 Donne Ton Point</h1>
-                    <p class="text-sm text-slate-500 mt-2">Le rituel d'équipe pour s'offrir points et gages.</p>
+                    <h1 class="text-3xl font-black text-slate-800">🎯 ${t('app.title')}</h1>
+                    <p class="text-sm text-slate-500 mt-2">${t('app.tagline')}</p>
                 </div>
 
                 <div class="bg-slate-50 rounded-xl p-4 text-sm text-slate-700 border border-slate-200">
-                    <h2 class="font-bold text-slate-800 mb-1">Tu as déjà un lien magique ?</h2>
-                    <p class="text-xs text-slate-600">Clique simplement dessus pour te connecter (format <span class="font-mono text-[11px] bg-slate-100 px-1 py-0.5 rounded">/login/&lt;token&gt;</span>).</p>
+                    <h2 class="font-bold text-slate-800 mb-1">${t('onboarding.have_link_title')}</h2>
+                    <p class="text-xs text-slate-600">${t('onboarding.have_link_desc')}</p>
                 </div>
 
                 <div class="border border-slate-200 rounded-xl p-4">
-                    <h2 class="font-bold text-slate-800 mb-3">✨ Crée ton espace</h2>
+                    <h2 class="font-bold text-slate-800 mb-3">${t('onboarding.create_title')}</h2>
                     <form id="onboarding-form" class="space-y-3">
-                        <input id="ob-company" type="text" required minlength="2" maxlength="60" placeholder="Nom de ta société ou équipe" class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
-                        <input id="ob-admin" type="text" required minlength="1" maxlength="40" placeholder="Ton prénom" class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
+                        <input id="ob-company" type="text" required minlength="2" maxlength="60" placeholder="${t('onboarding.company_placeholder')}" class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
+                        <input id="ob-admin" type="text" required minlength="1" maxlength="40" placeholder="${t('onboarding.admin_placeholder')}" class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
+                        <input id="ob-email" type="email" maxlength="120" placeholder="${t('onboarding.email_placeholder')}" class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
                         <div class="cf-turnstile" data-sitekey="${cfg.turnstileSiteKey || ''}" data-size="flexible"></div>
-                        <button type="submit" id="ob-submit" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition disabled:opacity-50">Lancer mon équipe 🚀</button>
+                        <button type="submit" id="ob-submit" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition disabled:opacity-50">${t('onboarding.submit')}</button>
                         <p id="ob-error" class="text-red-600 text-xs text-center hidden"></p>
                     </form>
                 </div>
 
-                <p class="text-[10px] text-slate-400 text-center">En créant ton espace, tu deviens son administrateur et reçois ton lien magique de connexion.</p>
+                <p class="text-[10px] text-slate-400 text-center">${t('onboarding.footer_note')}</p>
             </div>
         </div>`;
+    applyI18n();
 
     if (cfg.turnstileSiteKey && !document.querySelector('script[src*="turnstile"]')) {
         const s = document.createElement('script');
@@ -631,22 +694,23 @@ async function renderLanding() {
 
         const company = document.getElementById('ob-company').value.trim();
         const admin = document.getElementById('ob-admin').value.trim();
+        const adminEmail = document.getElementById('ob-email').value.trim();
         const ts = document.querySelector('[name="cf-turnstile-response"]')?.value || '';
 
         if (!ts) {
-            errEl.textContent = "Patiente quelques secondes pour la vérification anti-bot…";
+            errEl.textContent = t('onboarding.error_turnstile_pending');
             errEl.classList.remove('hidden');
             return;
         }
 
         submitBtn.disabled = true;
-        submitBtn.textContent = "Création en cours…";
+        submitBtn.textContent = t('onboarding.submit_loading');
 
         try {
             const res = await fetch('/api/onboarding', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ company_name: company, admin_name: admin, turnstile_token: ts })
+                body: JSON.stringify({ company_name: company, admin_name: admin, admin_email: adminEmail, locale: getLang(), turnstile_token: ts })
             });
 
             if (res.ok) {
@@ -655,14 +719,14 @@ async function renderLanding() {
                 return;
             }
             const err = await res.json().catch(() => ({}));
-            errEl.textContent = err.error || "Erreur lors de la création";
+            errEl.textContent = err.error || t('onboarding.error_generic');
             errEl.classList.remove('hidden');
         } catch {
-            errEl.textContent = "Impossible de joindre le serveur";
+            errEl.textContent = t('onboarding.error_server');
             errEl.classList.remove('hidden');
         } finally {
             submitBtn.disabled = false;
-            submitBtn.textContent = "Lancer mon équipe 🚀";
+            submitBtn.textContent = t('onboarding.submit');
         }
     });
 }

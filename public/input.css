@@ -56,4 +56,14 @@
 
   /* Ombres plus marquées sur fond sombre */
   .shadow-sm { box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.4); }
+
+  /* Variantes :hover qui ciblent les fonds clairs — on les bascule en sombre */
+  .hover\:bg-slate-50:hover,
+  .hover\:bg-gray-50:hover     { background-color: #334155 !important; }
+  .hover\:bg-slate-100:hover,
+  .hover\:bg-gray-100:hover    { background-color: #475569 !important; }
+  .hover\:bg-yellow-50:hover   { background-color: #422006 !important; }
+  .hover\:bg-purple-50:hover   { background-color: #2e1065 !important; }
+  .hover\:bg-emerald-50:hover  { background-color: #022c22 !important; }
+  .hover\:bg-blue-50:hover     { background-color: #172554 !important; }
 }

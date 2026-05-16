@@ -1,41 +1,120 @@
 # 🎯 Donne Ton Point
 
-Application de gamification interne pour l'équipe.
+Application de gamification interne pour s'attribuer des points et déclencher des gages au sein d'une équipe.
 
-## 🚀 Installation
+L'app est **multi-tenant** : chaque société peut héberger plusieurs équipes étanches, avec son propre catalogue de badges et de gages. La création d'un espace est autonome (formulaire public). Interfaces disponibles en **français et en anglais**.
 
-**Installer les dépendances**
-    `bash`
-    `npm install`
+## ✨ Aperçu fonctionnel
 
-**Créer votre fichier d'accès (Seed)**
+- 🎁 **Donner un point** dans une catégorie (drag-and-drop ou clic mobile)
+- ⚡ **Mises à jour temps réel** via Server-Sent Events
+- ⚖️ **Gages automatiques** quand un seuil est atteint sur une catégorie
+- 🏛️ **Hiérarchie** : `member` < `admin` < `superadmin` < `owner`
+- ✉️ **Notifications email** (Resend) + notifications push (WebPush)
+- 🌐 **i18n** FR + EN avec détection auto et bascule manuelle
 
-Créez un fichier nommé seed.sql à la racine du projet (ce fichier est ignoré par Git). Ajoutez-y vos catégories et votre compte administrateur :
+## 🛠️ Stack technique
 
-    INSERT INTO users (id, name, active, token) VALUES 
-    ('admin-id', 'Votre Nom', 1, 'votre-token-secret');
+- **Frontend** : HTML/JS/CSS vanilla, Tailwind CSS v4
+- **Backend** : [Hono.js](https://hono.dev/) v4 sur Cloudflare Workers
+- **Base** : Cloudflare D1 (SQLite)
+- **Anti-bot** : Cloudflare Turnstile (sur l'onboarding)
+- **Email** : [Resend](https://resend.com/) (API HTTP transactionnelle)
+- **Déploiement** : Cloudflare Pages via Wrangler CLI
 
-**Configurer le mot de passe Admin**
-   Créez un fichier `.dev.vars` à la racine du projet pour le développement local :
+## 🚀 Démarrage rapide (dev local)
 
-   ADMIN_PASSWORD=votre_mot_de_passe_secret
+```bash
+# 1. Dépendances
+npm install
 
-**Injection des données**
-    `npx wrangler d1 execute DB --local --file=./init_db.sql`
-    `npx wrangler d1 execute DB --local --file=./seed.sql`
+# 2. Créer .dev.vars à la racine (jamais committé)
+cat > .dev.vars <<'EOF'
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY_JWK=
+VAPID_SUBJECT=mailto:your@email
+TURNSTILE_SITE_KEY=1x00000000000000000000AA
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+RESEND_API_KEY=
+RESEND_FROM_EMAIL=notifications@example.com
+EOF
 
-**Lancement de l'application**
-    `npx wrangler dev`
+# 3. Créer la base locale + données d'exemple
+npm run db:reset
 
-## 🔑 Accès à l'Admin
+# 4. Lancer le serveur
+npm run dev
+```
 
-1. **Connexion initiale** : Utilisez votre lien magique pour vous identifier (cela enregistre votre token dans le navigateur) :
-   `http://localhost:8787/login/votre-token-secret-defini-dans-seed.sql`
+L'app est alors disponible sur <http://localhost:8788>.
 
-2. **Accès au panneau de contrôle** : Une fois connecté, rendez-vous sur la page d'administration :
-   `http://localhost:8787/admin`
+Les valeurs `TURNSTILE_*` ci-dessus sont les clés de test publiques Cloudflare qui passent toujours en dev. `RESEND_API_KEY` peut rester vide : l'envoi d'email se court-circuite silencieusement et n'est pas bloquant.
 
-   Le mot de passe est celui défini dans le fichier `.dev.vars`.
+## 🧪 Première utilisation
 
-## 🥐 Règle d'or
-Un gage en catégorie "Méchanceté" s'efface uniquement avec des viennoiseries.
+Le `seed.sql` fourni initialise une société d'exemple et quelques utilisateurs. Pour te connecter, récupère un token magique en DB :
+
+```bash
+npx wrangler d1 execute give-your-point --local --persist-to=./db_data \
+  --command="SELECT name, token FROM users WHERE role IN ('admin','superadmin','owner');"
+```
+
+Puis ouvre `http://localhost:8788/login/<token>`.
+
+Tu peux aussi tester l'onboarding autonome : vide ton `localStorage` (ou ouvre une fenêtre privée) et va sur `http://localhost:8788/`.
+
+## 📦 Structure
+
+```
+public/
+  index.html       # Interface principale + landing onboarding
+  admin.html       # Console admin d'équipe (users, badges, gages)
+  superadmin.html  # Console superadmin (équipes, admins)
+  owner.html       # Console owner (vue globale des sociétés)
+  stats.html       # Tableaux de bord
+  i18n.js          # Dictionnaire FR/EN + helpers t(), setLang()
+  app.js           # Logique frontend (auth, points, UI, push)
+functions/
+  [[path]].ts      # Routes API (Hono)
+schema.sql         # Schéma de référence
+init_db.sql        # Idem (utilisé par db:init)
+seed.sql           # Données initiales locales
+wrangler.toml      # Config Cloudflare D1
+.dev.vars          # Secrets locaux (gitignored)
+```
+
+## 🗂️ Tables principales
+
+| Table | Rôle |
+|---|---|
+| `companies`, `teams` | Hiérarchie société → équipe |
+| `users` | Membres, avec `role` et `locale` |
+| `categories` | Badges, scope équipe |
+| `dare_rules`, `dare_log` | Règles et historique des gages |
+| `points_log` | Tous les points distribués |
+| `push_subscriptions` | Abonnements WebPush |
+
+## 📜 Scripts npm
+
+```bash
+npm run dev      # Build + serveur local (port 8788)
+npm run deploy   # Build + déploiement Cloudflare Pages
+
+npm run db:reset # Recrée la base locale (init + seed)
+npm run db:pull  # Synchronise la prod vers le local
+```
+
+## 🌍 Déploiement
+
+L'app tourne sur Cloudflare Pages en mode *Direct Upload* (pas d'intégration GitHub).
+
+```bash
+npx wrangler login
+npm run deploy
+```
+
+Les variables d'environnement de production se configurent dans le dashboard Cloudflare Pages > Settings > Environment variables.
+
+## 📄 Licence
+
+Projet personnel — utilisation libre pour des équipes amicales.

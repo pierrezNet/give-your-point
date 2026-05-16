@@ -15,6 +15,10 @@
     "db:migrate:superadmin:local": "wrangler d1 execute give-your-point --local --persist-to=./db_data --file=migrations/2026-06-superadmin.sql",
     "db:migrate:owner": "wrangler d1 execute give-your-point --remote --file=migrations/2026-07-owner.sql",
     "db:migrate:owner:local": "wrangler d1 execute give-your-point --local --persist-to=./db_data --file=migrations/2026-07-owner.sql",
+    "db:migrate:email": "wrangler d1 execute give-your-point --remote --file=migrations/2026-08-email.sql",
+    "db:migrate:email:local": "wrangler d1 execute give-your-point --local --persist-to=./db_data --file=migrations/2026-08-email.sql",
+    "db:migrate:i18n": "wrangler d1 execute give-your-point --remote --file=migrations/2026-09-i18n.sql",
+    "db:migrate:i18n:local": "wrangler d1 execute give-your-point --local --persist-to=./db_data --file=migrations/2026-09-i18n.sql",
     "generate:vapid": "node generate-vapid.mjs",
     "deploy": "npm run build && wrangler pages deploy dist",
     "build": "mkdir -p dist && npx @tailwindcss/cli -i public/input.css -o dist/styles.css --minify && cp -r public/* dist/"

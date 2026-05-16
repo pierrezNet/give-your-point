@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Donne Ton Point</title>
     <link rel="stylesheet" href="/styles.css">
+    <script src="i18n.js"></script>
     <script src="app.js"></script>
     <style>
         /* --- 1. CARTES UTILISATEURS & INTERACTIONS --- */
@@ -192,12 +193,69 @@
             transition: background 0.2s;
         }
         .nav-btn-owner:hover { background: rgba(16,185,129,0.3); }
+        .lang-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            margin-left: 0.5rem;
+            color: rgba(255,255,255,0.6);
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+        .lang-toggle button {
+            color: rgba(255,255,255,0.6);
+            cursor: pointer;
+            padding: 0.2rem 0.3rem;
+            background: transparent;
+            border: none;
+            font-weight: 700;
+            font-size: 0.75rem;
+        }
+        .lang-toggle button.active {
+            color: #fff;
+            text-decoration: underline;
+        }
+        .lang-toggle .lang-sep { color: rgba(255,255,255,0.3); }
+        [data-lang-toggle].active { color: #2563eb; text-decoration: underline; }
         #mobile-menu {
             transform-origin: top right;
             transition: opacity 0.15s ease, transform 0.15s ease;
         }
         #mobile-menu.hidden { opacity: 0; pointer-events: none; transform: scale(0.95); }
         #mobile-menu.open { opacity: 1; pointer-events: auto; transform: scale(1); }
+
+        /* Reset uniforme pour tous les éléments cliquables du menu mobile (a + button) */
+        #mobile-menu > a,
+        #mobile-menu > button {
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            font-weight: 700;
+            display: block;
+            width: 100%;
+            text-align: left;
+            text-decoration: none;
+            border-radius: 0.75rem;
+            padding: 0.75rem 1rem;
+            font-size: 0.875rem;
+            line-height: 1.25;
+        }
+        /* Couleur du texte — accessible en mode clair */
+        #mobile-menu .nav-btn-admin       { color: #b45309; }  /* yellow-700 */
+        #mobile-menu .nav-btn-superadmin  { color: #7e22ce; }  /* purple-700 */
+        #mobile-menu .nav-btn-owner       { color: #047857; }  /* emerald-700 */
+
+        /* Mode sombre : couleurs claires pour rester accessibles */
+        @media (prefers-color-scheme: dark) {
+            #mobile-menu .nav-btn-admin       { color: #fde047; }  /* yellow-300 */
+            #mobile-menu .nav-btn-superadmin  { color: #d8b4fe; }  /* purple-300 */
+            #mobile-menu .nav-btn-owner       { color: #6ee7b7; }  /* emerald-300 */
+        }
+
+        /* Hover : fond translucide qui marche dans les deux modes */
+        #mobile-menu .nav-btn-admin:hover { background: rgba(202, 138, 4, 0.15); }
+        #mobile-menu .nav-btn-superadmin:hover { background: rgba(147, 51, 234, 0.15); }
+        #mobile-menu .nav-btn-owner:hover { background: rgba(5, 150, 105, 0.15); }
 
         /* --- 7. TOASTS & NOTIFICATIONS --- */
         #undo-toast {
@@ -221,21 +279,26 @@
     <header class="relative flex justify-between items-center mb-2 lg:mb-8 rounded-xl shadow-lg p-3 lg:p-4">
         <h1 class="text-md lg:text-2xl font-black flex items-center gap-2">
             <span class="header-emoji">🎯</span>
-            <span class="header-title">Donne Ton Point</span>
-            <span class="header-username" id="current-user-display">
+            <span class="header-title" data-i18n="app.title">Donne Ton Point</span>
+            <span class="header-username" id="current-user-display" onclick="showProfileModal()" style="cursor:pointer" data-i18n-title="app.edit_email_title">
                 <span class="header-username-avatar" id="current-user-avatar">?</span>
-                <span id="current-user-name">Connexion en cours...</span>
+                <span id="current-user-name" data-i18n="app.connecting">Connexion en cours...</span>
             </span>
         </h1>
 
         <!-- Navigation desktop -->
         <nav class="hidden md:flex items-center gap-2">
-            <a href="/stats" class="nav-btn">Stats 📊</a>
-            <button onclick="showAbout()" class="nav-btn">À propos</button>
-            <button onclick="showHelp()" class="nav-btn">Aide</button>
-            <a href="/admin" class="nav-btn-admin">Admin 🔐</a>
-            <a href="/superadmin" class="nav-btn-superadmin" style="display:none;">Société 🏛️</a>
-            <a href="/owner" class="nav-btn-owner" style="display:none;">Owner 🌐</a>
+            <a href="/stats" class="nav-btn" data-i18n="nav.stats">Stats 📊</a>
+            <button onclick="showAbout()" class="nav-btn" data-i18n="nav.about">À propos</button>
+            <button onclick="showHelp()" class="nav-btn" data-i18n="nav.help">Aide</button>
+            <a href="/admin" class="nav-btn-admin" data-i18n="nav.admin">Admin 🔐</a>
+            <a href="/superadmin" class="nav-btn-superadmin" style="display:none;" data-i18n="nav.superadmin">Société 🏛️</a>
+            <a href="/owner" class="nav-btn-owner" style="display:none;" data-i18n="nav.owner">Owner 🌐</a>
+            <span class="lang-toggle">
+                <button data-lang-toggle="fr" onclick="setLang('fr')">FR</button>
+                <span class="lang-sep">|</span>
+                <button data-lang-toggle="en" onclick="setLang('en')">EN</button>
+            </span>
         </nav>
 
         <!-- Hamburger mobile -->
@@ -247,24 +310,29 @@
         </button>
 
         <!-- Dropdown mobile -->
-        <div id="mobile-menu" class="hidden absolute top-full right-0 mt-2 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-50 p-2 flex-col gap-1">
-            <a href="/stats" class="px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">Stats 📊</a>
-            <button onclick="showAbout(); toggleMenu()" class="text-left px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">À propos</button>
-            <button onclick="showHelp(); toggleMenu()" class="text-left px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors">Aide</button>
-            <a href="/admin" class="nav-btn-admin px-4 py-3 rounded-xl text-sm font-bold text-yellow-600 hover:bg-yellow-50 transition-colors">Admin 🔐</a>
-            <a href="/superadmin" class="nav-btn-superadmin px-4 py-3 rounded-xl text-sm font-bold text-purple-600 hover:bg-purple-50 transition-colors" style="display:none;">Société 🏛️</a>
-            <a href="/owner" class="nav-btn-owner px-4 py-3 rounded-xl text-sm font-bold text-emerald-600 hover:bg-emerald-50 transition-colors" style="display:none;">Owner 🌐</a>
+        <div id="mobile-menu" class="hidden absolute top-full right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-50 p-2 flex-col gap-1">
+            <a href="/stats" class="px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors" data-i18n="nav.stats">Stats 📊</a>
+            <button onclick="showAbout(); toggleMenu()" class="text-left px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors" data-i18n="nav.about">À propos</button>
+            <button onclick="showHelp(); toggleMenu()" class="text-left px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors" data-i18n="nav.help">Aide</button>
+            <a href="/admin" class="nav-btn-admin px-4 py-3 rounded-xl text-sm font-bold text-yellow-600 hover:bg-yellow-50 transition-colors" data-i18n="nav.admin">Admin 🔐</a>
+            <a href="/superadmin" class="nav-btn-superadmin px-4 py-3 rounded-xl text-sm font-bold text-purple-600 hover:bg-purple-50 transition-colors" style="display:none;" data-i18n="nav.superadmin">Société 🏛️</a>
+            <a href="/owner" class="nav-btn-owner px-4 py-3 rounded-xl text-sm font-bold text-emerald-600 hover:bg-emerald-50 transition-colors" style="display:none;" data-i18n="nav.owner">Owner 🌐</a>
+            <div class="flex justify-center gap-2 pt-2 border-t border-slate-100 mt-1">
+                <button data-lang-toggle="fr" onclick="setLang('fr')" class="text-xs font-bold text-slate-500 px-2">FR</button>
+                <span class="text-slate-300">|</span>
+                <button data-lang-toggle="en" onclick="setLang('en')" class="text-xs font-bold text-slate-500 px-2">EN</button>
+            </div>
         </div>
     </header>
     <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
         <div class="md:col-span-1">
-            <h2 class="text-xl font-semibold mb-4 text-gray-600">Offrir un point</h2>
+            <h2 class="text-xl font-semibold mb-4 text-gray-600" data-i18n="index.section_categories">Offrir un point</h2>
             <div id="categories-list" class="flex flex-wrap md:flex-col gap-3">
                 </div>
         </div>
 
         <div class="md:col-span-3">
-            <h2 class="text-xl font-semibold mb-4 text-gray-600">Équipe : <span id="current-team-name" class="text-gray-800">…</span></h2>
+            <h2 class="text-xl font-semibold mb-4 text-gray-600"><span data-i18n="index.section_team">Équipe :</span> <span id="current-team-name" class="text-gray-800">…</span></h2>
             <div id="users-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 </div>
         </div>

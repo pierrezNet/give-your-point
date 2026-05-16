@@ -14,37 +14,45 @@
         }
     </style>
     <link rel="stylesheet" href="/styles.css">
+    <script src="i18n.js"></script>
     <script src="app.js"></script>
 </head>
 <body class="bg-slate-50 min-h-screen p-4 md:p-8 opacity-0 transition-opacity duration-500" id="admin-body">
     <div class="max-w-4xl mx-auto">
         <header class="flex justify-between items-center mb-8">
             <div>
-                <h1 class="text-xl md:text-3xl font-black text-slate-800">Console Admin 🛠️</h1>
-                <p class="text-xs md:text-sm font-bold text-slate-500 mt-1" id="admin-scope">Équipe : <span id="admin-team-name">…</span></p>
+                <h1 class="text-xl md:text-3xl font-black text-slate-800" data-i18n="admin.title">Console Admin 🛠️</h1>
+                <p class="text-xs md:text-sm font-bold text-slate-500 mt-1" id="admin-scope"><span data-i18n="admin.scope">Équipe :</span> <span id="admin-team-name">…</span></p>
             </div>
-            <div class="flex gap-3 items-center text-sm">
-                <a href="/owner" id="link-owner" class="text-emerald-600 font-bold hover:underline" style="display:none;">Owner 🌐</a>
-                <a href="/superadmin" id="link-superadmin" class="text-purple-600 font-bold hover:underline" style="display:none;">Société 🏛️</a>
-                <a href="/" class="text-blue-600 font-bold hover:underline">← App</a>
+            <div class="flex flex-wrap justify-end gap-x-3 gap-y-2 items-center text-sm">
+                <a href="/owner" id="link-owner" class="text-emerald-600 font-bold hover:underline whitespace-nowrap" style="display:none;" data-i18n="nav.owner">Owner 🌐</a>
+                <a href="/superadmin" id="link-superadmin" class="text-purple-600 font-bold hover:underline whitespace-nowrap" style="display:none;" data-i18n="nav.superadmin">Société 🏛️</a>
+                <a href="/" class="text-blue-600 font-bold hover:underline whitespace-nowrap" data-i18n="common.back_to_app">← App</a>
+                <span class="text-slate-300 hidden sm:inline">|</span>
+                <span class="whitespace-nowrap">
+                    <button data-lang-toggle="fr" onclick="setLang('fr')" class="text-xs font-bold text-slate-500 px-1">FR</button>
+                    <span class="text-slate-300">/</span>
+                    <button data-lang-toggle="en" onclick="setLang('en')" class="text-xs font-bold text-slate-500 px-1">EN</button>
+                </span>
             </div>
         </header>
 
         <div class="bg-white p-2 md:p-6 rounded-2xl shadow-sm border border-slate-200 mt-8">
-            <h2 class="text-xl font-bold mb-4">Ajouter un collègue</h2>
-            <div class="flex gap-4 mb-6">
-                <input type="text" id="new-user-name" placeholder="Nom du collègue..." class="flex-1 p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500">
+            <h2 class="text-xl font-bold mb-4" data-i18n="admin.add_user_title">Ajouter un collègue</h2>
+            <div class="flex flex-col md:flex-row gap-4 mb-6">
+                <input type="text" id="new-user-name" data-i18n-placeholder="admin.user_name_placeholder" placeholder="Nom du collègue..." class="flex-1 p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="email" id="new-user-email" data-i18n-placeholder="admin.user_email_placeholder" placeholder="Email (optionnel)" class="flex-1 p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500">
                 <button onclick="addUser()" class="bg-blue-600 text-white px-4 md:px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors">
                     <span class="md:hidden">+</span>
-                    <span class="hidden md:inline">Ajouter</span>
+                    <span class="hidden md:inline" data-i18n="common.add">Ajouter</span>
                 </button>
             </div>
             <table class="w-full text-left">
                 <thead class="bg-slate-100 border-b border-slate-200">
                     <tr>
-                        <th class="p-4 font-bold text-slate-600">Nom</th>
-                        <th class="p-4 font-bold text-slate-600 hidden sm:table-cell">Lien Magique</th>
-                        <th class="p-4 font-bold text-slate-600 text-right">Actions</th>
+                        <th class="p-4 font-bold text-slate-600" data-i18n="admin.col_name">Nom</th>
+                        <th class="p-4 font-bold text-slate-600 hidden sm:table-cell" data-i18n="admin.col_magic_link">Lien Magique</th>
+                        <th class="p-4 font-bold text-slate-600 text-right" data-i18n="admin.col_actions">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="admin-users-list">
@@ -53,33 +61,33 @@
         </div>
 
         <div class="bg-white p-2 md:p-6 rounded-2xl shadow-sm border border-slate-200 mt-8">
-            <h2 class="text-xl font-bold mb-4 text-slate-800">Gestion des Badges</h2>
-            
+            <h2 class="text-xl font-bold mb-4 text-slate-800" data-i18n="admin.badges_title">Gestion des Badges</h2>
+
             <div class="flex flex-col md:flex-row gap-4 mb-8 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                <input type="text" id="new-cat-emoji" placeholder="Emoji" class="w-full md:w-20 p-3 rounded-xl border border-slate-200 text-center text-xl shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none">
-                <input type="text" id="new-cat-name" placeholder="Nom du badge (ex: Humour)" class="flex-1 p-3 rounded-xl border border-slate-200 shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none">
-                <button onclick="addCategory()" class="bg-emerald-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-emerald-700 hover:shadow-lg transition-all">Créer le badge</button>
+                <input type="text" id="new-cat-emoji" data-i18n-placeholder="admin.badge_emoji_placeholder" placeholder="Emoji" class="w-full md:w-20 p-3 rounded-xl border border-slate-200 text-center text-xl shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                <input type="text" id="new-cat-name" data-i18n-placeholder="admin.badge_name_placeholder" placeholder="Nom du badge (ex: Humour)" class="flex-1 p-3 rounded-xl border border-slate-200 shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none">
+                <button onclick="addCategory()" class="bg-emerald-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-emerald-700 hover:shadow-lg transition-all" data-i18n="admin.create_badge">Créer le badge</button>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="admin-categories-list"></div>
         </div>
 
         <div class="bg-white p-2 md:p-6 rounded-2xl shadow-sm border border-slate-200 mt-8">
-            <h2 class="text-xl font-bold mb-4 text-orange-600">⚖️ Paramétrage des Gages</h2>
-            
+            <h2 class="text-xl font-bold mb-4 text-orange-600" data-i18n="admin.rules_title">⚖️ Paramétrage des Gages</h2>
+
             <div class="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-white-50 rounded-xl mb-6">
                 <div>
-                    <label class="block text-xs font-bold mb-1">Badge</label>
+                    <label class="block text-xs font-bold mb-1" data-i18n="admin.rule_badge">Badge</label>
                     <select id="rule-cat" class="w-full p-2 rounded-lg border"></select>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold mb-1">Seuil (points)</label>
+                    <label class="block text-xs font-bold mb-1" data-i18n="admin.rule_threshold">Seuil (points)</label>
                     <input type="number" id="rule-threshold" value="10" class="w-full p-2 rounded-lg border">
                 </div>
                 <div class="md:col-span-2">
-                    <label class="block text-xs font-bold mb-1">Gage à accomplir</label>
+                    <label class="block text-xs font-bold mb-1" data-i18n="admin.rule_dare_text">Gage à accomplir</label>
                     <div class="flex gap-2">
-                        <input type="text" id="rule-text" placeholder="Ex: Amener des croissants" class="flex-1 p-2 rounded-lg border">
+                        <input type="text" id="rule-text" data-i18n-placeholder="admin.rule_dare_placeholder" placeholder="Ex: Amener des croissants" class="flex-1 p-2 rounded-lg border">
                         <button onclick="addRule()" class="bg-orange-600 text-white px-4 rounded-lg font-bold">OK</button>
                     </div>
                 </div>
@@ -92,7 +100,7 @@
         <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 mt-8">
             <h2 class="text-xl font-black text-slate-800 mb-6 flex items-center gap-2">
                 <span class="w-2 h-6 bg-orange-500 rounded-full"></span>
-                Historique des gages acquittés
+                <span data-i18n="admin.dare_log_title">Historique des gages acquittés</span>
             </h2>
             <div id="admin-dare-log" class="space-y-2 max-h-75 overflow-y-auto">
             </div>
@@ -101,7 +109,7 @@
         <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 mt-8">
             <h2 class="text-xl font-black text-slate-800 mb-6 flex items-center gap-2">
                 <span class="w-2 h-6 bg-blue-500 rounded-full"></span>
-                Historique global des points
+                <span data-i18n="admin.global_log_title">Historique global des points</span>
             </h2>
             <div id="admin-global-log" class="space-y-2 max-h-125 overflow-y-auto">
                 </div>
@@ -115,7 +123,7 @@
 
         async function checkAndLoad() {
             if (!myUserId) {
-                alert("Connecte-toi via ton lien magique avant d'accéder à l'admin.");
+                alert(t('admin.connect_first'));
                 return window.location.href = "/";
             }
 
@@ -124,14 +132,14 @@
             });
 
             if (!res.ok) {
-                alert("Session invalide. Reconnecte-toi via ton lien magique.");
+                alert(t('admin.session_invalid'));
                 return window.location.href = "/";
             }
 
             const me = await res.json();
 
             if (me.role !== 'admin' && me.role !== 'superadmin' && me.role !== 'owner') {
-                alert("Accès refusé : tu n'es pas administrateur de ton équipe.");
+                alert(t('admin.not_admin'));
                 return window.location.href = "/";
             }
 
@@ -165,7 +173,7 @@
             const res = await fetch(url, options);
 
             if (res.status === 401 || res.status === 403) {
-                alert("Accès refusé.");
+                alert(t('common.access_denied'));
                 window.location.href = "/";
                 return;
             }
@@ -195,18 +203,18 @@
                         <tr class="border-b border-slate-100 ${!isActive ? 'bg-slate-50 opacity-60' : 'hover:bg-slate-50/50'} transition-colors">
                             <td class="p-4">
                                 <div class="font-bold ${isActive ? 'text-slate-800' : 'text-slate-400 italic'}">
-                                    ${u.name} ${!isActive ? '(Désactivé)' : ''}
+                                    ${u.name} ${!isActive ? t('admin.user_deactivated') : ''}
                                 </div>
-                                ${activeDares.map(d => `<div class="text-[9px] text-orange-600 font-black uppercase">⚠️ Oups, un gage</div>`).join('')}
+                                ${activeDares.map(d => `<div class="text-[9px] text-orange-600 font-black uppercase">${t('admin.has_gage')}</div>`).join('')}
                             </td>
-                            
+
                             <td class="p-4 text-xs font-mono text-slate-400 hidden sm:table-cell">
                                 ${isActive ? `.../login/${u.token}` : '---'}
                             </td>
-                            
+
                             <td class="p-4">
                                 <div class="flex items-center justify-end gap-3">
-                                    
+
                                     <div class="flex gap-1">
                                         ${categories.map(cat => {
                                             const hasGageForThisCat = activeDares.some(d => String(d.categoryId) === String(cat.id));
@@ -215,7 +223,7 @@
                                             return `
                                                 <button onclick="clearCategoryPoints('${u.id}', '${cat.id}', '${cat.name}', '${u.name}')"
                                                         class="w-10 h-10 flex flex-col items-center justify-center bg-orange-50 hover:bg-orange-100 rounded-lg border border-orange-200 transition-all shadow-sm animate-bounce-short"
-                                                        title="Effacer dette: ${cat.name}">
+                                                        title="${cat.name}">
                                                     <span class="text-xs">${cat.emoji}</span>
                                                 </button>
                                             `;
@@ -224,10 +232,10 @@
 
                                     <div class="flex items-center gap-4 ml-4 border-l border-slate-200 pl-4">
                                         ${isActive ? `
-                                            <button onclick="copyLink('${u.token}')" class="text-xs font-black text-blue-600 uppercase hover:underline">Lien</button>
-                                            <button onclick="toggleUser('${u.id}', false)" class="text-xs font-black text-red-400 hover:text-red-600 uppercase">Désactiver</button>
+                                            <button onclick="copyLink('${u.token}')" class="text-xs font-black text-blue-600 uppercase hover:underline">${t('common.copy_link')}</button>
+                                            <button onclick="toggleUser('${u.id}', false)" class="text-xs font-black text-red-400 hover:text-red-600 uppercase">${t('common.deactivate')}</button>
                                         ` : `
-                                            <button onclick="toggleUser('${u.id}', true)" class="text-xs font-black text-emerald-600 uppercase">Réactiver</button>
+                                            <button onclick="toggleUser('${u.id}', true)" class="text-xs font-black text-emerald-600 uppercase">${t('common.restore')}</button>
                                         `}
                                     </div>
 
@@ -245,7 +253,7 @@
             const url = shouldActivate ? `/api/admin/users/${id}/restore` : `/api/admin/users/${id}`;
             const method = shouldActivate ? 'PATCH' : 'DELETE'; // On utilise DELETE pour désactiver car c'est notre route existante
             
-            if (confirm(shouldActivate ? "Réactiver ce collègue ?" : "Désactiver ce collègue ?")) {
+            if (confirm(shouldActivate ? t('admin.confirm_restore_user') : t('admin.confirm_deactivate_user'))) {
                 await adminFetch(url, { method });
                 loadAdminUsers();
             }
@@ -254,20 +262,22 @@
         function copyLink(token) {
             const url = `${window.location.origin}/login/${token}`;
             navigator.clipboard.writeText(url);
-            alert("Lien copié dans le presse-papier ! ✅");
+            alert(t('admin.toast_link_copied'));
         }
 
         async function addUser() {
             const name = document.getElementById('new-user-name').value;
+            const email = document.getElementById('new-user-email').value;
             if(!name) return;
-            
+
             await adminFetch('/api/admin/users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name })
+                body: JSON.stringify({ name, email })
             });
-            
+
             document.getElementById('new-user-name').value = '';
+            document.getElementById('new-user-email').value = '';
             loadAdminUsers();
         }
 
@@ -290,7 +300,7 @@
             const emojiInput = document.getElementById('new-cat-emoji');
 
             if (!nameInput.value || !emojiInput.value) {
-                return alert("Merci de remplir le nom et l'émoji !");
+                return alert(t('admin.fill_required'));
             }
 
             // On utilise adminFetch : il gère déjà le mot de passe et le 401
@@ -332,15 +342,15 @@
                             <div class="flex flex-col">
                                 <span class="font-bold text-lg ${isActive ? 'text-slate-800' : 'text-slate-400 italic'}">${c.name}</span>
                                 <span class="text-[10px] font-black uppercase tracking-widest ${isActive ? 'text-emerald-500' : 'text-slate-400'}">
-                                    ${isActive ? '● Actif' : '○ Désactivé'}
+                                    ${isActive ? t('admin.badge_active') : t('admin.badge_inactive')}
                                 </span>
                             </div>
                         </div>
 
                         <div class="flex justify-end mt-auto">
-                            <button onclick="toggleCategory('${c.id}', ${!isActive})" 
+                            <button onclick="toggleCategory('${c.id}', ${!isActive})"
                                     class="p-2 rounded-xl transition-all ${isActive ? 'bg-red-50 text-red-400 hover:bg-red-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}"
-                                    title="${isActive ? 'Désactiver' : 'Réactiver'}">
+                                    title="${isActive ? t('common.deactivate') : t('common.restore')}">
                                 ${isActive 
                                     ? `<svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
@@ -360,7 +370,7 @@
             const url = shouldActivate ? `/api/admin/categories/${id}/restore` : `/api/admin/categories/${id}`;
             const method = shouldActivate ? 'PATCH' : 'DELETE';
             
-            if (confirm(shouldActivate ? "Réactiver ce badge ?" : "Désactiver ce badge ?")) {
+            if (confirm(shouldActivate ? t('admin.confirm_restore_badge') : t('admin.confirm_deactivate_badge'))) {
                 await adminFetch(url, { method });
                 loadAdminCategories();
             }
@@ -404,17 +414,17 @@
             list.innerHTML = rules.map(r => `
                 <div id="rule-row-${r.id}" class="p-3 bg-white border border-slate-100 rounded-lg shadow-sm">
                     <div class="rule-display flex justify-between items-center">
-                        <span class="text-sm">Si <b>${r.cat_emoji} ${r.cat_name}</b> atteint <b>${r.threshold}</b> → <span class="text-orange-600 font-bold">${r.dare_text}</span></span>
+                        <span class="text-sm">${t('admin.rule_if')} <b>${r.cat_emoji} ${r.cat_name}</b> ${t('admin.rule_reaches')} <b>${r.threshold}</b> ${t('admin.rule_then')} <span class="text-orange-600 font-bold">${r.dare_text}</span></span>
                         <div class="flex gap-3 shrink-0 ml-3">
-                            <button onclick="editRule('${r.id}', ${r.threshold}, \`${r.dare_text}\`)" class="text-blue-400 hover:text-blue-600 text-xs font-bold">Modifier</button>
-                            <button onclick="deleteRule('${r.id}')" class="text-red-400 hover:text-red-600 text-xs font-bold">Supprimer</button>
+                            <button onclick="editRule('${r.id}', ${r.threshold}, \`${r.dare_text}\`)" class="text-blue-400 hover:text-blue-600 text-xs font-bold">${t('common.edit')}</button>
+                            <button onclick="deleteRule('${r.id}')" class="text-red-400 hover:text-red-600 text-xs font-bold">${t('common.delete')}</button>
                         </div>
                     </div>
                     <div class="rule-edit hidden mt-2 flex gap-2 items-center">
                         <input type="number" id="edit-threshold-${r.id}" class="w-20 p-2 rounded-lg border text-sm" value="${r.threshold}">
                         <input type="text" id="edit-text-${r.id}" class="flex-1 p-2 rounded-lg border text-sm" value="${r.dare_text}">
                         <button onclick="saveRule('${r.id}')" class="bg-orange-600 text-white px-3 py-2 rounded-lg text-xs font-bold">OK</button>
-                        <button onclick="cancelEdit('${r.id}')" class="text-slate-400 text-xs font-bold">Annuler</button>
+                        <button onclick="cancelEdit('${r.id}')" class="text-slate-400 text-xs font-bold">${t('common.cancel')}</button>
                     </div>
                 </div>
             `).join('');
@@ -445,14 +455,14 @@
         }
 
         async function deleteRule(id) {
-            if(confirm("Supprimer cette règle ?")) {
+            if(confirm(t('admin.rule_confirm_delete'))) {
                 await adminFetch(`/api/admin/rules/${id}`, { method: 'DELETE' });
                 loadRules();
             }
         }
 
         async function clearCategoryPoints(userId, catId, catName, userName) {
-            if (!confirm(`Confirmer la rédemption pour "${catName}" pour ${userName} ?`)) return;
+            if (!confirm(t('admin.confirm_clear_category', { cat: catName, user: userName }))) return;
 
             // Utilisation de adminFetch pour inclure le header X-Admin-Password
             const res = await adminFetch(`/api/admin/clear-category/${userId}/${catId}`, { 
@@ -488,7 +498,7 @@
             if (!container) return;
 
             if (logs.length === 0) {
-                container.innerHTML = '<p class="text-xs italic text-slate-400 text-center py-4">Aucun gage acquitté pour le moment</p>';
+                container.innerHTML = `<p class="text-xs italic text-slate-400 text-center py-4">${t('admin.dare_log_empty')}</p>`;
                 return;
             }
 
@@ -498,7 +508,7 @@
                         <span class="text-lg">${log.emoji}</span>
                         <span class="text-slate-600">
                             <b class="text-slate-800">${log.user_name}</b>
-                            a accompli : <span class="text-orange-600 font-bold">${log.dare_text}</span>
+                            ${t('admin.dare_log_did')} <span class="text-orange-600 font-bold">${log.dare_text}</span>
                         </span>
                     </div>
                     <span class="text-[10px] font-bold text-slate-400 shrink-0 ml-4">${formatSmartDate(log.cleared_at)}</span>
@@ -517,8 +527,8 @@
                     <div class="flex items-center gap-3 text-sm">
                         <span class="text-lg">${log.emoji}</span>
                         <span class="text-slate-600">
-                            <b class="text-slate-800">${log.from_name}</b> 
-                            a donné à 
+                            <b class="text-slate-800">${log.from_name}</b>
+                            ${t('admin.global_log_gave')}
                             <b class="text-slate-800">${log.to_name}</b>
                         </span>
                     </div>
@@ -538,22 +548,22 @@
         }
 
         async function deletePoint(pointId) {
-            if (!confirm("Supprimer définitivement ce point ?")) return;
+            if (!confirm(t('admin.confirm_delete_point'))) return;
 
             const res = await adminFetch(`/api/admin/points/${pointId}`, {
                 method: 'DELETE'
             });
 
             if (res && res.ok) {
-                if (window.showToast) window.showToast("Point supprimé !");
+                if (window.showToast) window.showToast(t('admin.toast_point_deleted'));
                 // On rafraîchit tout pour que les compteurs soient justes
                 loadGlobalLog();
-                loadAdminUsers(); 
+                loadAdminUsers();
             }
         }
 
         async function deleteSpecificPoint(pointId, userName) {
-        if (!confirm(`Supprimer définitivement ce point pour ${userName} ?`)) return;
+        if (!confirm(t('admin.confirm_delete_point'))) return;
 
             const res = await adminFetch(`/api/admin/points/${pointId}`, {
                 method: 'DELETE'

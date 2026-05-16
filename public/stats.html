@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stats — Donne Ton Point</title>
     <link rel="stylesheet" href="/styles.css">
+    <script src="i18n.js"></script>
     <style>
         header {
             background: linear-gradient(135deg, #1e3a8a, #2563eb, #4f46e5, #7c3aed, #2563eb);
@@ -27,19 +28,29 @@
 
     <header class="relative flex justify-between items-center mb-6 rounded-xl shadow-lg p-3 lg:p-4">
         <h1 class="text-xl lg:text-2xl font-black text-white flex items-center gap-2">
-            📊 <span>Statistiques</span>
+            📊 <span data-i18n="stats.title">Statistiques</span>
         </h1>
-        <a href="/" class="text-white/80 hover:text-white text-sm font-bold border border-white/25 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-full transition-colors">← Retour</a>
+        <div class="flex items-center gap-2">
+            <button data-lang-toggle="fr" onclick="setLang('fr')" class="text-xs font-bold text-white/70 px-1">FR</button>
+            <span class="text-white/40">/</span>
+            <button data-lang-toggle="en" onclick="setLang('en')" class="text-xs font-bold text-white/70 px-1">EN</button>
+            <a href="/" class="text-white/80 hover:text-white text-sm font-bold border border-white/25 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-full transition-colors ml-2" data-i18n="common.back_to_app">← App</a>
+        </div>
     </header>
 
     <div id="stats-content" class="space-y-6">
-        <div class="text-center py-20 text-slate-400 font-bold">Chargement des statistiques...</div>
+        <div class="text-center py-20 text-slate-400 font-bold" data-i18n="stats.loading">Chargement des statistiques...</div>
     </div>
 
     <script>
         async function loadStats() {
-            const res = await fetch('/api/stats');
-            if (!res.ok) { document.getElementById('stats-content').innerHTML = '<p class="text-center text-red-500">Erreur de chargement</p>'; return; }
+            const myId = localStorage.getItem('my_user_id');
+            if (!myId) {
+                document.getElementById('stats-content').innerHTML = `<p class="text-center text-slate-500">${t('stats.connect_first')}</p>`;
+                return;
+            }
+            const res = await fetch('/api/stats', { headers: { 'Authorization': `Bearer ${myId}` } });
+            if (!res.ok) { document.getElementById('stats-content').innerHTML = `<p class="text-center text-red-500">${t('stats.error')}</p>`; return; }
             const data = await res.json();
             render(data);
         }

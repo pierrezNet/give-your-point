@@ -5,56 +5,63 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Owner - Donne Ton Point</title>
     <link rel="stylesheet" href="/styles.css">
+    <script src="i18n.js"></script>
     <script src="app.js"></script>
 </head>
 <body class="bg-slate-50 min-h-screen p-4 md:p-8 opacity-0 transition-opacity duration-500" id="owner-body">
     <div class="max-w-6xl mx-auto">
         <header class="flex justify-between items-center mb-8">
             <div>
-                <h1 class="text-xl md:text-3xl font-black text-slate-800">Console Owner 🌐</h1>
-                <p class="text-xs md:text-sm font-bold text-slate-500 mt-1">Vue globale des sociétés inscrites</p>
+                <h1 class="text-xl md:text-3xl font-black text-slate-800" data-i18n="owner.title">Console Owner 🌐</h1>
+                <p class="text-xs md:text-sm font-bold text-slate-500 mt-1" data-i18n="owner.subtitle">Vue globale des sociétés inscrites</p>
             </div>
-            <div class="flex gap-3 items-center text-sm">
-                <a href="/superadmin" class="text-purple-600 font-bold hover:underline">Superadmin →</a>
-                <a href="/admin" class="text-yellow-600 font-bold hover:underline">Admin →</a>
-                <a href="/" class="text-blue-600 font-bold hover:underline">← App</a>
+            <div class="flex flex-wrap justify-end gap-x-3 gap-y-2 items-center text-sm">
+                <a href="/superadmin" class="text-purple-600 font-bold hover:underline whitespace-nowrap" data-i18n="nav.superadmin">Superadmin</a>
+                <a href="/admin" class="text-yellow-600 font-bold hover:underline whitespace-nowrap" data-i18n="nav.admin">Admin</a>
+                <a href="/" class="text-blue-600 font-bold hover:underline whitespace-nowrap" data-i18n="common.back_to_app">← App</a>
+                <span class="text-slate-300 hidden sm:inline">|</span>
+                <span class="whitespace-nowrap">
+                    <button data-lang-toggle="fr" onclick="setLang('fr')" class="text-xs font-bold text-slate-500 px-1">FR</button>
+                    <span class="text-slate-300">/</span>
+                    <button data-lang-toggle="en" onclick="setLang('en')" class="text-xs font-bold text-slate-500 px-1">EN</button>
+                </span>
             </div>
         </header>
 
         <!-- Stats agrégées -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-                <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Sociétés</div>
+                <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1" data-i18n="owner.kpi_companies">Sociétés</div>
                 <div class="text-3xl font-black text-slate-800" id="agg-companies">…</div>
             </div>
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-                <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Équipes</div>
+                <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1" data-i18n="owner.kpi_teams">Équipes</div>
                 <div class="text-3xl font-black text-slate-800" id="agg-teams">…</div>
             </div>
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-                <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Membres actifs</div>
+                <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1" data-i18n="owner.kpi_members">Membres actifs</div>
                 <div class="text-3xl font-black text-slate-800" id="agg-members">…</div>
             </div>
             <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
-                <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">Points (7j)</div>
+                <div class="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1" data-i18n="owner.kpi_points_7d">Points (7j)</div>
                 <div class="text-3xl font-black text-slate-800" id="agg-points-7d">…</div>
             </div>
         </div>
 
         <!-- Tableau des sociétés -->
         <div class="bg-white p-2 md:p-6 rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
-            <h2 class="text-xl font-bold text-slate-800 mb-4 px-2">Sociétés</h2>
+            <h2 class="text-xl font-bold text-slate-800 mb-4 px-2" data-i18n="owner.companies_title">Sociétés</h2>
             <table class="w-full text-left">
                 <thead class="bg-slate-100 border-b border-slate-200">
                     <tr>
-                        <th class="p-3 font-bold text-slate-600 text-xs uppercase">Société</th>
-                        <th class="p-3 font-bold text-slate-600 text-xs uppercase">Admin(s)</th>
-                        <th class="p-3 font-bold text-slate-600 text-xs uppercase text-center">Équipes</th>
-                        <th class="p-3 font-bold text-slate-600 text-xs uppercase text-center">Membres</th>
-                        <th class="p-3 font-bold text-slate-600 text-xs uppercase text-center hidden md:table-cell">Points totaux</th>
-                        <th class="p-3 font-bold text-slate-600 text-xs uppercase text-center">7 derniers j.</th>
-                        <th class="p-3 font-bold text-slate-600 text-xs uppercase hidden lg:table-cell">Dernière activité</th>
-                        <th class="p-3 font-bold text-slate-600 text-xs uppercase hidden lg:table-cell">Inscrite le</th>
+                        <th class="p-3 font-bold text-slate-600 text-xs uppercase" data-i18n="owner.col_company">Société</th>
+                        <th class="p-3 font-bold text-slate-600 text-xs uppercase" data-i18n="owner.col_admins">Admin(s)</th>
+                        <th class="p-3 font-bold text-slate-600 text-xs uppercase text-center" data-i18n="owner.col_teams">Équipes</th>
+                        <th class="p-3 font-bold text-slate-600 text-xs uppercase text-center" data-i18n="owner.col_members">Membres</th>
+                        <th class="p-3 font-bold text-slate-600 text-xs uppercase text-center hidden md:table-cell" data-i18n="owner.col_total_points">Points totaux</th>
+                        <th class="p-3 font-bold text-slate-600 text-xs uppercase text-center" data-i18n="owner.col_7d">7 derniers j.</th>
+                        <th class="p-3 font-bold text-slate-600 text-xs uppercase hidden lg:table-cell" data-i18n="owner.col_last_activity">Dernière activité</th>
+                        <th class="p-3 font-bold text-slate-600 text-xs uppercase hidden lg:table-cell" data-i18n="owner.col_registered">Inscrite le</th>
                     </tr>
                 </thead>
                 <tbody id="companies-list"></tbody>
@@ -70,29 +77,30 @@
             const date = new Date(d.includes('T') ? d : d.replace(' ', 'T') + 'Z');
             const now = new Date();
             const days = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-            if (days === 0) return "aujourd'hui";
-            if (days === 1) return "hier";
-            if (days < 7) return `il y a ${days} j`;
-            return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: '2-digit' });
+            if (days === 0) return t('owner.date_today');
+            if (days === 1) return t('owner.date_yesterday');
+            if (days < 7) return t('owner.date_n_days_ago', { n: days });
+            const locale = getLang() === 'en' ? 'en-US' : 'fr-FR';
+            return date.toLocaleDateString(locale, { day: '2-digit', month: '2-digit', year: '2-digit' });
         }
 
         function activityBadge(daysSinceLast) {
-            if (daysSinceLast === null) return '<span class="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-slate-100 text-slate-500">jamais</span>';
-            if (daysSinceLast <= 7) return '<span class="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">vivante</span>';
-            if (daysSinceLast <= 30) return '<span class="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-amber-100 text-amber-700">au ralenti</span>';
-            return '<span class="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-slate-100 text-slate-500">dormante</span>';
+            if (daysSinceLast === null) return `<span class="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-slate-100 text-slate-500">${t('owner.activity_never')}</span>`;
+            if (daysSinceLast <= 7) return `<span class="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">${t('owner.activity_active')}</span>`;
+            if (daysSinceLast <= 30) return `<span class="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-amber-100 text-amber-700">${t('owner.activity_idle')}</span>`;
+            return `<span class="text-[10px] font-black uppercase px-2 py-1 rounded-full bg-slate-100 text-slate-500">${t('owner.activity_dormant')}</span>`;
         }
 
         async function checkAndLoad() {
             if (!myUserId) {
-                alert("Connecte-toi via ton lien magique.");
+                alert(t('owner.connect_first'));
                 return window.location.href = "/";
             }
             const res = await fetch('/api/me', { headers: { 'Authorization': `Bearer ${myUserId}` } });
             if (!res.ok) { window.location.href = "/"; return; }
             const me = await res.json();
             if (me.role !== 'owner') {
-                alert("Accès refusé : tu n'es pas owner de l'application.");
+                alert(t('owner.not_owner'));
                 return window.location.href = "/";
             }
             document.getElementById('owner-body').classList.remove('opacity-0');
@@ -126,7 +134,7 @@
                     <tr class="border-b border-slate-100 ${c.active === 0 ? 'opacity-50' : ''}">
                         <td class="p-3">
                             <div class="font-bold text-slate-800">${c.name}</div>
-                            ${c.active === 0 ? '<div class="text-[10px] font-bold uppercase text-slate-400">désactivée</div>' : ''}
+                            ${c.active === 0 ? `<div class="text-[10px] font-bold uppercase text-slate-400">${t('owner.company_disabled')}</div>` : ''}
                         </td>
                         <td class="p-3 text-sm text-slate-600">${c.admins || '<i class="text-slate-400">—</i>'}</td>
                         <td class="p-3 text-center text-sm font-bold">${c.team_count}</td>

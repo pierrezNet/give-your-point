@@ -44,7 +44,9 @@ CREATE TABLE users (
     name TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'member',
     active INTEGER DEFAULT 1,
-    token TEXT
+    token TEXT,
+    email TEXT,
+    locale TEXT
 );
 
 CREATE INDEX idx_users_team ON users(team_id, active);
