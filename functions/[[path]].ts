@@ -512,7 +512,7 @@ app.post('/api/points', requireUser, async (c) => {
             <b>${cat.emoji} ${cat.name}</b>.
           </p>
           <p style="margin-top:24px">
-            <a href="https://give-your-point.pages.dev/"
+            <a href="https://compteur.pierrez.net/"
                style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">
               See on Give Your Point
             </a>
@@ -530,7 +530,7 @@ app.post('/api/points', requireUser, async (c) => {
             <b>${cat.emoji} ${cat.name}</b>.
           </p>
           <p style="margin-top:24px">
-            <a href="https://give-your-point.pages.dev/"
+            <a href="https://compteur.pierrez.net/"
                style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">
               Voir sur Donne Ton Point
             </a>
