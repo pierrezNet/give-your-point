@@ -1229,9 +1229,66 @@ app.post('/api/push/subscribe', requireUser, async (c) => {
   return c.json({ success: true });
 });
 
-app.get('/', async (c) => {
-  return c.env.ASSETS.fetch(c.req.raw);
-});
+// === Open Graph : injection des meta selon Accept-Language ===
+
+const OG_DATA: Record<string, Record<'fr' | 'en', { title: string; desc: string; locale: string }>> = {
+  '/': {
+    fr: {
+      title: "Donne Ton Point — Le rituel d'équipe",
+      desc: "Récompense les bons coups (et les bourdes) de ton équipe avec des badges. Quand un seuil est atteint, c'est gage !",
+      locale: 'fr_FR',
+    },
+    en: {
+      title: 'Give Your Point — The team ritual',
+      desc: 'Reward the wins (and the goofs) of your team with badges. When a threshold is reached, time for a dare!',
+      locale: 'en_US',
+    },
+  },
+  '/about': {
+    fr: {
+      title: "À propos — Donne Ton Point",
+      desc: "Présentation, modèle de rôles, politique RGPD et contact.",
+      locale: 'fr_FR',
+    },
+    en: {
+      title: 'About — Give Your Point',
+      desc: 'Presentation, roles model, GDPR policy and contact.',
+      locale: 'en_US',
+    },
+  },
+};
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+async function serveHtmlWithOg(c: any, key: string): Promise<Response> {
+  const resp = await c.env.ASSETS.fetch(c.req.raw);
+  const ct = resp.headers.get('Content-Type') || '';
+  if (!ct.toLowerCase().includes('text/html')) {
+    return resp;
+  }
+  const acceptLang = (c.req.header('Accept-Language') || '').toLowerCase();
+  const lang: 'fr' | 'en' = acceptLang.startsWith('en') ? 'en' : 'fr';
+  const data = OG_DATA[key]?.[lang] || OG_DATA[key]?.fr || OG_DATA['/'].fr;
+  const url = new URL(c.req.url);
+  const html = await resp.text();
+  const replaced = html
+    .replace(/\{\{OG_TITLE\}\}/g, escapeHtml(data.title))
+    .replace(/\{\{OG_DESC\}\}/g, escapeHtml(data.desc))
+    .replace(/\{\{OG_URL\}\}/g, escapeHtml(url.origin))
+    .replace(/\{\{OG_LOCALE\}\}/g, data.locale);
+  return new Response(replaced, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': resp.headers.get('Cache-Control') || 'public, max-age=0, must-revalidate',
+    },
+  });
+}
+
+app.get('/', (c) => serveHtmlWithOg(c, '/'));
+app.get('/about', (c) => serveHtmlWithOg(c, '/about'));
+app.get('/about.html', (c) => serveHtmlWithOg(c, '/about'));
 
 app.get('/*', async (c) => {
   return c.env.ASSETS.fetch(c.req.raw);

@@ -3,7 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Donne Ton Point</title>
+    <title>{{OG_TITLE}}</title>
+    <meta name="description" content="{{OG_DESC}}">
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{{OG_TITLE}}">
+    <meta property="og:description" content="{{OG_DESC}}">
+    <meta property="og:image" content="{{OG_URL}}/og.svg">
+    <meta property="og:url" content="{{OG_URL}}/">
+    <meta property="og:locale" content="{{OG_LOCALE}}">
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{OG_TITLE}}">
+    <meta name="twitter:description" content="{{OG_DESC}}">
+    <meta name="twitter:image" content="{{OG_URL}}/og.svg">
     <link rel="stylesheet" href="/styles.css">
     <script src="i18n.js"></script>
     <script src="app.js"></script>
@@ -289,7 +302,7 @@
         <!-- Navigation desktop -->
         <nav class="hidden md:flex items-center gap-2">
             <a href="/stats" class="nav-btn" data-i18n="nav.stats">Stats 📊</a>
-            <button onclick="showAbout()" class="nav-btn" data-i18n="nav.about">À propos</button>
+            <a href="/about" class="nav-btn" data-i18n="nav.about">À propos</a>
             <button onclick="showHelp()" class="nav-btn" data-i18n="nav.help">Aide</button>
             <a href="/admin" class="nav-btn-admin" data-i18n="nav.admin">Admin 🔐</a>
             <a href="/superadmin" class="nav-btn-superadmin" style="display:none;" data-i18n="nav.superadmin">Société 🏛️</a>
@@ -312,7 +325,7 @@
         <!-- Dropdown mobile -->
         <div id="mobile-menu" class="hidden absolute top-full right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-50 p-2 flex-col gap-1">
             <a href="/stats" class="px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors" data-i18n="nav.stats">Stats 📊</a>
-            <button onclick="showAbout(); toggleMenu()" class="text-left px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors" data-i18n="nav.about">À propos</button>
+            <a href="/about" class="px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors" data-i18n="nav.about">À propos</a>
             <button onclick="showHelp(); toggleMenu()" class="text-left px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors" data-i18n="nav.help">Aide</button>
             <a href="/admin" class="nav-btn-admin px-4 py-3 rounded-xl text-sm font-bold text-yellow-600 hover:bg-yellow-50 transition-colors" data-i18n="nav.admin">Admin 🔐</a>
             <a href="/superadmin" class="nav-btn-superadmin px-4 py-3 rounded-xl text-sm font-bold text-purple-600 hover:bg-purple-50 transition-colors" style="display:none;" data-i18n="nav.superadmin">Société 🏛️</a>

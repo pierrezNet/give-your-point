@@ -20,22 +20,10 @@ document.addEventListener('click', (e) => {
     }
 });
 
+// L'ancienne modale "À propos" est remplacée par la page /about.html
+// (showAbout est conservé en redirection pour compatibilité).
 function showAbout() {
-    document.body.insertAdjacentHTML('beforeend', `
-        <div id="about-modal" class="fixed inset-0 bg-black/85 flex items-center justify-center z-100 p-4"
-             onclick="if(event.target===this){this.remove();isModalOpen=false;}">
-            <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-in fade-in zoom-in duration-200">
-                <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
-                    <h2 class="text-xl font-black text-slate-800">${t('about.title')}</h2>
-                    <button onclick="document.getElementById('about-modal').remove();isModalOpen=false;" class="text-slate-400 hover:text-slate-600 text-3xl leading-none">&times;</button>
-                </div>
-                <p class="text-sm text-slate-600 mb-3">${t('about.body1')}</p>
-                <p class="text-sm text-slate-600 mb-3">${t('about.body2')}</p>
-                <p class="text-xs text-slate-400 mt-4 italic">${t('about.footer')}</p>
-            </div>
-        </div>
-    `);
-    isModalOpen = true;
+    window.location.href = '/about';
 }
 
 function showHelp() {
@@ -636,6 +624,54 @@ async function init() {
     initPushNotifications(); // fire-and-forget
 }
 
+function mockupSvg() {
+    return `
+    <svg viewBox="0 0 320 360" xmlns="http://www.w3.org/2000/svg" class="w-72 md:w-80 drop-shadow-2xl" role="img" aria-label="${t('landing.mockup_alt')}">
+        <!-- Carte principale -->
+        <rect x="10" y="10" width="300" height="340" rx="28" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+        <!-- Tag rang en haut à droite -->
+        <rect x="240" y="30" width="50" height="22" rx="8" fill="#facc15"/>
+        <text x="265" y="46" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" font-weight="900" fill="#1e293b">${t('landing.mockup_user_rank')}</text>
+        <!-- Tag démo -->
+        <rect x="30" y="30" width="56" height="22" rx="8" fill="#dbeafe"/>
+        <text x="58" y="46" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="800" fill="#2563eb">${t('landing.mockup_demo_label')}</text>
+        <!-- Avatar circulaire -->
+        <circle cx="160" cy="115" r="42" fill="url(#avatarGrad)" stroke="#bfdbfe" stroke-width="2"/>
+        <text x="160" y="128" text-anchor="middle" font-family="system-ui, sans-serif" font-size="36" font-weight="900" fill="#2563eb">A</text>
+        <!-- Nom -->
+        <text x="160" y="190" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20" font-weight="800" fill="#1e293b">${t('landing.mockup_user_name')}</text>
+        <!-- Points -->
+        <text x="160" y="216" text-anchor="middle" font-family="system-ui, sans-serif" font-size="16" font-weight="900" fill="#2563eb">${t('landing.mockup_user_pts')}</text>
+        <!-- Badges (mini cartes) -->
+        <g transform="translate(50, 250)">
+            <rect width="60" height="34" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+            <text x="30" y="22" text-anchor="middle" font-size="18">😂</text>
+            <text x="48" y="22" text-anchor="middle" font-size="10" font-weight="700" fill="#64748b">5</text>
+        </g>
+        <g transform="translate(130, 250)">
+            <rect width="60" height="34" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+            <text x="30" y="22" text-anchor="middle" font-size="18">👿</text>
+            <text x="48" y="22" text-anchor="middle" font-size="10" font-weight="700" fill="#64748b">4</text>
+        </g>
+        <g transform="translate(210, 250)">
+            <rect width="60" height="34" rx="8" fill="#f8fafc" stroke="#e2e8f0"/>
+            <text x="30" y="22" text-anchor="middle" font-size="18">😴</text>
+            <text x="48" y="22" text-anchor="middle" font-size="10" font-weight="700" fill="#64748b">3</text>
+        </g>
+        <!-- Bannière gage -->
+        <g transform="translate(40, 305)">
+            <rect width="240" height="30" rx="15" fill="#ea580c"/>
+            <text x="120" y="20" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="900" fill="white">🚨 GAGE : VIENNOISERIES</text>
+        </g>
+        <defs>
+            <linearGradient id="avatarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#dbeafe"/>
+                <stop offset="100%" stop-color="#eff6ff"/>
+            </linearGradient>
+        </defs>
+    </svg>`;
+}
+
 async function renderLanding() {
     let cfg = {};
     try {
@@ -644,25 +680,85 @@ async function renderLanding() {
     } catch {}
 
     document.body.innerHTML = `
-        <div class="min-h-screen bg-gray-100 p-4 flex flex-col items-center justify-center">
-            <div class="max-w-md w-full bg-white rounded-3xl shadow-xl p-8 space-y-5 relative">
-                <div class="absolute top-4 right-4 text-xs font-bold text-slate-400 flex gap-2">
-                    <button data-lang-toggle="fr" onclick="setLang('fr')" class="px-1">FR</button>
-                    <span class="text-slate-300">|</span>
-                    <button data-lang-toggle="en" onclick="setLang('en')" class="px-1">EN</button>
+        <div class="min-h-screen bg-gray-100">
+            <!-- Header sticky -->
+            <header class="sticky top-0 z-40 bg-white/85 backdrop-blur border-b border-slate-200">
+                <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-2xl">🎯</span>
+                        <span class="font-black text-slate-800">${t('app.title')}</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-xs font-bold text-slate-500">
+                        <button data-lang-toggle="fr" onclick="setLang('fr')" class="px-1">FR</button>
+                        <span class="text-slate-300">|</span>
+                        <button data-lang-toggle="en" onclick="setLang('en')" class="px-1">EN</button>
+                    </div>
                 </div>
-                <div class="text-center">
-                    <h1 class="text-3xl font-black text-slate-800">🎯 ${t('app.title')}</h1>
-                    <p class="text-sm text-slate-500 mt-2">${t('app.tagline')}</p>
-                </div>
+            </header>
 
-                <div class="bg-slate-50 rounded-xl p-4 text-sm text-slate-700 border border-slate-200">
-                    <h2 class="font-bold text-slate-800 mb-1">${t('onboarding.have_link_title')}</h2>
-                    <p class="text-xs text-slate-600">${t('onboarding.have_link_desc')}</p>
+            <!-- Hero -->
+            <section class="max-w-5xl mx-auto px-4 pt-12 pb-8 grid md:grid-cols-2 gap-10 items-center">
+                <div>
+                    <h1 class="text-4xl md:text-5xl font-black text-slate-800 leading-tight">${t('app.title')} 🎯</h1>
+                    <p class="text-lg text-slate-600 mt-4">${t('landing.hero_pitch')}</p>
+                    <div class="mt-6 flex flex-wrap items-center gap-4">
+                        <a href="#create" class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg shadow-blue-600/20">${t('landing.cta_create')}</a>
+                        <a href="#have-link" class="text-sm font-bold text-blue-600 hover:underline">${t('landing.have_link_link')}</a>
+                    </div>
                 </div>
+                <div class="flex justify-center md:justify-end">
+                    ${mockupSvg()}
+                </div>
+            </section>
 
-                <div class="border border-slate-200 rounded-xl p-4">
-                    <h2 class="font-bold text-slate-800 mb-3">${t('onboarding.create_title')}</h2>
+            <!-- Comment ça marche -->
+            <section class="max-w-5xl mx-auto px-4 py-12">
+                <h2 class="text-2xl font-black text-slate-800 mb-8 text-center">${t('landing.how_title')}</h2>
+                <div class="grid md:grid-cols-3 gap-6">
+                    <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+                        <div class="text-3xl mb-2">🎁</div>
+                        <h3 class="font-bold text-slate-800 mb-1">${t('landing.how_step1_title')}</h3>
+                        <p class="text-sm text-slate-600">${t('landing.how_step1_desc')}</p>
+                    </div>
+                    <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+                        <div class="text-3xl mb-2">📈</div>
+                        <h3 class="font-bold text-slate-800 mb-1">${t('landing.how_step2_title')}</h3>
+                        <p class="text-sm text-slate-600">${t('landing.how_step2_desc')}</p>
+                    </div>
+                    <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+                        <div class="text-3xl mb-2">⚠️</div>
+                        <h3 class="font-bold text-slate-800 mb-1">${t('landing.how_step3_title')}</h3>
+                        <p class="text-sm text-slate-600">${t('landing.how_step3_desc')}</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Pour qui -->
+            <section class="max-w-5xl mx-auto px-4 py-12">
+                <h2 class="text-2xl font-black text-slate-800 mb-8 text-center">${t('landing.who_title')}</h2>
+                <div class="grid md:grid-cols-3 gap-6">
+                    <div class="bg-blue-50 rounded-2xl p-6 border border-blue-100">
+                        <h3 class="font-bold text-slate-800 mb-2">${t('landing.who_team_title')}</h3>
+                        <p class="text-sm text-slate-600">${t('landing.who_team_desc')}</p>
+                    </div>
+                    <div class="bg-emerald-50 rounded-2xl p-6 border border-emerald-100">
+                        <h3 class="font-bold text-slate-800 mb-2">${t('landing.who_class_title')}</h3>
+                        <p class="text-sm text-slate-600">${t('landing.who_class_desc')}</p>
+                    </div>
+                    <div class="bg-amber-50 rounded-2xl p-6 border border-amber-100">
+                        <h3 class="font-bold text-slate-800 mb-2">${t('landing.who_friends_title')}</h3>
+                        <p class="text-sm text-slate-600">${t('landing.who_friends_desc')}</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Formulaire d'inscription (ancre #create) -->
+            <section id="create" class="max-w-md mx-auto px-4 py-12">
+                <div class="bg-white rounded-3xl shadow-xl p-8 space-y-5 border border-slate-200">
+                    <div class="text-center">
+                        <h2 class="text-2xl font-black text-slate-800">${t('landing.create_title')}</h2>
+                        <p class="text-sm text-slate-500 mt-2">${t('landing.create_subtitle')}</p>
+                    </div>
                     <form id="onboarding-form" class="space-y-3">
                         <input id="ob-company" type="text" required minlength="2" maxlength="60" placeholder="${t('onboarding.company_placeholder')}" class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
                         <input id="ob-admin" type="text" required minlength="1" maxlength="40" placeholder="${t('onboarding.admin_placeholder')}" class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
@@ -671,10 +767,40 @@ async function renderLanding() {
                         <button type="submit" id="ob-submit" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition disabled:opacity-50">${t('onboarding.submit')}</button>
                         <p id="ob-error" class="text-red-600 text-xs text-center hidden"></p>
                     </form>
+                    <p class="text-[10px] text-slate-400 text-center">${t('landing.legal_note')}</p>
                 </div>
+            </section>
 
-                <p class="text-[10px] text-slate-400 text-center">${t('onboarding.footer_note')}</p>
-            </div>
+            <!-- Bloc lien magique (ancre #have-link) -->
+            <section id="have-link" class="max-w-md mx-auto px-4 pb-12">
+                <div class="bg-slate-50 rounded-xl p-4 text-sm text-slate-700 border border-slate-200">
+                    <h3 class="font-bold text-slate-800 mb-1">${t('onboarding.have_link_title')}</h3>
+                    <p class="text-xs text-slate-600">${t('onboarding.have_link_desc')}</p>
+                </div>
+            </section>
+
+            <!-- FAQ -->
+            <section class="max-w-3xl mx-auto px-4 py-12">
+                <h2 class="text-2xl font-black text-slate-800 mb-6 text-center">${t('landing.faq_title')}</h2>
+                <div class="space-y-3">
+                    <details class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm group">
+                        <summary class="font-bold text-slate-800 cursor-pointer marker:text-blue-500">${t('landing.faq_free_q')}</summary>
+                        <p class="text-sm text-slate-600 mt-3">${t('landing.faq_free_a')}</p>
+                    </details>
+                    <details class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm group">
+                        <summary class="font-bold text-slate-800 cursor-pointer marker:text-blue-500">${t('landing.faq_data_q')}</summary>
+                        <p class="text-sm text-slate-600 mt-3">${t('landing.faq_data_a')}</p>
+                    </details>
+                    <details class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm group">
+                        <summary class="font-bold text-slate-800 cursor-pointer marker:text-blue-500">${t('landing.faq_account_q')}</summary>
+                        <p class="text-sm text-slate-600 mt-3">${t('landing.faq_account_a')}</p>
+                    </details>
+                </div>
+            </section>
+
+            <footer class="max-w-5xl mx-auto px-4 py-8 text-center text-xs text-slate-400 border-t border-slate-200">
+                Made with ❤️ — ${t('app.title')}
+            </footer>
         </div>`;
     applyI18n();
 

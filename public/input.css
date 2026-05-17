@@ -66,4 +66,28 @@
   .hover\:bg-purple-50:hover   { background-color: #2e1065 !important; }
   .hover\:bg-emerald-50:hover  { background-color: #022c22 !important; }
   .hover\:bg-blue-50:hover     { background-color: #172554 !important; }
+
+  /* Fonds colorés pastels — overrides dark pour rester lisibles */
+  .bg-blue-50      { background-color: #172554; }
+  .bg-emerald-50   { background-color: #022c22; }
+  .bg-amber-50     { background-color: #451a03; }
+  .bg-yellow-50    { background-color: #422006; }
+  .bg-purple-50    { background-color: #2e1065; }
+  .border-amber-100 { border-color: #92400e; }
+  .border-yellow-100 { border-color: #713f12; }
+  .border-purple-100 { border-color: #4c1d95; }
+  .border-blue-100   { border-color: #1e40af; }
+  .border-emerald-100 { border-color: #064e3b; }
+
+  /* Header sticky : meilleur contraste en sombre */
+  header.bg-white\/85 { background-color: rgba(15, 23, 42, 0.85) !important; }
+
+  /* Toggle FR/EN — bouton actif contrasté en sombre */
+  [data-lang-toggle].active { color: #60a5fa !important; }
 }
+
+/* Défilement doux pour les ancres */
+html { scroll-behavior: smooth; }
+
+/* Toggle FR/EN — bouton actif clair (mode clair) */
+[data-lang-toggle].active { color: #2563eb; font-weight: 800; text-decoration: underline; text-underline-offset: 3px; }

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{OG_TITLE}}</title>
+    <meta name="description" content="{{OG_DESC}}">
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="{{OG_TITLE}}">
+    <meta property="og:description" content="{{OG_DESC}}">
+    <meta property="og:image" content="{{OG_URL}}/og.svg">
+    <meta property="og:url" content="{{OG_URL}}/about">
+    <meta property="og:locale" content="{{OG_LOCALE}}">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{{OG_TITLE}}">
+    <meta name="twitter:description" content="{{OG_DESC}}">
+    <meta name="twitter:image" content="{{OG_URL}}/og.svg">
+    <link rel="stylesheet" href="/styles.css">
+    <script src="i18n.js"></script>
+</head>
+<body class="bg-gray-100">
+    <!-- Header sticky cohérent avec landing -->
+    <header class="sticky top-0 z-40 bg-white/85 backdrop-blur border-b border-slate-200">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+            <a href="/" class="flex items-center gap-2 text-slate-800 no-underline">
+                <span class="text-2xl">🎯</span>
+                <span class="font-black" data-i18n="app.title">Donne Ton Point</span>
+            </a>
+            <div class="flex items-center gap-3 text-xs font-bold text-slate-500">
+                <a href="/" class="hover:underline" data-i18n="about.back_to_home">← Retour à l'accueil</a>
+                <span class="text-slate-300">|</span>
+                <button data-lang-toggle="fr" onclick="setLang('fr')" class="px-1">FR</button>
+                <span class="text-slate-300">|</span>
+                <button data-lang-toggle="en" onclick="setLang('en')" class="px-1">EN</button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-3xl mx-auto px-4 py-12 space-y-12">
+        <div class="text-center">
+            <h1 class="text-4xl font-black text-slate-800" data-i18n="about.page_title">À propos</h1>
+            <p class="text-slate-600 mt-3" data-i18n="about.tagline">Tout ce qu'il faut savoir avant de te lancer.</p>
+        </div>
+
+        <!-- Principe -->
+        <section>
+            <h2 class="text-2xl font-black text-slate-800 mb-4" data-i18n="about.principle_title">Le principe</h2>
+            <div class="space-y-3 text-slate-700">
+                <p data-i18n-html="about.principle_p1"></p>
+                <p data-i18n-html="about.principle_p2"></p>
+                <p data-i18n="about.principle_p3"></p>
+            </div>
+        </section>
+
+        <!-- Rôles -->
+        <section>
+            <h2 class="text-2xl font-black text-slate-800 mb-4" data-i18n="about.roles_title">Les rôles</h2>
+            <p class="text-slate-700 mb-6" data-i18n="about.roles_intro">Quatre niveaux, chacun hérite des droits du niveau inférieur :</p>
+            <div class="space-y-3">
+                <div class="bg-white rounded-xl p-4 border border-slate-200">
+                    <h3 class="font-bold text-slate-800" data-i18n="about.role_member_title">👤 Membre</h3>
+                    <p class="text-sm text-slate-600 mt-1" data-i18n="about.role_member_desc">Participe au jeu.</p>
+                </div>
+                <div class="bg-yellow-50 rounded-xl p-4 border border-yellow-100">
+                    <h3 class="font-bold text-slate-800" data-i18n="about.role_admin_title">🔐 Admin d'équipe</h3>
+                    <p class="text-sm text-slate-600 mt-1" data-i18n="about.role_admin_desc">Gère son équipe.</p>
+                </div>
+                <div class="bg-purple-50 rounded-xl p-4 border border-purple-100">
+                    <h3 class="font-bold text-slate-800" data-i18n="about.role_superadmin_title">🏛️ Superadmin de société</h3>
+                    <p class="text-sm text-slate-600 mt-1" data-i18n="about.role_superadmin_desc">Crée et organise les équipes.</p>
+                </div>
+                <div class="bg-emerald-50 rounded-xl p-4 border border-emerald-100">
+                    <h3 class="font-bold text-slate-800" data-i18n="about.role_owner_title">🌐 Owner de l'app</h3>
+                    <p class="text-sm text-slate-600 mt-1" data-i18n="about.role_owner_desc">Vue globale sur toutes les sociétés.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Aperçu console admin (mockup SVG) -->
+        <section>
+            <h2 class="text-2xl font-black text-slate-800 mb-4" data-i18n="about.admin_preview_title">Aperçu de la console admin</h2>
+            <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex justify-center">
+                <svg viewBox="0 0 500 320" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-md" role="img" aria-labelledby="adminPreviewTitle">
+                    <title id="adminPreviewTitle">Aperçu console admin</title>
+                    <!-- Conteneur -->
+                    <rect x="2" y="2" width="496" height="316" rx="14" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+                    <!-- Header -->
+                    <rect x="2" y="2" width="496" height="42" rx="14" fill="#1e293b"/>
+                    <text x="20" y="29" font-family="system-ui" font-size="14" font-weight="800" fill="#ffffff">🛠️ Console Admin</text>
+                    <text x="430" y="29" font-family="system-ui" font-size="11" font-weight="700" fill="#94a3b8">BEPN</text>
+                    <!-- Section titre -->
+                    <text x="20" y="68" font-family="system-ui" font-size="13" font-weight="800" fill="#0f172a">Membres de l'équipe</text>
+                    <!-- Tableau header -->
+                    <rect x="20" y="80" width="460" height="26" rx="6" fill="#e2e8f0"/>
+                    <text x="32" y="97" font-family="system-ui" font-size="10" font-weight="800" fill="#475569">NOM</text>
+                    <text x="200" y="97" font-family="system-ui" font-size="10" font-weight="800" fill="#475569">LIEN MAGIQUE</text>
+                    <text x="430" y="97" font-family="system-ui" font-size="10" font-weight="800" fill="#475569">ACTIONS</text>
+                    <!-- Lignes -->
+                    <g font-family="system-ui" font-size="11">
+                        <rect x="20" y="112" width="460" height="22" fill="#ffffff" stroke="#e2e8f0"/>
+                        <text x="32" y="127" font-weight="700" fill="#0f172a">Alice</text>
+                        <text x="200" y="127" fill="#94a3b8">.../login/a1b2c3...</text>
+                        <text x="412" y="127" font-weight="800" fill="#2563eb">Lien</text>
+                        <text x="446" y="127" font-weight="800" fill="#dc2626">×</text>
+
+                        <rect x="20" y="134" width="460" height="22" fill="#ffffff" stroke="#e2e8f0"/>
+                        <text x="32" y="149" font-weight="700" fill="#0f172a">Bob</text>
+                        <text x="200" y="149" fill="#94a3b8">.../login/d4e5f6...</text>
+                        <text x="412" y="149" font-weight="800" fill="#2563eb">Lien</text>
+                        <text x="446" y="149" font-weight="800" fill="#dc2626">×</text>
+
+                        <rect x="20" y="156" width="460" height="22" fill="#ffffff" stroke="#e2e8f0"/>
+                        <text x="32" y="171" font-weight="700" fill="#0f172a">Carla</text>
+                        <text x="60" y="171" font-weight="800" fill="#ea580c">⚠️ Gage</text>
+                        <text x="200" y="171" fill="#94a3b8">.../login/789abc...</text>
+                        <text x="412" y="171" font-weight="800" fill="#2563eb">Lien</text>
+                        <text x="446" y="171" font-weight="800" fill="#dc2626">×</text>
+                    </g>
+                    <!-- Section badges -->
+                    <text x="20" y="208" font-family="system-ui" font-size="13" font-weight="800" fill="#0f172a">Badges</text>
+                    <g>
+                        <rect x="20" y="222" width="88" height="60" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+                        <text x="64" y="252" text-anchor="middle" font-size="22">👿</text>
+                        <text x="64" y="272" text-anchor="middle" font-family="system-ui" font-size="10" font-weight="700" fill="#475569">Méchanceté</text>
+
+                        <rect x="115" y="222" width="88" height="60" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+                        <text x="159" y="252" text-anchor="middle" font-size="22">😂</text>
+                        <text x="159" y="272" text-anchor="middle" font-family="system-ui" font-size="10" font-weight="700" fill="#475569">Super blague</text>
+
+                        <rect x="210" y="222" width="88" height="60" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+                        <text x="254" y="252" text-anchor="middle" font-size="22">😴</text>
+                        <text x="254" y="272" text-anchor="middle" font-family="system-ui" font-size="10" font-weight="700" fill="#475569">Flemme</text>
+
+                        <rect x="305" y="222" width="88" height="60" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
+                        <text x="349" y="252" text-anchor="middle" font-size="22">😡</text>
+                        <text x="349" y="272" text-anchor="middle" font-family="system-ui" font-size="10" font-weight="700" fill="#475569">Colère</text>
+
+                        <rect x="400" y="222" width="80" height="60" rx="10" fill="#dbeafe" stroke="#2563eb" stroke-dasharray="3 3"/>
+                        <text x="440" y="258" text-anchor="middle" font-size="20" fill="#2563eb">+</text>
+                    </g>
+                </svg>
+            </div>
+            <p class="text-xs text-slate-500 text-center mt-3 italic" data-i18n="about.admin_preview_caption"></p>
+        </section>
+
+        <!-- RGPD -->
+        <section>
+            <h2 class="text-2xl font-black text-slate-800 mb-6" data-i18n="about.privacy_title">Données personnelles & RGPD</h2>
+            <div class="space-y-4">
+                <div class="bg-white rounded-xl p-4 border border-slate-200">
+                    <h3 class="font-bold text-slate-800 mb-2" data-i18n="about.privacy_storage_title">🗄️ Où sont les données</h3>
+                    <p class="text-sm text-slate-600" data-i18n-html="about.privacy_storage_desc"></p>
+                </div>
+                <div class="bg-white rounded-xl p-4 border border-slate-200">
+                    <h3 class="font-bold text-slate-800 mb-2" data-i18n="about.privacy_retention_title">⏱️ Durée de conservation</h3>
+                    <p class="text-sm text-slate-600" data-i18n-html="about.privacy_retention_desc"></p>
+                </div>
+                <div class="bg-white rounded-xl p-4 border border-slate-200">
+                    <h3 class="font-bold text-slate-800 mb-2" data-i18n="about.privacy_collected_title">📋 Données collectées</h3>
+                    <p class="text-sm text-slate-600" data-i18n-html="about.privacy_collected_desc"></p>
+                </div>
+                <div class="bg-white rounded-xl p-4 border border-slate-200">
+                    <h3 class="font-bold text-slate-800 mb-2" data-i18n="about.privacy_rights_title">⚖️ Tes droits</h3>
+                    <p class="text-sm text-slate-600" data-i18n="about.privacy_rights_desc"></p>
+                </div>
+                <div class="bg-white rounded-xl p-4 border border-slate-200">
+                    <h3 class="font-bold text-slate-800 mb-2" data-i18n="about.privacy_tracking_title">🚫 Pas de tracking</h3>
+                    <p class="text-sm text-slate-600" data-i18n="about.privacy_tracking_desc"></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Contact -->
+        <section class="bg-blue-50 rounded-2xl p-6 border border-blue-100">
+            <h2 class="text-2xl font-black text-slate-800 mb-2" data-i18n="about.contact_title">Contact</h2>
+            <p class="text-slate-700" data-i18n="about.contact_desc">Pour toute question, demande RGPD ou signalement :</p>
+            <p class="mt-2"><a href="mailto:dpo@pierrez.net" class="text-blue-600 font-bold hover:underline" data-i18n="about.contact_email">dpo@pierrez.net</a></p>
+        </section>
+    </main>
+
+    <footer class="max-w-4xl mx-auto px-4 py-8 text-center text-xs text-slate-400 border-t border-slate-200">
+        Made with ❤️ — <span data-i18n="app.title">Donne Ton Point</span>
+    </footer>
+</body>
+</html>
