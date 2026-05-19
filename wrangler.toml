@@ -6,5 +6,5 @@ pages_build_output_dir = "./public"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "give-your-point"
-database_id = "e3050aaa-892c-4a5a-ac00-38fe3fe2dd43"
+database_name = "give-your-point-eu"
+database_id = "11098dce-acd8-4bf9-ad54-c74f57e5bf04"
