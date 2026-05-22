@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "dev": "npm run build && wrangler pages dev dist --persist-to=./db_data",
+    "dev": "npm run build && wrangler pages dev public --persist-to=./db_data",
     "db:init": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=init_db.sql",
     "db:seed": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=seed.sql",
     "db:reset": "npm run db:init && npm run db:seed",
@@ -22,8 +22,8 @@
     "db:migrate:i18n": "wrangler d1 execute give-your-point-eu --remote --file=migrations/2026-09-i18n.sql",
     "db:migrate:i18n:local": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=migrations/2026-09-i18n.sql",
     "generate:vapid": "node generate-vapid.mjs",
-    "deploy": "npm run build && wrangler pages deploy dist",
-    "build": "mkdir -p dist && npx @tailwindcss/cli -i public/input.css -o dist/styles.css --minify && cp -r public/* dist/"
+    "deploy": "npm run build && wrangler pages deploy public",
+    "build": "npx @tailwindcss/cli -i public/input.css -o public/styles.css --minify"
   },
   "keywords": [],
   "author": "",

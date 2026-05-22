@@ -10,7 +10,7 @@ DB_FIX/
 *.sqlite-wal
 data.json
 seed.sql
-prod_backup*.sql
+prod*.sql
 migrations/
 migrate.js
 local-data.json
