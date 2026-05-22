@@ -1,3 +1,4 @@
+// version 1779476918
 // Système d'internationalisation léger pour Donne Ton Point.
 // Convention : t('section.clé') ; les éléments HTML utilisent data-i18n / data-i18n-placeholder / data-i18n-title.
 // Chargé en premier dans toutes les pages, AVANT app.js.
