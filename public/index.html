@@ -382,11 +382,16 @@
         </div>
 
         <div class="md:col-span-3">
-            <h2 class="text-xl font-semibold mb-4 text-gray-600"><span data-i18n="index.section_team">Équipe :</span> <span id="current-team-name" class="text-gray-800">…</span></h2>
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4">
+                <h2 class="text-xl font-semibold text-gray-600"><span data-i18n="index.section_team">Équipe :</span> <span id="current-team-name" class="text-gray-800">…</span></h2>
+                <button id="company-activity-pill" type="button" onclick="showCompanyActivityModal()"
+                        class="hidden items-center gap-2 bg-white border border-slate-200 shadow-sm rounded-full px-3 py-1.5 text-sm hover:shadow-md hover:border-slate-300 transition-all cursor-pointer"></button>
+            </div>
             <div id="users-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 </div>
         </div>
     </div>
+
 
 </body>
 </html>
