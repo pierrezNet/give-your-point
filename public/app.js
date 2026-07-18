@@ -195,6 +195,14 @@ function renderUsers(users) {
     if (!usersGrid) {
         return; // On sort discrètement si on n'est pas sur la page principale
     }
+
+    // Étage 2 — « pièce vide » : équipe trop petite pour jouer (on ne peut pas s'auto-mousser).
+    // On affiche un écran d'invitation pédagogique au lieu d'une grille morte.
+    if ((users?.length ?? 0) < 2) {
+        renderEmptyTeamState(usersGrid);
+        return;
+    }
+
     const myId = localStorage.getItem('my_user_id');
     usersGrid.innerHTML = '';
 
@@ -261,6 +269,78 @@ function renderUsers(users) {
         usersGrid.appendChild(div);
         updateCardUI(div, user); 
     });
+}
+
+// Étage 2 — écran d'invitation affiché quand l'équipe est trop petite pour jouer.
+async function renderEmptyTeamState(container) {
+    // Idempotent : ne pas re-render (le SSE tique toutes les 10 s) pour ne pas effacer une saisie.
+    if (document.getElementById('empty-team-state')) return;
+
+    const isWelcome = localStorage.getItem('dtp_welcome') === '1';
+    localStorage.removeItem('dtp_welcome');
+    const role = localStorage.getItem('my_role') || 'member';
+    const canInvite = ['admin', 'superadmin', 'owner'].includes(role);
+
+    const title = isWelcome ? t('empty.welcome_title') : t('empty.title');
+
+    container.innerHTML = `
+        <div id="empty-team-state" class="col-span-full bg-white rounded-3xl border-2 border-dashed border-blue-200 p-8 md:p-12 text-center">
+            <div class="text-6xl mb-4">${isWelcome ? '🎉' : '👋'}</div>
+            <h3 class="text-2xl font-black text-slate-800">${title}</h3>
+            <p class="text-slate-600 mt-2 max-w-md mx-auto">${canInvite ? t('empty.desc') : t('empty.wait_desc')}</p>
+            ${canInvite ? `
+            <div class="mt-6 max-w-md mx-auto space-y-3 text-left">
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <input id="empty-invite-link" type="text" readonly value="${t('empty.loading_link')}" onclick="this.select()"
+                           class="flex-1 p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 text-sm outline-none">
+                    <button onclick="copyEmptyInvite()" class="bg-slate-800 text-white px-5 py-3 rounded-xl font-bold hover:bg-slate-900 transition whitespace-nowrap">${t('empty.copy')}</button>
+                </div>
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <input id="empty-invite-email" type="email" placeholder="${t('empty.email_placeholder')}"
+                           class="flex-1 p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500">
+                    <button onclick="sendEmptyInvite()" class="bg-blue-600 text-white px-5 py-3 rounded-xl font-bold hover:bg-blue-700 transition whitespace-nowrap">${t('empty.send')}</button>
+                </div>
+                <p id="empty-invite-msg" class="text-xs hidden"></p>
+            </div>` : ''}
+        </div>`;
+
+    if (canInvite) {
+        try {
+            const res = await authFetch('/api/team-invite');
+            if (res.ok) {
+                const data = await res.json();
+                const input = document.getElementById('empty-invite-link');
+                if (input) input.value = data.url;
+            }
+        } catch { /* le lien reste sur "chargement" ; l'admin peut aussi passer par /admin */ }
+    }
+}
+
+function copyEmptyInvite() {
+    const input = document.getElementById('empty-invite-link');
+    if (!input || !input.value) return;
+    navigator.clipboard.writeText(input.value);
+    input.select();
+    const msg = document.getElementById('empty-invite-msg');
+    if (msg) { msg.textContent = t('empty.link_copied'); msg.className = 'text-xs text-emerald-600'; }
+}
+
+async function sendEmptyInvite() {
+    const emailInput = document.getElementById('empty-invite-email');
+    const msg = document.getElementById('empty-invite-msg');
+    const email = (emailInput?.value || '').trim();
+    if (!email) return;
+    const res = await authFetch('/api/admin/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+    });
+    if (res.ok) {
+        emailInput.value = '';
+        if (msg) { msg.textContent = t('empty.email_sent'); msg.className = 'text-xs text-emerald-600'; }
+    } else {
+        if (msg) { msg.textContent = t('empty.email_error'); msg.className = 'text-xs text-red-600'; }
+    }
 }
 
 function updateCardUI(card, user) {
@@ -869,6 +949,8 @@ async function renderLanding() {
 
             if (res.ok) {
                 const data = await res.json();
+                // Étage 2 : signale à l'app d'afficher l'accueil "invite ton équipe"
+                localStorage.setItem('dtp_welcome', '1');
                 window.location.href = `/login/${data.token}`;
                 return;
             }

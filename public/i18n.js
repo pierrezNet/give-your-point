@@ -341,6 +341,19 @@ const translations = {
     'owner.funnel_join_prefix': "Lien d'invitation",
     'owner.funnel_join_views': 'vues',
     'owner.funnel_join_signups': 'inscriptions',
+
+    // Étage 2 — état vide / invitation (équipe seule)
+    'empty.welcome_title': '🎉 Ton espace est prêt !',
+    'empty.title': 'Invite ton équipe pour commencer',
+    'empty.desc': "Tu es seul·e ici pour l'instant. Partage le lien ci-dessous : dès qu'un coéquipier rejoint, tu peux commencer à distribuer des points.",
+    'empty.loading_link': 'Chargement du lien…',
+    'empty.copy': 'Copier le lien',
+    'empty.link_copied': 'Lien copié !',
+    'empty.email_placeholder': 'Inviter par email…',
+    'empty.send': 'Envoyer',
+    'empty.email_sent': 'Invitation envoyée !',
+    'empty.email_error': "Échec de l'envoi. Réessaie.",
+    'empty.wait_desc': "Dès que d'autres membres rejoignent l'équipe, tu pourras leur donner des points.",
   },
 
   en: {
@@ -661,6 +674,19 @@ const translations = {
     'owner.funnel_join_prefix': 'Invite link',
     'owner.funnel_join_views': 'views',
     'owner.funnel_join_signups': 'signups',
+
+    // Étage 2 — empty state / invite (solo team)
+    'empty.welcome_title': '🎉 Your space is ready!',
+    'empty.title': 'Invite your team to get started',
+    'empty.desc': "You're on your own here for now. Share the link below: as soon as a teammate joins, you can start giving out points.",
+    'empty.loading_link': 'Loading link…',
+    'empty.copy': 'Copy link',
+    'empty.link_copied': 'Link copied!',
+    'empty.email_placeholder': 'Invite by email…',
+    'empty.send': 'Send',
+    'empty.email_sent': 'Invitation sent!',
+    'empty.email_error': 'Sending failed. Please try again.',
+    'empty.wait_desc': "As soon as other members join the team, you'll be able to give them points.",
   },
 };
 
