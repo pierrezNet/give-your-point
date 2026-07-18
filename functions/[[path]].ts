@@ -688,6 +688,42 @@ app.get('/api/users-stats', requireUser, async (c) => {
   }
 });
 
+// Activité agrégée des équipes de la même société (preuve sociale inter-services).
+// Étanchéité préservée : totaux par équipe uniquement, aucun individu ni détail de points.
+app.get('/api/company/teams-activity', requireUser, async (c) => {
+  const u = c.get('user');
+  const [teamsRes, topCatsRes] = await Promise.all([
+    c.env.DB.prepare(`
+      SELECT t.id, t.name,
+        (SELECT COUNT(*) FROM users WHERE team_id = t.id AND active = 1) AS members,
+        (SELECT COUNT(*) FROM points_log p WHERE p.team_id = t.id AND p.created_at >= datetime('now','-7 days')) AS points_7d,
+        (SELECT COUNT(DISTINCT from_user_id) FROM points_log p WHERE p.team_id = t.id AND p.created_at >= datetime('now','-7 days')) AS givers,
+        (SELECT COUNT(DISTINCT category_id) FROM points_log p WHERE p.team_id = t.id AND p.created_at >= datetime('now','-7 days')) AS categories_used
+      FROM teams t
+      WHERE t.company_id = ? AND t.active = 1
+      ORDER BY points_7d DESC, t.name ASC
+    `).bind(u.company_id).all(),
+    c.env.DB.prepare(`
+      SELECT p.team_id, c.name AS cat_name, COUNT(*) AS n
+      FROM points_log p
+      JOIN categories c ON c.id = p.category_id
+      JOIN teams t ON t.id = p.team_id
+      WHERE t.company_id = ? AND p.created_at >= datetime('now','-7 days')
+      GROUP BY p.team_id, p.category_id
+      ORDER BY n DESC
+    `).bind(u.company_id).all<{ team_id: string; cat_name: string; n: number }>(),
+  ]);
+
+  // Catégorie dominante par équipe (le 1er de chaque équipe = le plus fréquent, ordre DESC).
+  const topCat = new Map<string, string>();
+  for (const row of (topCatsRes.results || [])) {
+    if (!topCat.has(row.team_id)) topCat.set(row.team_id, row.cat_name);
+  }
+  const teams = (teamsRes.results || []).map((t: any) => ({ ...t, top_category: topCat.get(t.id) || null }));
+
+  return c.json({ company_name: u.company_name, my_team_id: u.team_id, teams });
+});
+
 app.get('/api/stats', requireUser, async (c) => {
   const u = c.get('user');
   const teamId = u.team_id;

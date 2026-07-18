@@ -730,6 +730,7 @@ async function init() {
         updateAllData()
     ]);
     startEventSource();
+    loadCompanyActivity(); // fire-and-forget : panneau autres équipes
     initPushNotifications(); // fire-and-forget
 }
 
@@ -1083,6 +1084,87 @@ async function renderJoin(code) {
             submitBtn.textContent = t('join.submit');
         }
     });
+}
+
+// Preuve sociale inter-services : pastille-appât près du titre équipe → modale au clic.
+let companyActivity = null;
+
+async function loadCompanyActivity() {
+    const pill = document.getElementById('company-activity-pill');
+    if (!pill) return;
+    try {
+        const res = await authFetch('/api/company/teams-activity');
+        if (!res.ok) return;
+        const data = await res.json();
+        const others = (data.teams || []).filter(team => String(team.id) !== String(data.my_team_id));
+        if (others.length === 0) { pill.classList.add('hidden'); return; } // seul dans la société
+
+        companyActivity = { company: data.company_name, others };
+        const top = others[0];
+        const topEmoji = (top.points_7d || 0) > 0 ? '🔥' : '😴';
+        pill.innerHTML = `
+            <span class="leading-none">👀</span>
+            <span class="font-bold text-slate-600">${t('company.pill_label')}</span>
+            <span class="inline-flex items-center gap-1 bg-slate-100 rounded-full px-2 py-0.5 text-xs">
+                <span>${topEmoji}</span>
+                <span class="font-black text-slate-700">${escapeHtml(top.name)}</span>
+                <span class="font-black text-blue-600">${top.points_7d || 0}</span>
+            </span>
+            <span class="text-slate-400">→</span>`;
+        pill.classList.remove('hidden');
+        pill.classList.add('inline-flex');
+    } catch { /* non-critique */ }
+}
+
+// Nombre de variantes de phrases d'ambiance (doit correspondre aux clés i18n company.flavor_*).
+const N_FLAVOR_ACTIVE = 10, N_FLAVOR_CALM = 5;
+
+// Phrase d'ambiance aléatoire d'une équipe (active → basée sur sa catégorie dominante ; calme → mystère).
+function teamFlavor(team) {
+    const calm = (team.points_7d || 0) === 0;
+    const i = Math.floor(Math.random() * (calm ? N_FLAVOR_CALM : N_FLAVOR_ACTIVE));
+    const key = calm ? `company.flavor_calm_${i}` : `company.flavor_active_${i}`;
+    return t(key, { team: escapeHtml(team.name), cat: escapeHtml((team.top_category || '').toLowerCase()) });
+}
+
+// Ligne de stats parlante : « 2 membres ont distribué 3 pts dans 2 catégories » (pluriels gérés).
+function companyStatLine(team) {
+    const g = team.givers || 0, p = team.points_7d || 0, k = team.categories_used || 0;
+    const pl = (n, s, pp) => `${n} ${n > 1 ? pp : s}`;
+    return getLang() === 'en'
+        ? `${pl(g, 'member', 'members')} gave ${pl(p, 'pt', 'pts')} across ${pl(k, 'category', 'categories')}`
+        : `${pl(g, 'membre a', 'membres ont')} distribué ${pl(p, 'pt', 'pts')} dans ${pl(k, 'catégorie', 'catégories')}`;
+}
+
+function showCompanyActivityModal() {
+    if (!companyActivity) return;
+    const rows = companyActivity.others.map((team, i) => {
+        const calm = (team.points_7d || 0) === 0;
+        const emoji = calm ? '😴' : (i === 0 ? '🔥' : '👏');
+        const stat = calm ? '' : `<p class="text-xs text-slate-500 mt-1">${companyStatLine(team)}</p>`;
+        return `
+            <div class="bg-slate-50 rounded-xl px-4 py-3 border border-slate-100">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="flex items-center gap-2 min-w-0"><span class="text-xl shrink-0">${emoji}</span><span class="font-black text-slate-800 truncate">${escapeHtml(team.name)}</span></span>
+                    <span class="text-blue-600 font-black shrink-0">${team.points_7d || 0} <span class="text-[10px] text-slate-400 uppercase">${t('index.pts_short')}</span></span>
+                </div>
+                ${stat}
+                <p class="text-sm text-slate-600 italic mt-1">${teamFlavor(team)}</p>
+            </div>`;
+    }).join('');
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="company-modal" class="fixed inset-0 bg-black/85 flex items-center justify-center z-100 p-4"
+             onclick="if(event.target===this){this.remove();isModalOpen=false;}">
+            <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl animate-in fade-in zoom-in duration-200">
+                <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
+                    <h2 class="text-xl font-black text-slate-800">${t('company.activity_title', { company: escapeHtml(companyActivity.company) })}</h2>
+                    <button onclick="document.getElementById('company-modal').remove();isModalOpen=false;" class="text-slate-400 hover:text-slate-600 text-3xl leading-none">&times;</button>
+                </div>
+                <div class="space-y-2 max-h-[60vh] overflow-y-auto">${rows}</div>
+                <p class="text-xs text-slate-400 mt-4">${t('company.activity_hint')}</p>
+            </div>
+        </div>`);
+    isModalOpen = true;
 }
 
 function startEventSource() {

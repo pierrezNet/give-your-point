@@ -361,6 +361,26 @@ const translations = {
     'empty.email_sent': 'Invitation envoyée !',
     'empty.email_error': "Échec de l'envoi. Réessaie.",
     'empty.wait_desc': "Dès que d'autres membres rejoignent l'équipe, tu pourras leur donner des points.",
+
+    // Panneau « autres équipes » (preuve sociale inter-services)
+    'company.activity_title': 'Ailleurs chez {company} 👀',
+    'company.activity_hint': "Activité des 7 derniers jours — les autres équipes de ta société. Étanchéité préservée : aucun détail individuel.",
+    'company.pill_label': 'Ailleurs',
+    'company.flavor_active_0': "{team} se lâche côté {cat} cette semaine.",
+    'company.flavor_active_1': "{team} carbure au {cat} à plein régime.",
+    'company.flavor_active_2': "Grosse ambiance {cat} chez {team} !",
+    'company.flavor_active_3': "{team} ne jure que par {cat} en ce moment.",
+    'company.flavor_active_4': "{cat} à gogo chez {team} — ça déborde.",
+    'company.flavor_active_5': "{team} distribue du {cat} sans compter.",
+    'company.flavor_active_6': "Chez {team}, c'est la fête du {cat}.",
+    'company.flavor_active_7': "{team} s'en donne à cœur joie côté {cat}.",
+    'company.flavor_active_8': "Alerte {cat} : {team} est déchaînée.",
+    'company.flavor_active_9': "{team} collectionne les {cat} comme des trophées.",
+    'company.flavor_calm_0': "Chez {team}, l'ambiance est calme… quel secret nous cachent-ils ?",
+    'company.flavor_calm_1': "{team} fait le mort cette semaine. Trop occupés à bosser ?",
+    'company.flavor_calm_2': "Silence radio chez {team}. Suspect.",
+    'company.flavor_calm_3': "{team} hiberne — quelqu'un pour les réveiller ?",
+    'company.flavor_calm_4': "Rien à signaler chez {team}… trop sages pour être honnêtes.",
   },
 
   en: {
@@ -701,6 +721,26 @@ const translations = {
     'empty.email_sent': 'Invitation sent!',
     'empty.email_error': 'Sending failed. Please try again.',
     'empty.wait_desc': "As soon as other members join the team, you'll be able to give them points.",
+
+    // "Other teams" panel (cross-team social proof)
+    'company.activity_title': 'Elsewhere at {company} 👀',
+    'company.activity_hint': 'Last 7 days — the other teams in your company. Isolation preserved: no individual details.',
+    'company.pill_label': 'Elsewhere',
+    'company.flavor_active_0': "{team} is letting loose on {cat} this week.",
+    'company.flavor_active_1': "{team} is running on pure {cat}.",
+    'company.flavor_active_2': "Big {cat} energy over at {team}!",
+    'company.flavor_active_3': "{team} can't get enough {cat} right now.",
+    'company.flavor_active_4': "{cat} everywhere at {team} — it's overflowing.",
+    'company.flavor_active_5': "{team} is handing out {cat} like candy.",
+    'company.flavor_active_6': "Over at {team}, it's a {cat} party.",
+    'company.flavor_active_7': "{team} is having a field day with {cat}.",
+    'company.flavor_active_8': "{cat} alert: {team} is on fire.",
+    'company.flavor_active_9': "{team} collects {cat} like trophies.",
+    'company.flavor_calm_0': "It's quiet over at {team}… what secret are they hiding?",
+    'company.flavor_calm_1': "{team} is playing dead this week. Too busy working?",
+    'company.flavor_calm_2': "Radio silence at {team}. Suspicious.",
+    'company.flavor_calm_3': "{team} is hibernating — someone wake them up?",
+    'company.flavor_calm_4': "Nothing to report at {team}… too well-behaved to be honest.",
   },
 };
 
