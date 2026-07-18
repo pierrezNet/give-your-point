@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /$
+Allow: /about
+Disallow: /admin
+Disallow: /superadmin
+Disallow: /owner
+Disallow: /stats
+Disallow: /login/
+Disallow: /join/
+Disallow: /api/
+
+Sitemap: https://donnetonpoint.fr/sitemap.xml

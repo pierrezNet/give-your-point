@@ -16,5 +16,5 @@ jobs:
     steps:
       - name: Déclencher le digest
         run: |
-          curl -fsS -X POST "https://compteur.pierrez.net/api/cron/weekly-digest" \
+          curl -fsS -X POST "https://donnetonpoint.fr/api/cron/weekly-digest" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"

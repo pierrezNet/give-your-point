@@ -686,6 +686,9 @@ async function init() {
         return;
     }
 
+    // Utilisateur connecté : on retire le contenu SEO statique avant d'afficher l'app.
+    document.getElementById('seo-landing')?.remove();
+
     const me = await loadMe();
     if (!me) {
         localStorage.removeItem('my_user_id');

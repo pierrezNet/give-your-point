@@ -566,6 +566,7 @@ app.post('/api/points', requireUser, async (c) => {
     // Notification email non-bloquante (si destinataire a un email renseigné)
     if (toUser.email) {
       const isEn = toUser.locale === 'en';
+      const baseUrl = new URL(c.req.url).origin;
       const subject = isEn
         ? `🎯 ${fromUser.name} gave you a point!`
         : `🎯 ${fromUser.name} t'a donné un point !`;
@@ -577,7 +578,7 @@ app.post('/api/points', requireUser, async (c) => {
             <b>${cat.emoji} ${cat.name}</b>.
           </p>
           <p style="margin-top:24px">
-            <a href="https://compteur.pierrez.net/"
+            <a href="${baseUrl}/"
                style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">
               See on Give Your Point
             </a>
@@ -595,7 +596,7 @@ app.post('/api/points', requireUser, async (c) => {
             <b>${cat.emoji} ${cat.name}</b>.
           </p>
           <p style="margin-top:24px">
-            <a href="https://compteur.pierrez.net/"
+            <a href="${baseUrl}/"
                style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">
               Voir sur Donne Ton Point
             </a>
