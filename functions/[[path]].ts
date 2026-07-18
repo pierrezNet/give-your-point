@@ -43,6 +43,14 @@ function isValidEmail(s: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
 
+// Unicité : vrai si cet e-mail est déjà associé à un autre compte.
+async function emailTaken(db: D1Database, email: string, exceptId?: string): Promise<boolean> {
+  const row = exceptId
+    ? await db.prepare("SELECT 1 FROM users WHERE email = ? AND id != ?").bind(email, exceptId).first()
+    : await db.prepare("SELECT 1 FROM users WHERE email = ?").bind(email).first();
+  return !!row;
+}
+
 // Code d'invitation opaque et partageable pour une équipe (16 hex).
 function generateInviteCode(): string {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 16);
@@ -251,6 +259,7 @@ interface AuthUser {
   company_id: string
   company_name: string
   email: string | null
+  email_verified: number
   locale: string | null
 }
 
@@ -281,7 +290,7 @@ interface PointStat {
 
 async function getUserByToken(db: D1Database, token: string): Promise<AuthUser | null> {
   return db.prepare(`
-    SELECT u.id, u.name, u.role, u.active, u.team_id, u.email, u.locale,
+    SELECT u.id, u.name, u.role, u.active, u.team_id, u.email, u.email_verified, u.locale,
            t.name AS team_name, t.company_id,
            c.name AS company_name
     FROM users u
@@ -518,6 +527,7 @@ app.get('/api/me', requireUser, async (c) => {
     company_id: u.company_id,
     company_name: u.company_name,
     email: u.email,
+    email_verified: u.email_verified,
     locale: u.locale,
   });
 });
@@ -536,7 +546,18 @@ app.patch('/api/me', requireUser, async (c) => {
     if (emailRaw !== '' && cleanEmail === null) {
       return c.json({ error: "Email invalide" }, 400);
     }
-    await c.env.DB.prepare("UPDATE users SET email = ? WHERE id = ?").bind(cleanEmail, u.id).run();
+    if (cleanEmail && await emailTaken(c.env.DB, cleanEmail, u.id)) {
+      return c.json({ error: "Cet e-mail est déjà utilisé par un autre compte." }, 409);
+    }
+    if (cleanEmail && cleanEmail !== u.email) {
+      // Nouvel e-mail → repart non vérifié, on envoie un lien de confirmation.
+      await c.env.DB.prepare("UPDATE users SET email = ?, email_verified = 0 WHERE id = ?").bind(cleanEmail, u.id).run();
+      const loginUrl = `${new URL(c.req.url).origin}/login/${u.id}`;
+      const mail = buildWelcomeEmail({ isEn: u.locale === 'en', name: u.name, teamName: u.team_name, loginUrl });
+      c.executionCtx.waitUntil(sendEmail(c.env, cleanEmail, mail.subject, mail.html));
+    } else if (cleanEmail === null) {
+      await c.env.DB.prepare("UPDATE users SET email = NULL, email_verified = 0 WHERE id = ?").bind(u.id).run();
+    }
   }
 
   let cleanLocale = u.locale;
@@ -585,8 +606,8 @@ app.post('/api/points', requireUser, async (c) => {
 
     // Vérifier que le destinataire est dans la même équipe
     const toUser = await c.env.DB.prepare(
-      "SELECT id, name, team_id, active, email, locale FROM users WHERE id = ?"
-    ).bind(to_user_id).first<{ id: string; name: string; team_id: string; active: number; email: string | null; locale: string | null }>();
+      "SELECT id, name, team_id, active, email, email_verified, locale FROM users WHERE id = ?"
+    ).bind(to_user_id).first<{ id: string; name: string; team_id: string; active: number; email: string | null; email_verified: number; locale: string | null }>();
 
     if (!toUser || toUser.active !== 1 || toUser.team_id !== fromUser.team_id) {
       return c.json({ error: "Ce collègue n'est pas dans ton équipe." }, 403);
@@ -658,9 +679,9 @@ app.post('/api/points', requireUser, async (c) => {
       sendPushToUser(c.env, to_user_id, fromUser.name, category_id).catch(() => {})
     );
 
-    // Notification email non-bloquante (si destinataire a un email renseigné).
+    // Notification email non-bloquante (uniquement si l'e-mail est vérifié).
     // Si ce point vient de déclencher un gage, on envoie le mail de gage à la place.
-    if (toUser.email) {
+    if (toUser.email && toUser.email_verified) {
       const isEn = toUser.locale === 'en';
       const baseUrl = new URL(c.req.url).origin;
       const catLabel = `${cat.emoji} ${cat.name}`;
@@ -933,6 +954,10 @@ app.post('/api/onboarding', async (c) => {
       return c.json({ error: "Vérification anti-bot échouée. Réessaie." }, 403);
     }
 
+    if (email && await emailTaken(c.env.DB, email)) {
+      return c.json({ error: "Cet e-mail est déjà utilisé par un autre compte." }, 409);
+    }
+
     const companyId = crypto.randomUUID();
     const teamId = crypto.randomUUID();
     const userId = crypto.randomUUID();
@@ -970,20 +995,52 @@ app.get('/login/:token', async (c) => {
   const token = c.req.param('token');
 
   const user = await c.env.DB.prepare(
-    'SELECT id, name FROM users WHERE token = ?'
-  ).bind(token).first();
+    'SELECT id, name, email, email_verified FROM users WHERE token = ? AND active = 1'
+  ).bind(token).first<{ id: string; name: string; email: string | null; email_verified: number }>();
 
   if (!user) {
     return c.html(`
-      <div style="font-family:sans-serif; text-align:center; padding:50px;">
+      <div style="font-family:sans-serif; text-align:center; padding:50px; max-width:420px; margin:auto;">
         <h1>Oups ! ❌</h1>
         <p>Ce lien n'est plus valide ou l'utilisateur n'existe pas.</p>
-        <a href="/">Retour à l'accueil</a>
+        <p style="color:#64748b;font-size:14px">Tu as perdu ton lien ? Récupère-le par e-mail depuis la page d'accueil.</p>
+        <a href="/?lost=1" style="display:inline-block;margin-top:12px;background:#2563eb;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">Récupérer mon accès</a>
       </div>
     `, 404);
   }
 
+  // Vérification implicite : se connecter via le lien reçu par mail confirme l'adresse.
+  if (user.email && !user.email_verified) {
+    await c.env.DB.prepare("UPDATE users SET email_verified = 1 WHERE id = ?").bind(user.id).run();
+  }
+
   return c.redirect(`/?login_id=${user.id}&login_name=${encodeURIComponent(user.name as string)}`);
+});
+
+// « Lien perdu » : renvoie son lien magique à qui possède l'adresse. Public, protégé par Turnstile.
+// Réponse TOUJOURS identique (anti-énumération : on ne révèle jamais si l'e-mail existe).
+app.post('/api/recover', async (c) => {
+  try {
+    const { email, turnstile_token } = await c.req.json();
+    const ip = c.req.header('CF-Connecting-IP') || undefined;
+    if (!(await verifyTurnstile(turnstile_token, c.env.TURNSTILE_SECRET_KEY, ip))) {
+      return c.json({ error: "Vérification anti-bot échouée. Réessaie." }, 403);
+    }
+    const clean = (email || '').trim();
+    if (clean && isValidEmail(clean)) {
+      const user = await c.env.DB.prepare(`
+        SELECT u.id, u.name, u.email, u.locale, t.name AS team_name
+        FROM users u LEFT JOIN teams t ON t.id = u.team_id
+        WHERE u.email = ? AND u.active = 1
+      `).bind(clean).first<{ id: string; name: string; email: string; locale: string | null; team_name: string | null }>();
+      if (user) {
+        const loginUrl = `${new URL(c.req.url).origin}/login/${user.id}`;
+        const mail = buildWelcomeEmail({ isEn: user.locale === 'en', name: user.name, teamName: user.team_name || '', loginUrl });
+        c.executionCtx.waitUntil(sendEmail(c.env, user.email, mail.subject, mail.html));
+      }
+    }
+  } catch { /* on ne révèle rien */ }
+  return c.json({ ok: true }); // identique quoi qu'il arrive
 });
 
 // === Auto-inscription via lien d'invitation d'équipe ===
@@ -1055,6 +1112,9 @@ app.post('/api/admin/users', requireAdmin, async (c) => {
   const id = crypto.randomUUID();
   const emailRaw = (email || '').trim();
   const cleanEmail = emailRaw && isValidEmail(emailRaw) ? emailRaw : null;
+  if (cleanEmail && await emailTaken(c.env.DB, cleanEmail)) {
+    return c.json({ error: "Cet e-mail est déjà utilisé par un autre compte." }, 409);
+  }
   await c.env.DB.prepare(
     "INSERT INTO users (id, team_id, name, role, active, token, email) VALUES (?, ?, ?, 'member', 1, ?, ?)"
   ).bind(id, admin.team_id, name, id, cleanEmail).run();
@@ -1066,6 +1126,21 @@ app.post('/api/admin/users', requireAdmin, async (c) => {
     c.executionCtx.waitUntil(sendEmail(c.env, cleanEmail, mail.subject, mail.html));
   }
 
+  return c.json({ success: true });
+});
+
+// Renvoyer à un membre son lien magique par e-mail (réservé admin).
+app.post('/api/admin/users/:id/resend-link', requireAdmin, async (c) => {
+  const admin = c.get('user');
+  const id = c.req.param('id');
+  const user = await c.env.DB.prepare(
+    "SELECT id, name, email, locale FROM users WHERE id = ? AND team_id = ?"
+  ).bind(id, admin.team_id).first<{ id: string; name: string; email: string | null; locale: string | null }>();
+  if (!user) return c.json({ error: "Membre introuvable dans ton équipe." }, 404);
+  if (!user.email) return c.json({ error: "Ce membre n'a pas d'e-mail." }, 400);
+  const loginUrl = `${new URL(c.req.url).origin}/login/${user.id}`;
+  const mail = buildWelcomeEmail({ isEn: (user.locale || admin.locale) === 'en', name: user.name, teamName: admin.team_name, loginUrl });
+  c.executionCtx.waitUntil(sendEmail(c.env, user.email, mail.subject, mail.html));
   return c.json({ success: true });
 });
 
@@ -1503,6 +1578,10 @@ app.post('/api/superadmin/teams/:id/users', requireSuperadmin, async (c) => {
   ).bind(teamId, sa.company_id).first<{ id: string; name: string }>();
   if (!team) return c.json({ error: "Équipe introuvable dans ta société" }, 404);
 
+  if (cleanEmail && await emailTaken(c.env.DB, cleanEmail)) {
+    return c.json({ error: "Cet e-mail est déjà utilisé par un autre compte." }, 409);
+  }
+
   const id = crypto.randomUUID();
   await c.env.DB.prepare(
     "INSERT INTO users (id, team_id, name, role, active, token, email) VALUES (?, ?, ?, ?, 1, ?, ?)"
@@ -1665,7 +1744,7 @@ app.post('/api/cron/weekly-digest', async (c) => {
     const gages = gagesRes?.n || 0;
 
     const membersRes = await c.env.DB.prepare(
-      "SELECT id, name, email, locale FROM users WHERE team_id = ? AND active = 1 AND email IS NOT NULL AND email != ''"
+      "SELECT id, name, email, locale FROM users WHERE team_id = ? AND active = 1 AND email_verified = 1 AND email IS NOT NULL AND email != ''"
     ).bind(team.id).all<{ id: string; name: string; email: string; locale: string | null }>();
 
     for (const m of (membersRes.results || [])) {

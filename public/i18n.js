@@ -146,7 +146,28 @@ const translations = {
     'profile.error_save': "Erreur lors de l'enregistrement",
     'profile.confirm_remove': "Retirer ton email ? Tu ne recevras plus les notifications par mail.",
     'profile.toast_saved': 'Email enregistré ✉️',
+    'profile.toast_verify': 'E-mail enregistré — clique le lien de confirmation reçu par mail ✉️',
     'profile.toast_removed': 'Email retiré',
+
+    // Vérification d'e-mail / gestion des liens (admin)
+    'admin.email_confirmed': 'e-mail confirmé',
+    'admin.email_pending': 'en attente',
+    'admin.resend_link': 'Renvoyer le lien',
+    'admin.resend_ok': 'Lien renvoyé par e-mail ✉️',
+    'admin.resend_error': "Échec de l'envoi.",
+    'admin.reveal_link_title': 'Afficher le lien (dépannage)',
+    'admin.reveal_confirm': "Ce membre reçoit son lien par e-mail. Copier quand même le lien magique (dépannage) ?",
+    'admin.add_user_error': "Impossible d'ajouter ce membre.",
+    'admin.add_user_email_sent': "Membre ajouté — un lien d'accès lui a été envoyé par e-mail ✉️",
+
+    // Récupération de lien (« lien perdu »)
+    'recover.link': 'Perdu ton lien ? Reçois-le par e-mail',
+    'recover.title': 'Récupérer mon accès',
+    'recover.desc': "Entre l'adresse e-mail associée à ton compte : on t'y renvoie ton lien de connexion.",
+    'recover.placeholder': 'Ton adresse e-mail',
+    'recover.submit': 'Recevoir mon lien',
+    'recover.sent': "Si cette adresse est associée à un compte, tu vas recevoir ton lien. Pense à vérifier tes spams.",
+    'recover.captcha_error': 'Vérification anti-bot échouée. Réessaie.',
 
     // À propos
     'about.title': 'À propos 🎯',
@@ -516,7 +537,28 @@ const translations = {
     'profile.error_save': 'Error while saving',
     'profile.confirm_remove': 'Remove your email? You will no longer receive notifications.',
     'profile.toast_saved': 'Email saved ✉️',
+    'profile.toast_verify': 'Email saved — click the confirmation link we just sent you ✉️',
     'profile.toast_removed': 'Email removed',
+
+    // Email verification / link management (admin)
+    'admin.email_confirmed': 'email confirmed',
+    'admin.email_pending': 'pending',
+    'admin.resend_link': 'Resend link',
+    'admin.resend_ok': 'Link re-sent by email ✉️',
+    'admin.resend_error': 'Sending failed.',
+    'admin.reveal_link_title': 'Show link (troubleshooting)',
+    'admin.reveal_confirm': 'This member receives their link by email. Copy the magic link anyway (troubleshooting)?',
+    'admin.add_user_error': "Couldn't add this member.",
+    'admin.add_user_email_sent': 'Member added — an access link was emailed to them ✉️',
+
+    // Link recovery ("lost link")
+    'recover.link': 'Lost your link? Get it by email',
+    'recover.title': 'Recover my access',
+    'recover.desc': "Enter the email linked to your account and we'll send your login link back to it.",
+    'recover.placeholder': 'Your email address',
+    'recover.submit': 'Send my link',
+    'recover.sent': "If this address is linked to an account, you'll receive your link. Check your spam folder too.",
+    'recover.captcha_error': 'Anti-bot check failed. Please retry.',
 
     'about.title': 'About 🎯',
     'about.body1': "<b>Give Your Point</b> is an internal gamification tool to celebrate (and tease) team behaviors.",

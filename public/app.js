@@ -2,6 +2,7 @@ let selectedCategoryId = null;
 let lastPointId = null;
 let isModalOpen = false;
 let isTransitioning = false;
+let landingTurnstileKey = ''; // clé Turnstile mémorisée pour la modale « lien perdu »
 
 // Échappe une chaîne avant injection dans innerHTML (données utilisateur : nom d'équipe, etc.)
 function escapeHtml(s) {
@@ -145,7 +146,7 @@ async function saveProfileEmail(email) {
     }
     document.getElementById('profile-modal').remove();
     isModalOpen = false;
-    showToast(email ? t('profile.toast_saved') : t('profile.toast_removed'), 'success');
+    showToast(email ? t('profile.toast_verify') : t('profile.toast_removed'), 'success');
 }
 
 async function removeProfileEmail() {
@@ -788,6 +789,7 @@ async function renderLanding() {
         const res = await fetch('/api/config');
         if (res.ok) cfg = await res.json();
     } catch {}
+    landingTurnstileKey = cfg.turnstileSiteKey || '';
 
     document.body.innerHTML = `
         <div class="min-h-screen bg-gray-100">
@@ -886,6 +888,7 @@ async function renderLanding() {
                 <div class="bg-slate-50 rounded-xl p-4 text-sm text-slate-700 border border-slate-200">
                     <h3 class="font-bold text-slate-800 mb-1">${t('onboarding.have_link_title')}</h3>
                     <p class="text-xs text-slate-600">${t('onboarding.have_link_desc')}</p>
+                    <button type="button" onclick="showRecoverModal()" class="mt-2 text-xs font-bold text-blue-600 hover:underline">${t('recover.link')}</button>
                 </div>
             </section>
 
@@ -922,6 +925,9 @@ async function renderLanding() {
         s.defer = true;
         document.head.appendChild(s);
     }
+
+    // Arrivée depuis un lien magique invalide (/login/... → /?lost=1) : on ouvre la récupération.
+    if (new URLSearchParams(location.search).get('lost') === '1') showRecoverModal();
 
     document.getElementById('onboarding-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -967,6 +973,69 @@ async function renderLanding() {
         } finally {
             submitBtn.disabled = false;
             submitBtn.textContent = t('onboarding.submit');
+        }
+    });
+}
+
+// Modale « lien perdu » : renvoie son lien magique par e-mail (réponse anti-énumération, Turnstile).
+function showRecoverModal() {
+    if (document.getElementById('recover-modal')) return;
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="recover-modal" class="fixed inset-0 bg-black/85 flex items-center justify-center z-[300] p-4"
+             onclick="if(event.target===this){this.remove();}">
+            <div class="bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-black text-slate-800">${t('recover.title')}</h2>
+                    <button onclick="document.getElementById('recover-modal').remove()" class="text-slate-400 hover:text-slate-600 text-3xl leading-none">&times;</button>
+                </div>
+                <p class="text-sm text-slate-600 mb-4">${t('recover.desc')}</p>
+                <form id="recover-form" class="space-y-3">
+                    <input id="recover-email" type="email" required placeholder="${t('recover.placeholder')}"
+                           class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
+                    <div id="recover-turnstile" class="cf-turnstile" data-sitekey="${landingTurnstileKey}" data-size="flexible"></div>
+                    <button type="submit" id="recover-submit"
+                            class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition disabled:opacity-50">${t('recover.submit')}</button>
+                    <p id="recover-msg" class="text-sm text-center hidden"></p>
+                </form>
+            </div>
+        </div>`);
+
+    // Le script Turnstile est déjà chargé par la landing : rendu explicite du widget de la modale.
+    if (window.turnstile && landingTurnstileKey) {
+        try { window.turnstile.render('#recover-turnstile', { sitekey: landingTurnstileKey }); } catch {}
+    }
+
+    document.getElementById('recover-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('recover-email').value.trim();
+        const msg = document.getElementById('recover-msg');
+        const submitBtn = document.getElementById('recover-submit');
+        const ts = document.querySelector('#recover-modal [name="cf-turnstile-response"]')?.value || '';
+        msg.classList.remove('hidden');
+        if (!ts) {
+            msg.textContent = t('onboarding.error_turnstile_pending');
+            msg.className = 'text-sm text-center text-red-600';
+            return;
+        }
+        submitBtn.disabled = true;
+        let status = 0;
+        try {
+            const res = await fetch('/api/recover', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, turnstile_token: ts }),
+            });
+            status = res.status;
+        } catch {}
+        submitBtn.disabled = false;
+        if (status === 403) {
+            msg.textContent = t('recover.captcha_error');
+            msg.className = 'text-sm text-center text-red-600';
+            try { window.turnstile?.reset('#recover-turnstile'); } catch {}
+        } else {
+            // Réponse identique quoi qu'il arrive (anti-énumération).
+            msg.textContent = t('recover.sent');
+            msg.className = 'text-sm text-center text-emerald-600 font-bold';
         }
     });
 }

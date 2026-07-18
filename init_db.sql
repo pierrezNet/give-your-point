@@ -49,11 +49,13 @@ CREATE TABLE users (
     active INTEGER DEFAULT 1,
     token TEXT,
     email TEXT,
+    email_verified INTEGER DEFAULT 0,
     locale TEXT
 );
 
 CREATE INDEX idx_users_team ON users(team_id, active);
 CREATE INDEX idx_users_token ON users(token);
+CREATE UNIQUE INDEX idx_users_email ON users(email);
 
 CREATE TABLE points_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

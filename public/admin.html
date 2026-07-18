@@ -225,8 +225,15 @@
                                 ${activeDares.map(d => `<div class="text-[9px] text-orange-600 font-black uppercase">${t('admin.has_gage')}</div>`).join('')}
                             </td>
 
-                            <td class="p-4 text-xs font-mono text-slate-400 hidden sm:table-cell">
-                                ${isActive ? `.../login/${u.token}` : '---'}
+                            <td class="p-4 text-xs hidden sm:table-cell">
+                                ${!isActive ? '<span class="text-slate-400">---</span>' : (u.email
+                                    ? `<div class="flex flex-col gap-0.5">
+                                        <span class="font-mono text-slate-400">${maskEmail(u.email)}</span>
+                                        ${u.email_verified
+                                            ? `<span class="text-[10px] font-black uppercase text-emerald-600">✓ ${t('admin.email_confirmed')}</span>`
+                                            : `<span class="text-[10px] font-black uppercase text-amber-600">⏳ ${t('admin.email_pending')}</span>`}
+                                       </div>`
+                                    : `<span class="font-mono text-slate-400">.../login/${u.token}</span>`)}
                             </td>
 
                             <td class="p-4">
@@ -249,7 +256,10 @@
 
                                     <div class="flex items-center gap-4 ml-4 border-l border-slate-200 pl-4">
                                         ${isActive ? `
-                                            <button onclick="copyLink('${u.token}')" class="text-xs font-black text-blue-600 uppercase hover:underline">${t('common.copy_link')}</button>
+                                            ${u.email
+                                                ? `<button onclick="resendLink('${u.id}')" class="text-xs font-black text-blue-600 uppercase hover:underline">${t('admin.resend_link')}</button>
+                                                   <button onclick="revealLink('${u.token}')" class="text-sm text-slate-400 hover:text-slate-600" title="${t('admin.reveal_link_title')}">🔗</button>`
+                                                : `<button onclick="copyLink('${u.token}')" class="text-xs font-black text-blue-600 uppercase hover:underline">${t('common.copy_link')}</button>`}
                                             <button onclick="toggleUser('${u.id}', false)" class="text-xs font-black text-red-400 hover:text-red-600 uppercase">${t('common.deactivate')}</button>
                                         ` : `
                                             <button onclick="toggleUser('${u.id}', true)" class="text-xs font-black text-emerald-600 uppercase">${t('common.restore')}</button>
@@ -280,6 +290,26 @@
             const url = `${window.location.origin}/login/${token}`;
             navigator.clipboard.writeText(url);
             alert(t('admin.toast_link_copied'));
+        }
+
+        // Masque l'adresse dans la table admin (ex : em…@…net)
+        function maskEmail(e) {
+            if (!e) return '';
+            const [u, d] = String(e).split('@');
+            return `${(u || '').slice(0, 2)}…@…${(d || '').slice(-3)}`;
+        }
+
+        // Renvoyer à un membre son lien magique par e-mail
+        async function resendLink(id) {
+            const res = await adminFetch(`/api/admin/users/${id}/resend-link`, { method: 'POST' });
+            if (res && res.ok) { alert(t('admin.resend_ok')); }
+            else { const e = res ? await res.json().catch(() => ({})) : {}; alert(e.error || t('admin.resend_error')); }
+        }
+
+        // Filet de secours : afficher/copier le lien malgré l'e-mail (dépannage), derrière confirmation
+        function revealLink(token) {
+            if (!confirm(t('admin.reveal_confirm'))) return;
+            copyLink(token);
         }
 
         // --- Invitation d'équipe (lien d'auto-inscription) ---
@@ -324,15 +354,21 @@
             const email = document.getElementById('new-user-email').value;
             if(!name) return;
 
-            await adminFetch('/api/admin/users', {
+            const res = await adminFetch('/api/admin/users', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name, email })
             });
+            if (!res || !res.ok) {
+                const e = res ? await res.json().catch(() => ({})) : {};
+                alert(e.error || t('admin.add_user_error'));
+                return;
+            }
 
             document.getElementById('new-user-name').value = '';
             document.getElementById('new-user-email').value = '';
             loadAdminUsers();
+            if (email.trim()) alert(t('admin.add_user_email_sent'));
         }
 
         // Fonction universelle pour supprimer avec confirmation
