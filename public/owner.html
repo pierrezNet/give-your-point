@@ -82,7 +82,8 @@
 
         <!-- Tableau des sociétés -->
         <div class="bg-white p-2 md:p-6 rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
-            <h2 class="text-xl font-bold text-slate-800 mb-4 px-2" data-i18n="owner.companies_title">Sociétés</h2>
+            <h2 class="text-xl font-bold text-slate-800 mb-1 px-2" data-i18n="owner.companies_title">Sociétés</h2>
+            <p id="cleanup-caption" class="text-xs font-bold text-amber-600 mb-4 px-2"></p>
             <table class="w-full text-left">
                 <thead class="bg-slate-100 border-b border-slate-200">
                     <tr>
@@ -94,6 +95,7 @@
                         <th class="p-3 font-bold text-slate-600 text-xs uppercase text-center" data-i18n="owner.col_7d">7 derniers j.</th>
                         <th class="p-3 font-bold text-slate-600 text-xs uppercase hidden lg:table-cell" data-i18n="owner.col_last_activity">Dernière activité</th>
                         <th class="p-3 font-bold text-slate-600 text-xs uppercase hidden lg:table-cell" data-i18n="owner.col_registered">Inscrite le</th>
+                        <th class="p-3 font-bold text-slate-600 text-xs uppercase text-right" data-i18n="owner.col_actions">Actions</th>
                     </tr>
                 </thead>
                 <tbody id="companies-list"></tbody>
@@ -103,6 +105,8 @@
 
     <script>
         const myUserId = localStorage.getItem('my_user_id');
+        let myCompanyId = null;
+        let companiesData = [];
 
         function fmt(d) {
             if (!d) return '—';
@@ -135,6 +139,7 @@
                 alert(t('owner.not_owner'));
                 return window.location.href = "/";
             }
+            myCompanyId = me.company_id;
             document.getElementById('owner-body').classList.remove('opacity-0');
             await loadCompanies();
             loadFunnel();
@@ -160,6 +165,7 @@
             const res = await fetch('/api/owner/companies', { headers: { 'Authorization': `Bearer ${myUserId}` } });
             if (!res.ok) return;
             const data = await res.json();
+            companiesData = data;
 
             // Agrégés
             const agg = {
@@ -175,15 +181,21 @@
 
             // Tableau
             const tbody = document.getElementById('companies-list');
+            let cleanupCount = 0;
             tbody.innerHTML = data.map(c => {
                 const daysSince = c.last_point_at
                     ? Math.floor((new Date() - new Date(c.last_point_at.includes('T') ? c.last_point_at : c.last_point_at.replace(' ', 'T') + 'Z')) / (1000*60*60*24))
                     : null;
+                const isOwn = c.id === myCompanyId;
+                // Candidat au nettoyage : jamais d'activité, ou aucun point depuis 30 j (hors ta propre société).
+                const candidate = !isOwn && (daysSince === null || daysSince > 30);
+                if (candidate) cleanupCount++;
                 return `
-                    <tr class="border-b border-slate-100 ${c.active === 0 ? 'opacity-50' : ''}">
+                    <tr class="border-b border-slate-100 ${c.active === 0 ? 'opacity-50' : ''} ${candidate ? 'bg-amber-50' : ''}">
                         <td class="p-3">
                             <div class="font-bold text-slate-800">${c.name}</div>
                             ${c.active === 0 ? `<div class="text-[10px] font-bold uppercase text-slate-400">${t('owner.company_disabled')}</div>` : ''}
+                            ${candidate ? `<div class="text-[10px] font-black uppercase text-amber-600">🧹 ${t('owner.cleanup_flag')}</div>` : ''}
                         </td>
                         <td class="p-3 text-sm text-slate-600">${c.admins || '<i class="text-slate-400">—</i>'}</td>
                         <td class="p-3 text-center text-sm font-bold">${c.team_count}</td>
@@ -197,9 +209,39 @@
                             </div>
                         </td>
                         <td class="p-3 text-xs text-slate-500 hidden lg:table-cell">${fmt(c.created_at)}</td>
+                        <td class="p-3 text-right whitespace-nowrap">
+                            ${isOwn
+                                ? `<span class="text-[10px] font-bold uppercase text-slate-400">${t('owner.your_company')}</span>`
+                                : `<button onclick="deleteCompany('${c.id}')" class="text-xs font-black uppercase text-red-600 hover:text-red-800 hover:underline">🗑 ${t('owner.delete')}</button>`}
+                        </td>
                     </tr>
                 `;
             }).join('');
+
+            const caption = document.getElementById('cleanup-caption');
+            if (caption) caption.textContent = cleanupCount > 0 ? t('owner.cleanup_count', { n: cleanupCount }) : '';
+        }
+
+        async function deleteCompany(id) {
+            const c = companiesData.find(x => x.id === id);
+            if (!c) return;
+            const msg = t('owner.delete_confirm', {
+                name: c.name,
+                teams: c.team_count,
+                members: c.member_count,
+                points: c.total_points,
+            });
+            if (!confirm(msg)) return;
+            const res = await fetch(`/api/owner/companies/${id}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${myUserId}` },
+            });
+            if (res.ok) {
+                loadCompanies();
+            } else {
+                const e = await res.json().catch(() => ({}));
+                alert(e.error || t('owner.delete_error'));
+            }
         }
 
         checkAndLoad();

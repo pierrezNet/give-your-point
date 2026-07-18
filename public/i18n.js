@@ -297,6 +297,13 @@ const translations = {
     'owner.date_n_days_ago': 'il y a {n} j',
     'owner.connect_first': 'Connecte-toi via ton lien magique.',
     'owner.not_owner': "Accès refusé : tu n'es pas owner de l'application.",
+    'owner.col_actions': 'Actions',
+    'owner.delete': 'Supprimer',
+    'owner.your_company': 'Ta société',
+    'owner.cleanup_flag': 'à nettoyer',
+    'owner.cleanup_count': '🧹 {n} société(s) sans activité depuis 30 j — candidates au nettoyage.',
+    'owner.delete_confirm': 'Supprimer définitivement « {name} » ?\n\nCela efface {teams} équipe(s), {members} membre(s) et {points} point(s).\nAction irréversible.',
+    'owner.delete_error': 'Échec de la suppression.',
 
     // Page Stats
     'stats.title': 'Stats 📊',
@@ -631,6 +638,13 @@ const translations = {
     'owner.date_n_days_ago': '{n} days ago',
     'owner.connect_first': 'Log in via your magic link.',
     'owner.not_owner': 'Access denied: you are not an owner of the app.',
+    'owner.col_actions': 'Actions',
+    'owner.delete': 'Delete',
+    'owner.your_company': 'Your company',
+    'owner.cleanup_flag': 'to clean up',
+    'owner.cleanup_count': '🧹 {n} company(ies) with no activity for 30 days — cleanup candidates.',
+    'owner.delete_confirm': 'Permanently delete "{name}"?\n\nThis erases {teams} team(s), {members} member(s) and {points} point(s).\nThis cannot be undone.',
+    'owner.delete_error': 'Deletion failed.',
 
     'stats.title': 'Stats 📊',
     'stats.loading': 'Loading statistics…',

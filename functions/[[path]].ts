@@ -662,6 +662,35 @@ app.get('/api/owner/companies', requireOwner, async (c) => {
   return c.json(results);
 });
 
+// Suppression définitive d'une société (cascade complète), réservée à l'owner.
+// Sert à purger les sociétés ventouses / dormantes depuis la console owner.
+app.delete('/api/owner/companies/:id', requireOwner, async (c) => {
+  const owner = c.get('user');
+  const id = c.req.param('id');
+
+  // Anti-lockout : l'owner ne peut pas supprimer sa propre société.
+  if (id === owner.company_id) {
+    return c.json({ error: "Impossible de supprimer ta propre société." }, 400);
+  }
+
+  const company = await c.env.DB.prepare("SELECT id FROM companies WHERE id = ?").bind(id).first();
+  if (!company) return c.json({ error: "Société introuvable." }, 404);
+
+  // Même cascade que la purge RGPD (migrations/cleanup-inactive.sql). D1 batch = transactionnel.
+  await c.env.DB.batch([
+    c.env.DB.prepare("DELETE FROM push_subscriptions WHERE user_id IN (SELECT u.id FROM users u JOIN teams t ON t.id = u.team_id WHERE t.company_id = ?)").bind(id),
+    c.env.DB.prepare("DELETE FROM dare_log WHERE team_id IN (SELECT id FROM teams WHERE company_id = ?)").bind(id),
+    c.env.DB.prepare("DELETE FROM points_log WHERE team_id IN (SELECT id FROM teams WHERE company_id = ?)").bind(id),
+    c.env.DB.prepare("DELETE FROM dare_rules WHERE team_id IN (SELECT id FROM teams WHERE company_id = ?)").bind(id),
+    c.env.DB.prepare("DELETE FROM categories WHERE team_id IN (SELECT id FROM teams WHERE company_id = ?)").bind(id),
+    c.env.DB.prepare("DELETE FROM users WHERE team_id IN (SELECT id FROM teams WHERE company_id = ?)").bind(id),
+    c.env.DB.prepare("DELETE FROM teams WHERE company_id = ?").bind(id),
+    c.env.DB.prepare("DELETE FROM companies WHERE id = ?").bind(id),
+  ]);
+
+  return c.json({ success: true });
+});
+
 // Config publique (clé Turnstile exposée au frontend)
 app.get('/api/config', async (c) => {
   return c.json({ turnstileSiteKey: c.env.TURNSTILE_SITE_KEY || null });
