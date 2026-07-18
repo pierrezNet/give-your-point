@@ -12,6 +12,7 @@ type Bindings = {
   TURNSTILE_SECRET_KEY: string
   RESEND_API_KEY: string
   RESEND_FROM_EMAIL: string
+  CRON_SECRET: string
 }
 
 const DEFAULT_CATEGORIES_FR = [
@@ -65,6 +66,65 @@ async function sendEmail(env: Bindings, to: string, subject: string, html: strin
   } catch (e) {
     console.error('Email error:', e);
   }
+}
+
+// Construit le mail de digest hebdomadaire (fr/en). Les valeurs dynamiques sont échappées.
+function buildDigestEmail(opts: {
+  baseUrl: string; isEn: boolean; memberName: string; teamName: string;
+  total: number; topUser: { name: string; count: number } | null;
+  topCat: { name: string; emoji: string; count: number } | null;
+  gages: number; myReceived: number;
+}): { subject: string; html: string } {
+  const { baseUrl, isEn, total, gages, myReceived } = opts;
+  const memberName = escapeHtml(opts.memberName);
+  const teamName = escapeHtml(opts.teamName);
+  const topUser = opts.topUser ? { name: escapeHtml(opts.topUser.name), count: opts.topUser.count } : null;
+  const topCat = opts.topCat ? { name: escapeHtml(opts.topCat.name), emoji: opts.topCat.emoji, count: opts.topCat.count } : null;
+
+  if (isEn) {
+    return {
+      subject: `📊 Your week on Give Your Point — ${teamName}`,
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:auto">
+          <h2 style="color:#1e293b">Hi ${memberName}, here's ${teamName}'s week 📊</h2>
+          <ul style="color:#334155;font-size:15px;line-height:1.9;list-style:none;padding:0">
+            <li>🎯 <b>${total}</b> point(s) given this week</li>
+            ${topUser ? `<li>🏆 In the lead: <b>${topUser.name}</b> (${topUser.count})</li>` : ''}
+            ${topCat ? `<li>${topCat.emoji} Favourite badge: <b>${topCat.name}</b> (${topCat.count})</li>` : ''}
+            ${gages > 0 ? `<li>🚨 <b>${gages}</b> dare(s) triggered</li>` : ''}
+            <li>👉 You received <b>${myReceived}</b> point(s) this week</li>
+          </ul>
+          <p style="margin-top:24px">
+            <a href="${baseUrl}" style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">Open Give Your Point</a>
+          </p>
+          <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">
+            📭 This mailbox is not monitored — please don't reply.<br>
+            You receive this weekly summary because your email is linked to your account. To stop, ask an admin to remove your email.
+          </p>
+        </div>`,
+    };
+  }
+  return {
+    subject: `📊 Ta semaine sur Donne Ton Point — ${teamName}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:auto">
+        <h2 style="color:#1e293b">Salut ${memberName}, voici la semaine de ${teamName} 📊</h2>
+        <ul style="color:#334155;font-size:15px;line-height:1.9;list-style:none;padding:0">
+          <li>🎯 <b>${total}</b> point(s) distribué(s) cette semaine</li>
+          ${topUser ? `<li>🏆 En tête : <b>${topUser.name}</b> (${topUser.count})</li>` : ''}
+          ${topCat ? `<li>${topCat.emoji} Badge favori : <b>${topCat.name}</b> (${topCat.count})</li>` : ''}
+          ${gages > 0 ? `<li>🚨 <b>${gages}</b> gage(s) déclenché(s)</li>` : ''}
+          <li>👉 Toi : tu as reçu <b>${myReceived}</b> point(s) cette semaine</li>
+        </ul>
+        <p style="margin-top:24px">
+          <a href="${baseUrl}" style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">Ouvrir Donne Ton Point</a>
+        </p>
+        <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">
+          📭 Cette boîte mail n'est pas surveillée — ne réponds pas à ce message.<br>
+          Tu reçois ce résumé hebdo car ton email est associé à ton compte. Pour ne plus le recevoir, demande à un admin de retirer ton email.
+        </p>
+      </div>`,
+  };
 }
 
 async function verifyTurnstile(token: string, secret: string, ip?: string): Promise<boolean> {
@@ -1421,6 +1481,89 @@ app.post('/api/push/subscribe', requireUser, async (c) => {
   `).bind(me.id, endpoint, keys.p256dh, keys.auth).run();
 
   return c.json({ success: true });
+});
+
+// === Digest hebdomadaire (rétention) ===
+// Déclenché par un cron externe (GitHub Actions) via secret. Pages Functions n'a pas de Cron Trigger.
+// Envoie à chaque membre (ayant un email) le résumé de la semaine de son équipe. ?dry=1 = simulation sans envoi.
+app.post('/api/cron/weekly-digest', async (c) => {
+  const provided = (c.req.header('Authorization') || '').replace('Bearer ', '') || c.req.query('secret') || '';
+  if (!c.env.CRON_SECRET || provided !== c.env.CRON_SECRET) {
+    return c.json({ error: 'Non autorisé' }, 401);
+  }
+  const dryRun = c.req.query('dry') === '1';
+  const baseUrl = new URL(c.req.url).origin;
+  const MAX_EMAILS = 200;
+
+  const teamsRes = await c.env.DB.prepare(`
+    SELECT t.id, t.name AS team_name FROM teams t
+    JOIN companies co ON co.id = t.company_id
+    WHERE t.active = 1 AND co.active = 1
+  `).all<{ id: string; team_name: string }>();
+
+  let teamsWithActivity = 0;
+  let emailsSent = 0;
+  let processed = 0;
+  const preview: any[] = [];
+
+  for (const team of (teamsRes.results || [])) {
+    const wp = await c.env.DB.prepare(`
+      SELECT p.to_user_id, p.category_id, c.name AS cat_name, c.emoji, u.name AS to_name
+      FROM points_log p
+      JOIN categories c ON c.id = p.category_id
+      JOIN users u ON u.id = p.to_user_id
+      WHERE p.team_id = ? AND p.created_at >= datetime('now', '-7 days')
+    `).bind(team.id).all<{ to_user_id: string; category_id: string; cat_name: string; emoji: string; to_name: string }>();
+
+    const rows = wp.results || [];
+    if (rows.length === 0) continue; // pas d'activité → pas de mail (anti-spam)
+    teamsWithActivity++;
+
+    const total = rows.length;
+    const perUser = new Map<string, { name: string; count: number }>();
+    const perCat = new Map<string, { name: string; emoji: string; count: number }>();
+    for (const r of rows) {
+      const u = perUser.get(r.to_user_id) || { name: r.to_name, count: 0 };
+      u.count++; perUser.set(r.to_user_id, u);
+      const cat = perCat.get(r.category_id) || { name: r.cat_name, emoji: r.emoji, count: 0 };
+      cat.count++; perCat.set(r.category_id, cat);
+    }
+    const topUser = [...perUser.values()].sort((a, b) => b.count - a.count)[0] || null;
+    const topCat = [...perCat.values()].sort((a, b) => b.count - a.count)[0] || null;
+
+    const gagesRes = await c.env.DB.prepare(
+      "SELECT COUNT(*) AS n FROM dare_log WHERE team_id = ? AND cleared_at >= datetime('now', '-7 days')"
+    ).bind(team.id).first<{ n: number }>();
+    const gages = gagesRes?.n || 0;
+
+    const membersRes = await c.env.DB.prepare(
+      "SELECT id, name, email, locale FROM users WHERE team_id = ? AND active = 1 AND email IS NOT NULL AND email != ''"
+    ).bind(team.id).all<{ id: string; name: string; email: string; locale: string | null }>();
+
+    for (const m of (membersRes.results || [])) {
+      if (processed >= MAX_EMAILS) break;
+      processed++;
+      const myReceived = perUser.get(m.id)?.count || 0;
+      const { subject, html } = buildDigestEmail({
+        baseUrl, isEn: m.locale === 'en', memberName: m.name, teamName: team.team_name,
+        total, topUser, topCat, gages, myReceived,
+      });
+      if (dryRun) {
+        preview.push({ team: team.team_name, to: m.email, myReceived, subject });
+      } else {
+        await sendEmail(c.env, m.email, subject, html);
+        emailsSent++;
+      }
+    }
+  }
+
+  return c.json({
+    ok: true,
+    dryRun,
+    teamsWithActivity,
+    emailsSent: dryRun ? 0 : emailsSent,
+    ...(dryRun ? { wouldSend: preview.length, preview } : {}),
+  });
 });
 
 // === Open Graph : injection des meta selon Accept-Language ===

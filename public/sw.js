@@ -1,3 +1,7 @@
+// Handler fetch minimal : requis pour l'installabilité PWA sur certains navigateurs.
+// Pass-through volontaire (pas de cache d'assets) — l'app est temps réel, on évite tout risque de contenu périmé.
+self.addEventListener('fetch', () => { /* le réseau gère normalement */ });
+
 self.addEventListener('push', (event) => {
     if (!event.data) return;
 
@@ -8,8 +12,8 @@ self.addEventListener('push', (event) => {
     event.waitUntil(
         self.registration.showNotification(data.title || 'Donne Ton Point 🎯', {
             body: data.body || 'Vous avez reçu un point !',
-            icon: '/favicon.ico',
-            badge: '/favicon.ico',
+            icon: '/icon-192.png',
+            badge: '/icon-192.png',
             tag: 'dtp-point',
             data: { url: data.url || '/' },
         })

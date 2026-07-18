@@ -1,0 +1,20 @@
+name: Digest hebdomadaire
+
+# Pages Functions n'a pas de Cron Trigger : on déclenche l'endpoint via GitHub Actions.
+# Prérequis :
+#   - secret GitHub  CRON_SECRET  (Settings → Secrets and variables → Actions)
+#   - variable Cloudflare Pages  CRON_SECRET  (même valeur, chiffrée)
+
+on:
+  schedule:
+    - cron: '0 9 * * 1'      # tous les lundis à 09:00 UTC
+  workflow_dispatch: {}        # déclenchement manuel depuis l'onglet Actions
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Déclencher le digest
+        run: |
+          curl -fsS -X POST "https://compteur.pierrez.net/api/cron/weekly-digest" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}"
