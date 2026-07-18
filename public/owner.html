@@ -48,6 +48,38 @@
             </div>
         </div>
 
+        <!-- Entonnoir d'acquisition (30 jours) -->
+        <div class="bg-white p-4 md:p-6 rounded-2xl shadow-sm border border-slate-200 mb-6">
+            <h2 class="text-xl font-bold text-slate-800 mb-1" data-i18n="owner.funnel_title">Entonnoir d'acquisition</h2>
+            <p class="text-xs text-slate-500 mb-4" data-i18n="owner.funnel_subtitle">30 derniers jours</p>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div class="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400" data-i18n="owner.funnel_landing">Vues landing</div>
+                    <div class="text-2xl font-black text-slate-800" id="fn-landing">…</div>
+                </div>
+                <div class="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400" data-i18n="owner.funnel_onboarding">Formulaires soumis</div>
+                    <div class="text-2xl font-black text-slate-800" id="fn-onboarding">…</div>
+                    <div class="text-[10px] font-bold text-slate-400" id="fn-onboarding-rate"></div>
+                </div>
+                <div class="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                    <div class="text-[10px] font-bold uppercase tracking-widest text-slate-400" data-i18n="owner.funnel_created">Espaces créés</div>
+                    <div class="text-2xl font-black text-slate-800" id="fn-created">…</div>
+                    <div class="text-[10px] font-bold text-slate-400" id="fn-created-rate"></div>
+                </div>
+                <div class="bg-emerald-50 rounded-xl p-3 border border-emerald-100">
+                    <div class="text-[10px] font-bold uppercase tracking-widest text-emerald-500" data-i18n="owner.funnel_activated">Espaces activés</div>
+                    <div class="text-2xl font-black text-emerald-700" id="fn-activated">…</div>
+                    <div class="text-[10px] font-bold text-emerald-500" id="fn-activated-rate"></div>
+                </div>
+            </div>
+            <p class="text-xs text-slate-500 mt-4">
+                <span data-i18n="owner.funnel_join_prefix">Lien d'invitation</span> :
+                <b id="fn-join-views">…</b> <span data-i18n="owner.funnel_join_views">vues</span> →
+                <b id="fn-join-signups">…</b> <span data-i18n="owner.funnel_join_signups">inscriptions</span>
+            </p>
+        </div>
+
         <!-- Tableau des sociétés -->
         <div class="bg-white p-2 md:p-6 rounded-2xl shadow-sm border border-slate-200 overflow-x-auto">
             <h2 class="text-xl font-bold text-slate-800 mb-4 px-2" data-i18n="owner.companies_title">Sociétés</h2>
@@ -105,6 +137,23 @@
             }
             document.getElementById('owner-body').classList.remove('opacity-0');
             await loadCompanies();
+            loadFunnel();
+        }
+
+        async function loadFunnel() {
+            const res = await fetch('/api/owner/funnel', { headers: { 'Authorization': `Bearer ${myUserId}` } });
+            if (!res.ok) return;
+            const f = await res.json();
+            const pct = (num, den) => den > 0 ? Math.round((num / den) * 100) + '%' : '—';
+            document.getElementById('fn-landing').textContent = f.landing_vue;
+            document.getElementById('fn-onboarding').textContent = f.onboarding_soumis;
+            document.getElementById('fn-onboarding-rate').textContent = pct(f.onboarding_soumis, f.landing_vue);
+            document.getElementById('fn-created').textContent = f.espaces_crees_30j;
+            document.getElementById('fn-created-rate').textContent = pct(f.espaces_crees_30j, f.onboarding_soumis);
+            document.getElementById('fn-activated').textContent = f.espaces_actives_30j;
+            document.getElementById('fn-activated-rate').textContent = pct(f.espaces_actives_30j, f.espaces_crees_30j);
+            document.getElementById('fn-join-views').textContent = f.join_vue;
+            document.getElementById('fn-join-signups').textContent = f.join_soumis;
         }
 
         async function loadCompanies() {

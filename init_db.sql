@@ -1,6 +1,7 @@
 PRAGMA foreign_keys = OFF;
 
 -- Suppression propre pour repartir sur une base saine
+DROP TABLE IF EXISTS analytics_events;
 DROP TABLE IF EXISTS points_log;
 DROP TABLE IF EXISTS dare_log;
 DROP TABLE IF EXISTS dare_rules;
@@ -22,10 +23,12 @@ CREATE TABLE teams (
     company_id TEXT NOT NULL,
     name TEXT NOT NULL,
     active INTEGER DEFAULT 1,
+    invite_code TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_teams_company ON teams(company_id);
+CREATE UNIQUE INDEX idx_teams_invite_code ON teams(invite_code);
 
 CREATE TABLE categories (
     id TEXT PRIMARY KEY,
@@ -94,5 +97,14 @@ CREATE TABLE push_subscriptions (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, endpoint)
 );
+
+-- Instrumentation de l'entonnoir (mesure cookieless, sans PII)
+CREATE TABLE analytics_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_analytics_name_created ON analytics_events(name, created_at DESC);
 
 PRAGMA foreign_keys = ON;

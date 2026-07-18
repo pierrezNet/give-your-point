@@ -308,6 +308,39 @@ const translations = {
     'stats.receivers': 'Top receveurs',
     'stats.categories': 'Catégories les plus utilisées',
     'stats.evolution': 'Évolution hebdomadaire',
+
+    // Écran d'invitation (auto-inscription)
+    'join.heading': "Rejoins l'équipe {team}",
+    'join.subtitle': 'chez {company}',
+    'join.name_placeholder': 'Ton prénom',
+    'join.submit': 'Rejoindre',
+    'join.submit_loading': 'Création…',
+    'join.have_account': "J'ai déjà un compte",
+    'join.back_home': "Retour à l'accueil",
+    'join.invalid_title': 'Lien invalide',
+    'join.invalid_msg': "Ce lien d'invitation n'est plus valide. Demande-en un nouveau à ton admin.",
+    'join.error_generic': "Impossible de rejoindre l'équipe. Réessaie.",
+
+    // Carte d'invitation (admin)
+    'admin.invite_title': 'Inviter des membres',
+    'admin.invite_desc': "Partage ce lien : chacun s'inscrit tout seul, sans que tu aies à créer les comptes un par un.",
+    'admin.invite_copy': 'Copier le lien',
+    'admin.invite_email_placeholder': 'Envoyer à un email…',
+    'admin.invite_send': 'Envoyer par email',
+    'admin.invite_link_copied': "Lien d'invitation copié !",
+    'admin.invite_sent': 'Invitation envoyée !',
+    'admin.invite_email_invalid': 'Email invalide.',
+
+    // Entonnoir d'acquisition (owner)
+    'owner.funnel_title': "Entonnoir d'acquisition",
+    'owner.funnel_subtitle': '30 derniers jours',
+    'owner.funnel_landing': 'Vues landing',
+    'owner.funnel_onboarding': 'Formulaires soumis',
+    'owner.funnel_created': 'Espaces créés',
+    'owner.funnel_activated': 'Espaces activés',
+    'owner.funnel_join_prefix': "Lien d'invitation",
+    'owner.funnel_join_views': 'vues',
+    'owner.funnel_join_signups': 'inscriptions',
   },
 
   en: {
@@ -595,6 +628,39 @@ const translations = {
     'stats.receivers': 'Top receivers',
     'stats.categories': 'Most used categories',
     'stats.evolution': 'Weekly evolution',
+
+    // Invite / join screen
+    'join.heading': 'Join the {team} team',
+    'join.subtitle': 'at {company}',
+    'join.name_placeholder': 'Your first name',
+    'join.submit': 'Join',
+    'join.submit_loading': 'Creating…',
+    'join.have_account': 'I already have an account',
+    'join.back_home': 'Back to home',
+    'join.invalid_title': 'Invalid link',
+    'join.invalid_msg': 'This invitation link is no longer valid. Ask your admin for a new one.',
+    'join.error_generic': "Couldn't join the team. Please try again.",
+
+    // Invite card (admin)
+    'admin.invite_title': 'Invite members',
+    'admin.invite_desc': 'Share this link: everyone signs up on their own — no need to create accounts one by one.',
+    'admin.invite_copy': 'Copy link',
+    'admin.invite_email_placeholder': 'Send to an email…',
+    'admin.invite_send': 'Send by email',
+    'admin.invite_link_copied': 'Invitation link copied!',
+    'admin.invite_sent': 'Invitation sent!',
+    'admin.invite_email_invalid': 'Invalid email.',
+
+    // Acquisition funnel (owner)
+    'owner.funnel_title': 'Acquisition funnel',
+    'owner.funnel_subtitle': 'Last 30 days',
+    'owner.funnel_landing': 'Landing views',
+    'owner.funnel_onboarding': 'Forms submitted',
+    'owner.funnel_created': 'Spaces created',
+    'owner.funnel_activated': 'Spaces activated',
+    'owner.funnel_join_prefix': 'Invite link',
+    'owner.funnel_join_views': 'views',
+    'owner.funnel_join_signups': 'signups',
   },
 };
 

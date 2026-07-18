@@ -42,6 +42,11 @@ function isValidEmail(s: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
 
+// Code d'invitation opaque et partageable pour une équipe (16 hex).
+function generateInviteCode(): string {
+  return crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+}
+
 async function sendEmail(env: Bindings, to: string, subject: string, html: string): Promise<void> {
   if (!env.RESEND_API_KEY || !env.RESEND_FROM_EMAIL || !to) return;
   try {
@@ -662,6 +667,59 @@ app.get('/api/config', async (c) => {
   return c.json({ turnstileSiteKey: c.env.TURNSTILE_SITE_KEY || null });
 });
 
+// === Instrumentation minimale de l'entonnoir (mesure) ===
+
+// Événements whitelistés — cookieless, sans PII, stockés dans notre D1 (EU).
+const TRACKED_EVENTS = new Set(['landing_vue', 'onboarding_soumis', 'join_vue', 'join_soumis']);
+
+app.post('/api/track', async (c) => {
+  try {
+    const { event } = await c.req.json();
+    if (typeof event === 'string' && TRACKED_EVENTS.has(event)) {
+      await c.env.DB.prepare("INSERT INTO analytics_events (name) VALUES (?)").bind(event).run();
+    }
+  } catch { /* fire-and-forget : jamais bloquant */ }
+  return c.json({ ok: true });
+});
+
+// Entonnoir agrégé sur 30 jours (réservé à l'owner).
+app.get('/api/owner/funnel', requireOwner, async (c) => {
+  const empty = {
+    landing_vue: 0, onboarding_soumis: 0, join_vue: 0, join_soumis: 0,
+    espaces_crees_30j: 0, espaces_actives_30j: 0,
+  };
+  try {
+    const [eventsRes, createdRes, activatedRes] = await Promise.all([
+      c.env.DB.prepare(`
+        SELECT name, COUNT(*) as total FROM analytics_events
+        WHERE created_at >= datetime('now', '-30 days') GROUP BY name
+      `).all<{ name: string; total: number }>(),
+      c.env.DB.prepare(`
+        SELECT COUNT(*) as n FROM companies WHERE created_at >= datetime('now', '-30 days')
+      `).first<{ n: number }>(),
+      c.env.DB.prepare(`
+        SELECT COUNT(DISTINCT t.company_id) as n
+        FROM teams t
+        JOIN companies co ON co.id = t.company_id
+        JOIN points_log p ON p.team_id = t.id
+        WHERE co.created_at >= datetime('now', '-30 days')
+      `).first<{ n: number }>(),
+    ]);
+    const ev = new Map((eventsRes.results || []).map(r => [r.name, r.total]));
+    return c.json({
+      landing_vue: ev.get('landing_vue') || 0,
+      onboarding_soumis: ev.get('onboarding_soumis') || 0,
+      join_vue: ev.get('join_vue') || 0,
+      join_soumis: ev.get('join_soumis') || 0,
+      espaces_crees_30j: createdRes?.n || 0,
+      espaces_actives_30j: activatedRes?.n || 0,
+    });
+  } catch (e) {
+    // Table analytics pas encore migrée : on renvoie des zéros plutôt qu'une 500.
+    return c.json(empty);
+  }
+});
+
 // Onboarding autonome : crée company + team + superadmin + 7 catégories
 app.post('/api/onboarding', async (c) => {
   try {
@@ -689,11 +747,12 @@ app.post('/api/onboarding', async (c) => {
     const companyId = crypto.randomUUID();
     const teamId = crypto.randomUUID();
     const userId = crypto.randomUUID();
+    const inviteCode = generateInviteCode();
     const categories = defaultCategoriesFor(userLocale);
 
     const statements = [
       c.env.DB.prepare("INSERT INTO companies (id, name, active) VALUES (?, ?, 1)").bind(companyId, company),
-      c.env.DB.prepare("INSERT INTO teams (id, company_id, name, active) VALUES (?, ?, ?, 1)").bind(teamId, companyId, company),
+      c.env.DB.prepare("INSERT INTO teams (id, company_id, name, active, invite_code) VALUES (?, ?, ?, 1, ?)").bind(teamId, companyId, company, inviteCode),
       c.env.DB.prepare("INSERT INTO users (id, team_id, name, role, active, token, email, locale) VALUES (?, ?, ?, 'superadmin', 1, ?, ?, ?)").bind(userId, teamId, admin, userId, email, userLocale),
       ...categories.map(cat =>
         c.env.DB.prepare("INSERT INTO categories (id, team_id, name, emoji, forfeit, active) VALUES (?, ?, ?, ?, ?, 1)")
@@ -731,6 +790,45 @@ app.get('/login/:token', async (c) => {
   return c.redirect(`/?login_id=${user.id}&login_name=${encodeURIComponent(user.name as string)}`);
 });
 
+// === Auto-inscription via lien d'invitation d'équipe ===
+
+// Infos publiques d'un lien d'invitation (nom d'équipe + société), ou 404 si invalide.
+app.get('/api/join/:code', async (c) => {
+  const code = c.req.param('code');
+  const team = await c.env.DB.prepare(`
+    SELECT t.name AS team_name, c.name AS company_name
+    FROM teams t JOIN companies c ON c.id = t.company_id
+    WHERE t.invite_code = ? AND t.active = 1 AND c.active = 1
+  `).bind(code).first<{ team_name: string; company_name: string }>();
+  if (!team) return c.json({ error: "Lien d'invitation invalide ou expiré." }, 404);
+  return c.json(team);
+});
+
+// Le visiteur muni du lien s'ajoute lui-même comme membre (invariant id == token).
+app.post('/api/join', async (c) => {
+  try {
+    const { code, name } = await c.req.json();
+    const cleanName = (name || '').trim();
+    if (!cleanName || cleanName.length < 1 || cleanName.length > 40) {
+      return c.json({ error: "Prénom requis (1 à 40 caractères)" }, 400);
+    }
+    const team = await c.env.DB.prepare(`
+      SELECT t.id FROM teams t JOIN companies c ON c.id = t.company_id
+      WHERE t.invite_code = ? AND t.active = 1 AND c.active = 1
+    `).bind(code).first<{ id: string }>();
+    if (!team) return c.json({ error: "Lien d'invitation invalide ou expiré." }, 404);
+
+    const userId = crypto.randomUUID();
+    await c.env.DB.prepare(
+      "INSERT INTO users (id, team_id, name, role, active, token) VALUES (?, ?, ?, 'member', 1, ?)"
+    ).bind(userId, team.id, cleanName, userId).run();
+    return c.json({ success: true, token: userId });
+  } catch (err) {
+    console.error("Erreur join:", err);
+    return c.json({ error: "Erreur lors de l'inscription" }, 500);
+  }
+});
+
 // === Routes admin (scope = équipe de l'admin) ===
 
 app.get('/api/admin/users', requireAdmin, async (c) => {
@@ -759,6 +857,72 @@ app.post('/api/admin/users', requireAdmin, async (c) => {
   await c.env.DB.prepare(
     "INSERT INTO users (id, team_id, name, role, active, token, email) VALUES (?, ?, ?, 'member', 1, ?, ?)"
   ).bind(id, admin.team_id, name, id, cleanEmail).run();
+  return c.json({ success: true });
+});
+
+// Lien d'auto-inscription de l'équipe de l'admin (génération paresseuse si absent).
+async function getOrCreateInviteCode(db: D1Database, teamId: string): Promise<string> {
+  const team = await db.prepare("SELECT invite_code FROM teams WHERE id = ?").bind(teamId).first<{ invite_code: string | null }>();
+  if (team?.invite_code) return team.invite_code;
+  const code = generateInviteCode();
+  await db.prepare("UPDATE teams SET invite_code = ? WHERE id = ?").bind(code, teamId).run();
+  return code;
+}
+
+app.get('/api/team-invite', requireAdmin, async (c) => {
+  const admin = c.get('user');
+  const code = await getOrCreateInviteCode(c.env.DB, admin.team_id);
+  const origin = new URL(c.req.url).origin;
+  return c.json({ code, url: `${origin}/join/${code}`, team_name: admin.team_name });
+});
+
+// Envoyer le lien d'invitation par email (réutilise Resend).
+app.post('/api/admin/invite', requireAdmin, async (c) => {
+  const admin = c.get('user');
+  const { email } = await c.req.json();
+  const clean = (email || '').trim();
+  if (!clean || !isValidEmail(clean)) return c.json({ error: "Email invalide" }, 400);
+
+  const code = await getOrCreateInviteCode(c.env.DB, admin.team_id);
+  const joinUrl = `${new URL(c.req.url).origin}/join/${code}`;
+  const isEn = admin.locale === 'en';
+  const subject = isEn
+    ? `${admin.name} invites you to ${admin.team_name} on Give Your Point`
+    : `${admin.name} t'invite à rejoindre ${admin.team_name} sur Donne Ton Point`;
+  const html = isEn ? `
+    <div style="font-family:sans-serif;max-width:480px;margin:auto">
+      <h2 style="color:#1e293b">You're invited! 🎯</h2>
+      <p style="color:#334155;font-size:15px">
+        <b>${admin.name}</b> invites you to join the team
+        <b>${admin.team_name}</b> on Give Your Point.
+      </p>
+      <p style="margin-top:24px">
+        <a href="${joinUrl}"
+           style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">
+          Join the team
+        </a>
+      </p>
+      <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">
+        📭 This mailbox is not monitored — please don't reply.
+      </p>
+    </div>` : `
+    <div style="font-family:sans-serif;max-width:480px;margin:auto">
+      <h2 style="color:#1e293b">Tu es invité·e ! 🎯</h2>
+      <p style="color:#334155;font-size:15px">
+        <b>${admin.name}</b> t'invite à rejoindre l'équipe
+        <b>${admin.team_name}</b> sur Donne Ton Point.
+      </p>
+      <p style="margin-top:24px">
+        <a href="${joinUrl}"
+           style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">
+          Rejoindre l'équipe
+        </a>
+      </p>
+      <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">
+        📭 Cette boîte mail n'est pas surveillée — ne réponds pas à ce message.
+      </p>
+    </div>`;
+  c.executionCtx.waitUntil(sendEmail(c.env, clean, subject, html));
   return c.json({ success: true });
 });
 
@@ -1068,9 +1232,10 @@ app.post('/api/superadmin/teams', requireSuperadmin, async (c) => {
     return c.json({ error: 'Nom requis' }, 400);
   }
   const id = crypto.randomUUID();
+  const inviteCode = generateInviteCode();
   await c.env.DB.prepare(
-    "INSERT INTO teams (id, company_id, name, active) VALUES (?, ?, ?, 1)"
-  ).bind(id, sa.company_id, name.trim()).run();
+    "INSERT INTO teams (id, company_id, name, active, invite_code) VALUES (?, ?, ?, 1, ?)"
+  ).bind(id, sa.company_id, name.trim(), inviteCode).run();
   return c.json({ success: true, id });
 });
 
@@ -1262,8 +1427,12 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-async function serveHtmlWithOg(c: any, key: string): Promise<Response> {
-  const resp = await c.env.ASSETS.fetch(c.req.raw);
+async function serveHtmlWithOg(c: any, key: string, assetPath?: string): Promise<Response> {
+  // assetPath permet de servir un autre asset que l'URL demandée (ex : /join/:code → index).
+  const req = assetPath
+    ? new Request(new URL(assetPath, c.req.url).toString(), { method: 'GET', headers: c.req.raw.headers })
+    : c.req.raw;
+  const resp = await c.env.ASSETS.fetch(req);
   const ct = resp.headers.get('Content-Type') || '';
   if (!ct.toLowerCase().includes('text/html')) {
     return resp;
@@ -1289,6 +1458,8 @@ async function serveHtmlWithOg(c: any, key: string): Promise<Response> {
 app.get('/', (c) => serveHtmlWithOg(c, '/'));
 app.get('/about', (c) => serveHtmlWithOg(c, '/about'));
 app.get('/about.html', (c) => serveHtmlWithOg(c, '/about'));
+// Lien d'invitation : sert l'app (index) pour que le frontend rende l'écran "Rejoindre".
+app.get('/join/:code', (c) => serveHtmlWithOg(c, '/', '/'));
 
 app.get('/*', async (c) => {
   return c.env.ASSETS.fetch(c.req.raw);

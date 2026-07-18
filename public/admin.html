@@ -37,6 +37,22 @@
             </div>
         </header>
 
+        <!-- Carte d'invitation : lien d'auto-inscription partageable + envoi par email -->
+        <div class="bg-white p-2 md:p-6 rounded-2xl shadow-sm border border-blue-200 mt-8">
+            <h2 class="text-xl font-bold mb-1 flex items-center gap-2"><span>🔗</span> <span data-i18n="admin.invite_title">Inviter des membres</span></h2>
+            <p class="text-sm text-slate-500 mb-4" data-i18n="admin.invite_desc">Partage ce lien : chacun s'inscrit tout seul, sans que tu aies à créer les comptes un par un.</p>
+            <div class="flex flex-col md:flex-row gap-3 mb-3">
+                <input id="invite-link" type="text" readonly value="…" onclick="this.select()"
+                       class="flex-1 p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 text-sm outline-none">
+                <button onclick="copyInviteLink()" class="bg-slate-800 text-white px-5 py-3 rounded-xl font-bold hover:bg-slate-900 transition-colors whitespace-nowrap" data-i18n="admin.invite_copy">Copier le lien</button>
+            </div>
+            <div class="flex flex-col md:flex-row gap-3">
+                <input id="invite-email" type="email" data-i18n-placeholder="admin.invite_email_placeholder" placeholder="Envoyer à un email…"
+                       class="flex-1 p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="sendInvite()" class="bg-blue-600 text-white px-5 py-3 rounded-xl font-bold hover:bg-blue-700 transition-colors whitespace-nowrap" data-i18n="admin.invite_send">Envoyer par email</button>
+            </div>
+        </div>
+
         <div class="bg-white p-2 md:p-6 rounded-2xl shadow-sm border border-slate-200 mt-8">
             <h2 class="text-xl font-bold mb-4" data-i18n="admin.add_user_title">Ajouter un collègue</h2>
             <div class="flex flex-col md:flex-row gap-4 mb-6">
@@ -156,6 +172,7 @@
             }
 
             document.getElementById('admin-body').classList.remove('opacity-0');
+            loadInviteLink();
             loadAdminUsers();
             loadAdminCategories();
             loadCategoriesForRules();
@@ -263,6 +280,43 @@
             const url = `${window.location.origin}/login/${token}`;
             navigator.clipboard.writeText(url);
             alert(t('admin.toast_link_copied'));
+        }
+
+        // --- Invitation d'équipe (lien d'auto-inscription) ---
+        async function loadInviteLink() {
+            try {
+                const res = await adminFetch('/api/team-invite');
+                if (!res || !res.ok) return;
+                const data = await res.json();
+                const input = document.getElementById('invite-link');
+                if (input) input.value = data.url;
+            } catch {}
+        }
+
+        function copyInviteLink() {
+            const input = document.getElementById('invite-link');
+            if (!input || !input.value || input.value === '…') return;
+            navigator.clipboard.writeText(input.value);
+            input.select();
+            alert(t('admin.invite_link_copied'));
+        }
+
+        async function sendInvite() {
+            const emailInput = document.getElementById('invite-email');
+            const email = (emailInput.value || '').trim();
+            if (!email) return;
+            const res = await adminFetch('/api/admin/invite', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email }),
+            });
+            if (res && res.ok) {
+                emailInput.value = '';
+                alert(t('admin.invite_sent'));
+            } else {
+                const err = res ? await res.json().catch(() => ({})) : {};
+                alert(err.error || t('admin.invite_email_invalid'));
+            }
         }
 
         async function addUser() {

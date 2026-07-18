@@ -3,6 +3,25 @@ let lastPointId = null;
 let isModalOpen = false;
 let isTransitioning = false;
 
+// Échappe une chaîne avant injection dans innerHTML (données utilisateur : nom d'équipe, etc.)
+function escapeHtml(s) {
+    return String(s ?? '').replace(/[&<>"']/g, ch => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[ch]));
+}
+
+// Mesure cookieless de l'entonnoir : envoie un événement whitelisté au backend (fire-and-forget).
+function track(event) {
+    try {
+        const body = JSON.stringify({ event });
+        if (navigator.sendBeacon) {
+            navigator.sendBeacon('/api/track', new Blob([body], { type: 'application/json' }));
+        } else {
+            fetch('/api/track', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body, keepalive: true });
+        }
+    } catch { /* jamais bloquant */ }
+}
+
 function toggleMenu() {
     const menu = document.getElementById('mobile-menu');
     if (!menu) return;
@@ -573,6 +592,13 @@ async function undoLastPoint() {
 }
 
 async function init() {
+    // Lien d'invitation /join/<code> : écran d'auto-inscription (prioritaire sur l'auth).
+    const joinMatch = window.location.pathname.match(/^\/join\/([^\/]+)$/);
+    if (joinMatch) {
+        await renderJoin(decodeURIComponent(joinMatch[1]));
+        return;
+    }
+
     const myId = handleAuth();
 
     if (!myId) {
@@ -803,6 +829,7 @@ async function renderLanding() {
             </footer>
         </div>`;
     applyI18n();
+    track('landing_vue');
 
     if (cfg.turnstileSiteKey && !document.querySelector('script[src*="turnstile"]')) {
         const s = document.createElement('script');
@@ -814,6 +841,7 @@ async function renderLanding() {
 
     document.getElementById('onboarding-form').addEventListener('submit', async (e) => {
         e.preventDefault();
+        track('onboarding_soumis');
         const errEl = document.getElementById('ob-error');
         const submitBtn = document.getElementById('ob-submit');
         errEl.classList.add('hidden');
@@ -853,6 +881,101 @@ async function renderLanding() {
         } finally {
             submitBtn.disabled = false;
             submitBtn.textContent = t('onboarding.submit');
+        }
+    });
+}
+
+// Écran d'auto-inscription atteint via un lien d'invitation /join/<code>
+async function renderJoin(code) {
+    let info = null;
+    try {
+        const res = await fetch(`/api/join/${encodeURIComponent(code)}`);
+        if (res.ok) info = await res.json();
+    } catch {}
+    track('join_vue');
+
+    if (!info) {
+        document.body.innerHTML = `
+            <div class="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4 text-center">
+                <div class="text-5xl mb-4">🔗</div>
+                <h1 class="text-2xl font-black text-slate-800">${t('join.invalid_title')}</h1>
+                <p class="text-slate-600 mt-2 max-w-sm">${t('join.invalid_msg')}</p>
+                <a href="/" class="mt-6 inline-block bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition">${t('join.back_home')}</a>
+            </div>`;
+        applyI18n();
+        return;
+    }
+
+    const teamName = escapeHtml(info.team_name);
+    const companyName = escapeHtml(info.company_name);
+
+    document.body.innerHTML = `
+        <div class="min-h-screen bg-gray-100">
+            <header class="sticky top-0 z-40 bg-white/85 backdrop-blur border-b border-slate-200">
+                <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="text-2xl">🎯</span>
+                        <span class="font-black text-slate-800">${t('app.title')}</span>
+                    </div>
+                    <div class="flex items-center gap-3 text-xs font-bold text-slate-500">
+                        <button data-lang-toggle="fr" onclick="setLang('fr')" class="px-1">FR</button>
+                        <span class="text-slate-300">|</span>
+                        <button data-lang-toggle="en" onclick="setLang('en')" class="px-1">EN</button>
+                    </div>
+                </div>
+            </header>
+            <section class="max-w-md mx-auto px-4 py-16">
+                <div class="bg-white rounded-3xl shadow-xl p-8 space-y-5 border border-slate-200 text-center">
+                    <div class="text-5xl">🎉</div>
+                    <div>
+                        <h1 class="text-2xl font-black text-slate-800">${t('join.heading', { team: teamName })}</h1>
+                        <p class="text-sm text-slate-500 mt-2">${t('join.subtitle', { company: companyName })}</p>
+                    </div>
+                    <form id="join-form" class="space-y-3 text-left">
+                        <input id="join-name" type="text" required minlength="1" maxlength="40"
+                               placeholder="${t('join.name_placeholder')}"
+                               class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
+                        <button type="submit" id="join-submit"
+                                class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition disabled:opacity-50">${t('join.submit')}</button>
+                        <p id="join-error" class="text-red-600 text-xs text-center hidden"></p>
+                    </form>
+                    <a href="/" class="text-xs font-bold text-slate-400 hover:underline block">${t('join.have_account')}</a>
+                </div>
+            </section>
+        </div>`;
+    applyI18n();
+
+    document.getElementById('join-form').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const errEl = document.getElementById('join-error');
+        const submitBtn = document.getElementById('join-submit');
+        errEl.classList.add('hidden');
+        const name = document.getElementById('join-name').value.trim();
+        if (!name) return;
+
+        submitBtn.disabled = true;
+        submitBtn.textContent = t('join.submit_loading');
+        try {
+            const res = await fetch('/api/join', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code, name }),
+            });
+            if (res.ok) {
+                const data = await res.json();
+                track('join_soumis');
+                window.location.href = `/login/${data.token}`;
+                return;
+            }
+            const err = await res.json().catch(() => ({}));
+            errEl.textContent = err.error || t('join.error_generic');
+            errEl.classList.remove('hidden');
+        } catch {
+            errEl.textContent = t('join.error_generic');
+            errEl.classList.remove('hidden');
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = t('join.submit');
         }
     });
 }

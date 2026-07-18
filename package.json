@@ -21,6 +21,10 @@
     "db:cleanup-inactive:local": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=migrations/cleanup-inactive.sql",
     "db:migrate:i18n": "wrangler d1 execute give-your-point-eu --remote --file=migrations/2026-09-i18n.sql",
     "db:migrate:i18n:local": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=migrations/2026-09-i18n.sql",
+    "db:migrate:analytics": "wrangler d1 execute give-your-point-eu --remote --file=migrations/2026-10-analytics.sql",
+    "db:migrate:analytics:local": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=migrations/2026-10-analytics.sql",
+    "db:migrate:invite": "wrangler d1 execute give-your-point-eu --remote --file=migrations/2026-11-invite.sql",
+    "db:migrate:invite:local": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=migrations/2026-11-invite.sql",
     "generate:vapid": "node generate-vapid.mjs",
     "deploy": "npm run build && wrangler pages deploy public",
     "build": "npx @tailwindcss/cli -i public/input.css -o public/styles.css --minify"
