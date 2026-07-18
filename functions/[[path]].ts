@@ -68,6 +68,91 @@ async function sendEmail(env: Bindings, to: string, subject: string, html: strin
   }
 }
 
+// Mail « tu as reçu un point » (fr/en). Valeurs dynamiques échappées.
+function buildPointEmail(o: { isEn: boolean; name: string; fromName: string; catLabel: string; baseUrl: string }): { subject: string; html: string } {
+  const name = escapeHtml(o.name), fromName = escapeHtml(o.fromName), catLabel = escapeHtml(o.catLabel);
+  if (o.isEn) {
+    return {
+      subject: `🎯 ${fromName} gave you a point!`,
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:auto">
+          <h2 style="color:#1e293b">Hi ${name},</h2>
+          <p style="color:#334155;font-size:15px"><b>${fromName}</b> just gave you a point for <b>${catLabel}</b>.</p>
+          <p style="margin-top:24px"><a href="${o.baseUrl}/" style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">See on Give Your Point</a></p>
+          <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">📭 This mailbox is not monitored — please don't reply.<br>You receive this because your email is linked to your account. To unsubscribe, ask an admin to remove your email.</p>
+        </div>`,
+    };
+  }
+  return {
+    subject: `🎯 ${fromName} t'a donné un point !`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:auto">
+        <h2 style="color:#1e293b">Bonjour ${name},</h2>
+        <p style="color:#334155;font-size:15px"><b>${fromName}</b> vient de t'offrir un point pour <b>${catLabel}</b>.</p>
+        <p style="margin-top:24px"><a href="${o.baseUrl}/" style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">Voir sur Donne Ton Point</a></p>
+        <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">📭 Cette boîte mail n'est pas surveillée — ne réponds pas à ce message.<br>Tu reçois ce mail parce que ton email est associé à ton compte. Pour ne plus en recevoir, demande à un admin de retirer ton email.</p>
+      </div>`,
+  };
+}
+
+// Mail « tu écopes d'un gage » : le point vient de faire franchir le seuil.
+function buildGageEmail(o: { isEn: boolean; name: string; fromName: string; catLabel: string; dare: string; baseUrl: string }): { subject: string; html: string } {
+  const name = escapeHtml(o.name), fromName = escapeHtml(o.fromName), catLabel = escapeHtml(o.catLabel), dare = escapeHtml(o.dare);
+  if (o.isEn) {
+    return {
+      subject: `🚨 You owe a forfeit on Give Your Point!`,
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:auto">
+          <h2 style="color:#1e293b">Uh oh, ${name}… 🚨</h2>
+          <p style="color:#334155;font-size:15px"><b>${fromName}</b> gave you a point for <b>${catLabel}</b> — and you just hit the threshold!</p>
+          <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:14px 16px;margin:16px 0"><span style="color:#ea580c;font-weight:800">🚨 FORFEIT: ${dare}</span></div>
+          <p style="margin-top:16px"><a href="${o.baseUrl}/" style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">See on Give Your Point</a></p>
+          <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">📭 This mailbox is not monitored — please don't reply.</p>
+        </div>`,
+    };
+  }
+  return {
+    subject: `🚨 Tu écopes d'un gage sur Donne Ton Point !`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:auto">
+        <h2 style="color:#1e293b">Aïe, ${name}… 🚨</h2>
+        <p style="color:#334155;font-size:15px"><b>${fromName}</b> t'a donné un point pour <b>${catLabel}</b> — et tu viens d'atteindre le seuil !</p>
+        <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:14px 16px;margin:16px 0"><span style="color:#ea580c;font-weight:800">🚨 GAGE : ${dare}</span></div>
+        <p style="margin-top:16px"><a href="${o.baseUrl}/" style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">Voir sur Donne Ton Point</a></p>
+        <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">📭 Cette boîte mail n'est pas surveillée — ne réponds pas à ce message.</p>
+      </div>`,
+  };
+}
+
+// Mail de bienvenue avec lien magique, envoyé à la création d'un compte (si email fourni).
+function buildWelcomeEmail(o: { isEn: boolean; name: string; teamName: string; loginUrl: string }): { subject: string; html: string } {
+  const name = escapeHtml(o.name), teamName = escapeHtml(o.teamName);
+  if (o.isEn) {
+    return {
+      subject: `🎯 Your access to ${teamName} on Give Your Point`,
+      html: `
+        <div style="font-family:sans-serif;max-width:480px;margin:auto">
+          <h2 style="color:#1e293b">Welcome ${name}! 🎯</h2>
+          <p style="color:#334155;font-size:15px">You've been added to the team <b>${teamName}</b> on Give Your Point. Here's your personal access link:</p>
+          <p style="margin-top:24px"><a href="${o.loginUrl}" style="background:#2563eb;color:white;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold">Open my space</a></p>
+          <p style="color:#64748b;font-size:12px;margin-top:16px">Keep this email: this link is your key to log in — no password.</p>
+          <p style="color:#94a3b8;font-size:11px;margin-top:24px;line-height:1.6">📭 This mailbox is not monitored — please don't reply.</p>
+        </div>`,
+    };
+  }
+  return {
+    subject: `🎯 Ton accès à ${teamName} sur Donne Ton Point`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:auto">
+        <h2 style="color:#1e293b">Bienvenue ${name} ! 🎯</h2>
+        <p style="color:#334155;font-size:15px">Tu as été ajouté·e à l'équipe <b>${teamName}</b> sur Donne Ton Point. Voici ton lien d'accès personnel :</p>
+        <p style="margin-top:24px"><a href="${o.loginUrl}" style="background:#2563eb;color:white;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold">Ouvrir mon espace</a></p>
+        <p style="color:#64748b;font-size:12px;margin-top:16px">Garde cet email : ce lien est ta clé de connexion — pas de mot de passe.</p>
+        <p style="color:#94a3b8;font-size:11px;margin-top:24px;line-height:1.6">📭 Cette boîte mail n'est pas surveillée — ne réponds pas à ce message.</p>
+      </div>`,
+  };
+}
+
 // Construit le mail de digest hebdomadaire (fr/en). Les valeurs dynamiques sont échappées.
 function buildDigestEmail(opts: {
   baseUrl: string; isEn: boolean; memberName: string; teamName: string;
@@ -573,51 +658,16 @@ app.post('/api/points', requireUser, async (c) => {
       sendPushToUser(c.env, to_user_id, fromUser.name, category_id).catch(() => {})
     );
 
-    // Notification email non-bloquante (si destinataire a un email renseigné)
+    // Notification email non-bloquante (si destinataire a un email renseigné).
+    // Si ce point vient de déclencher un gage, on envoie le mail de gage à la place.
     if (toUser.email) {
       const isEn = toUser.locale === 'en';
       const baseUrl = new URL(c.req.url).origin;
-      const subject = isEn
-        ? `🎯 ${fromUser.name} gave you a point!`
-        : `🎯 ${fromUser.name} t'a donné un point !`;
-      const html = isEn ? `
-        <div style="font-family:sans-serif;max-width:480px;margin:auto">
-          <h2 style="color:#1e293b">Hi ${toUser.name},</h2>
-          <p style="color:#334155;font-size:15px">
-            <b>${fromUser.name}</b> just gave you a point for
-            <b>${cat.emoji} ${cat.name}</b>.
-          </p>
-          <p style="margin-top:24px">
-            <a href="${baseUrl}/"
-               style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">
-              See on Give Your Point
-            </a>
-          </p>
-          <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">
-            📭 This mailbox is not monitored — please don't reply.<br>
-            You receive this message because your email is linked to your account.
-            To unsubscribe, ask an admin to remove your email.
-          </p>
-        </div>` : `
-        <div style="font-family:sans-serif;max-width:480px;margin:auto">
-          <h2 style="color:#1e293b">Bonjour ${toUser.name},</h2>
-          <p style="color:#334155;font-size:15px">
-            <b>${fromUser.name}</b> vient de t'offrir un point pour
-            <b>${cat.emoji} ${cat.name}</b>.
-          </p>
-          <p style="margin-top:24px">
-            <a href="${baseUrl}/"
-               style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">
-              Voir sur Donne Ton Point
-            </a>
-          </p>
-          <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">
-            📭 Cette boîte mail n'est pas surveillée — ne réponds pas à ce message.<br>
-            Tu reçois ce mail parce que ton email est associé à ton compte.
-            Pour ne plus en recevoir, demande à un admin de retirer ton email.
-          </p>
-        </div>`;
-      c.executionCtx.waitUntil(sendEmail(c.env, toUser.email, subject, html));
+      const catLabel = `${cat.emoji} ${cat.name}`;
+      const mail = gageTriggered
+        ? buildGageEmail({ isEn, name: toUser.name, fromName: fromUser.name, catLabel, dare: gageTriggered.dare, baseUrl })
+        : buildPointEmail({ isEn, name: toUser.name, fromName: fromUser.name, catLabel, baseUrl });
+      c.executionCtx.waitUntil(sendEmail(c.env, toUser.email, mail.subject, mail.html));
     }
 
     return c.json({ success: true, gageTriggered, gageWarning });
@@ -865,6 +915,13 @@ app.post('/api/onboarding', async (c) => {
 
     await c.env.DB.batch(statements);
 
+    // Lien magique de bienvenue au fondateur (si email fourni)
+    if (email) {
+      const loginUrl = `${new URL(c.req.url).origin}/login/${userId}`;
+      const mail = buildWelcomeEmail({ isEn: userLocale === 'en', name: admin, teamName: company, loginUrl });
+      c.executionCtx.waitUntil(sendEmail(c.env, email, mail.subject, mail.html));
+    }
+
     return c.json({ success: true, token: userId });
   } catch (err: any) {
     console.error("Erreur onboarding:", err);
@@ -965,6 +1022,14 @@ app.post('/api/admin/users', requireAdmin, async (c) => {
   await c.env.DB.prepare(
     "INSERT INTO users (id, team_id, name, role, active, token, email) VALUES (?, ?, ?, 'member', 1, ?, ?)"
   ).bind(id, admin.team_id, name, id, cleanEmail).run();
+
+  // Lien magique envoyé au nouveau membre (si email fourni)
+  if (cleanEmail) {
+    const loginUrl = `${new URL(c.req.url).origin}/login/${id}`;
+    const mail = buildWelcomeEmail({ isEn: admin.locale === 'en', name, teamName: admin.team_name, loginUrl });
+    c.executionCtx.waitUntil(sendEmail(c.env, cleanEmail, mail.subject, mail.html));
+  }
+
   return c.json({ success: true });
 });
 
@@ -1398,14 +1463,22 @@ app.post('/api/superadmin/teams/:id/users', requireSuperadmin, async (c) => {
 
   // Vérifier que la team appartient à la société du superadmin
   const team = await c.env.DB.prepare(
-    "SELECT id FROM teams WHERE id = ? AND company_id = ?"
-  ).bind(teamId, sa.company_id).first();
+    "SELECT id, name FROM teams WHERE id = ? AND company_id = ?"
+  ).bind(teamId, sa.company_id).first<{ id: string; name: string }>();
   if (!team) return c.json({ error: "Équipe introuvable dans ta société" }, 404);
 
   const id = crypto.randomUUID();
   await c.env.DB.prepare(
     "INSERT INTO users (id, team_id, name, role, active, token, email) VALUES (?, ?, ?, ?, 1, ?, ?)"
   ).bind(id, teamId, name.trim(), userRole, id, cleanEmail).run();
+
+  // Lien magique envoyé au nouveau membre (si email fourni)
+  if (cleanEmail) {
+    const loginUrl = `${new URL(c.req.url).origin}/login/${id}`;
+    const mail = buildWelcomeEmail({ isEn: sa.locale === 'en', name: name.trim(), teamName: team.name, loginUrl });
+    c.executionCtx.waitUntil(sendEmail(c.env, cleanEmail, mail.subject, mail.html));
+  }
+
   return c.json({ success: true, id, token: id });
 });
 
