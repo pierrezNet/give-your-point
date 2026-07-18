@@ -171,6 +171,16 @@ interface AuthUser {
 
 const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
 
+// Canonicalisation de l'hôte : www.* → apex en 301, pour n'avoir qu'un seul domaine indexé.
+app.use('*', async (c, next) => {
+  const url = new URL(c.req.url);
+  if (url.hostname.startsWith('www.')) {
+    url.hostname = url.hostname.slice(4);
+    return c.redirect(url.toString(), 301);
+  }
+  return next();
+});
+
 interface DareRule {
   id: string;
   category_id: string;
@@ -764,6 +774,9 @@ const TRACKED_EVENTS = new Set(['landing_vue', 'onboarding_soumis', 'join_vue', 
 
 app.post('/api/track', async (c) => {
   try {
+    // Anti-spam léger : on ignore les requêtes cross-origin (les beacons du site sont same-origin).
+    const origin = c.req.header('Origin');
+    if (origin && origin !== new URL(c.req.url).origin) return c.json({ ok: true });
     const { event } = await c.req.json();
     if (typeof event === 'string' && TRACKED_EVENTS.has(event)) {
       await c.env.DB.prepare("INSERT INTO analytics_events (name) VALUES (?)").bind(event).run();
@@ -897,10 +910,15 @@ app.get('/api/join/:code', async (c) => {
 // Le visiteur muni du lien s'ajoute lui-même comme membre (invariant id == token).
 app.post('/api/join', async (c) => {
   try {
-    const { code, name } = await c.req.json();
+    const { code, name, turnstile_token } = await c.req.json();
     const cleanName = (name || '').trim();
     if (!cleanName || cleanName.length < 1 || cleanName.length > 40) {
       return c.json({ error: "Prénom requis (1 à 40 caractères)" }, 400);
+    }
+    // Anti-bot : le lien d'auto-inscription est public → on protège la création de compte.
+    const ip = c.req.header('CF-Connecting-IP') || undefined;
+    if (!(await verifyTurnstile(turnstile_token, c.env.TURNSTILE_SECRET_KEY, ip))) {
+      return c.json({ error: "Vérification anti-bot échouée. Réessaie." }, 403);
     }
     const team = await c.env.DB.prepare(`
       SELECT t.id FROM teams t JOIN companies c ON c.id = t.company_id

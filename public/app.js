@@ -972,10 +972,14 @@ async function renderLanding() {
 
 // Écran d'auto-inscription atteint via un lien d'invitation /join/<code>
 async function renderJoin(code) {
-    let info = null;
+    let info = null, cfg = {};
     try {
-        const res = await fetch(`/api/join/${encodeURIComponent(code)}`);
-        if (res.ok) info = await res.json();
+        const [infoRes, cfgRes] = await Promise.all([
+            fetch(`/api/join/${encodeURIComponent(code)}`),
+            fetch('/api/config'),
+        ]);
+        if (infoRes.ok) info = await infoRes.json();
+        if (cfgRes.ok) cfg = await cfgRes.json();
     } catch {}
     track('join_vue');
 
@@ -1020,6 +1024,7 @@ async function renderJoin(code) {
                         <input id="join-name" type="text" required minlength="1" maxlength="40"
                                placeholder="${t('join.name_placeholder')}"
                                class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
+                        <div class="cf-turnstile" data-sitekey="${cfg.turnstileSiteKey || ''}" data-size="flexible"></div>
                         <button type="submit" id="join-submit"
                                 class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition disabled:opacity-50">${t('join.submit')}</button>
                         <p id="join-error" class="text-red-600 text-xs text-center hidden"></p>
@@ -1030,6 +1035,14 @@ async function renderJoin(code) {
         </div>`;
     applyI18n();
 
+    if (cfg.turnstileSiteKey && !document.querySelector('script[src*="turnstile"]')) {
+        const s = document.createElement('script');
+        s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js';
+        s.async = true;
+        s.defer = true;
+        document.head.appendChild(s);
+    }
+
     document.getElementById('join-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const errEl = document.getElementById('join-error');
@@ -1038,13 +1051,20 @@ async function renderJoin(code) {
         const name = document.getElementById('join-name').value.trim();
         if (!name) return;
 
+        const ts = document.querySelector('[name="cf-turnstile-response"]')?.value || '';
+        if (!ts) {
+            errEl.textContent = t('onboarding.error_turnstile_pending');
+            errEl.classList.remove('hidden');
+            return;
+        }
+
         submitBtn.disabled = true;
         submitBtn.textContent = t('join.submit_loading');
         try {
             const res = await fetch('/api/join', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ code, name }),
+                body: JSON.stringify({ code, name, turnstile_token: ts }),
             });
             if (res.ok) {
                 const data = await res.json();
