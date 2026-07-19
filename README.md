@@ -10,7 +10,10 @@ L'app est **multi-tenant** : chaque société peut héberger plusieurs équipes 
 - ⚡ **Mises à jour temps réel** via Server-Sent Events
 - ⚖️ **Gages automatiques** quand un seuil est atteint sur une catégorie
 - 🏛️ **Hiérarchie** : `member` < `admin` < `superadmin` < `owner`
-- ✉️ **Notifications email** (Resend) + notifications push (WebPush)
+- 🔗 **Invitation** : lien d'auto-inscription par équipe + envoi du lien magique par email, avec **vérification d'e-mail** (unicité, « lien perdu »)
+- ✉️ **Notifications email** (Resend, uniquement aux adresses vérifiées) + notifications **push** (WebPush)
+- 📊 **Digest hebdomadaire** par email + **entonnoir d'acquisition** (console owner)
+- 👀 **Activité inter-équipes** (preuve sociale, agrégée) · 📱 **PWA installable**
 - 🌐 **i18n** FR + EN avec détection auto et bascule manuelle
 
 ## 🛠️ Stack technique
@@ -37,6 +40,7 @@ TURNSTILE_SITE_KEY=1x00000000000000000000AA
 TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
 RESEND_API_KEY=
 RESEND_FROM_EMAIL=notifications@example.com
+CRON_SECRET=
 EOF
 
 # 3. Créer la base locale + données d'exemple
@@ -55,7 +59,7 @@ Les valeurs `TURNSTILE_*` ci-dessus sont les clés de test publiques Cloudflare 
 Le `seed.sql` fourni initialise une société d'exemple et quelques utilisateurs. Pour te connecter, récupère un token magique en DB :
 
 ```bash
-npx wrangler d1 execute give-your-point --local --persist-to=./db_data \
+npx wrangler d1 execute give-your-point-eu --local --persist-to=./db_data \
   --command="SELECT name, token FROM users WHERE role IN ('admin','superadmin','owner');"
 ```
 
@@ -67,15 +71,20 @@ Tu peux aussi tester l'onboarding autonome : vide ton `localStorage` (ou ouvre u
 
 ```
 public/
-  index.html       # Interface principale + landing onboarding
-  admin.html       # Console admin d'équipe (users, badges, gages)
+  index.html       # Interface principale + landing onboarding (+ bloc SEO statique)
+  about.html       # Page À propos publique (présentation, rôles, RGPD)
+  admin.html       # Console admin d'équipe (users, badges, gages, invitations)
   superadmin.html  # Console superadmin (équipes, admins)
-  owner.html       # Console owner (vue globale des sociétés)
+  owner.html       # Console owner (vue globale des sociétés + entonnoir)
   stats.html       # Tableaux de bord
   i18n.js          # Dictionnaire FR/EN + helpers t(), setLang()
-  app.js           # Logique frontend (auth, points, UI, push)
+  app.js           # Logique frontend (auth, points, UI, push, invitation, lien perdu)
+  sw.js            # Service worker (push + PWA)
+  manifest.json    # PWA installable (+ icon.svg, icon-192.png, icon-512.png)
+  robots.txt, sitemap.xml   # SEO
 functions/
   [[path]].ts      # Routes API (Hono)
+migrations/        # Migrations SQL versionnées (non suivies par git, jouées via Wrangler)
 schema.sql         # Schéma de référence
 init_db.sql        # Idem (utilisé par db:init)
 seed.sql           # Données initiales locales
@@ -87,12 +96,13 @@ wrangler.toml      # Config Cloudflare D1
 
 | Table | Rôle |
 |---|---|
-| `companies`, `teams` | Hiérarchie société → équipe |
-| `users` | Membres, avec `role` et `locale` |
+| `companies`, `teams` | Hiérarchie société → équipe (`teams.invite_code` = lien d'auto-inscription) |
+| `users` | Membres (`role`, `locale`, `email` **unique**, `email_verified`) |
 | `categories` | Badges, scope équipe |
 | `dare_rules`, `dare_log` | Règles et historique des gages |
 | `points_log` | Tous les points distribués |
 | `push_subscriptions` | Abonnements WebPush |
+| `analytics_events` | Entonnoir d'acquisition (mesure cookieless) |
 
 ## 📜 Scripts npm
 
@@ -106,14 +116,15 @@ npm run db:pull  # Synchronise la prod vers le local
 
 ## 🌍 Déploiement
 
-L'app tourne sur Cloudflare Pages en mode *Direct Upload* (pas d'intégration GitHub).
+Cloudflare Pages est **connecté au dépôt GitHub** : tout `git push` sur `main` déclenche un build + déploiement automatique en production (`give-your-point.pages.dev`, `compteur.pierrez.net`, `donnetonpoint.fr` — le domaine principal).
 
 ```bash
-npx wrangler login
-npm run deploy
+# Si une migration DB est nécessaire, l'appliquer AVANT le push (sinon le code peut planter) :
+npm run db:migrate:<nom>
+git push
 ```
 
-Les variables d'environnement de production se configurent dans le dashboard Cloudflare Pages > Settings > Environment variables.
+`npm run deploy` (`build` + `wrangler pages deploy`) reste possible pour un déploiement manuel hors GitHub. Les variables de prod se configurent dans le dashboard Cloudflare Pages > Settings > Environment variables (VAPID, Turnstile, Resend, **`CRON_SECRET`** pour le digest).
 
 ## 📄 Licence
 
