@@ -164,6 +164,12 @@ const translations = {
     'admin.reveal_confirm': "Ce membre reçoit son lien par e-mail. Copier quand même le lien magique (dépannage) ?",
     'admin.add_user_error': "Impossible d'ajouter ce membre.",
     'admin.add_user_email_sent': "Membre ajouté — un lien d'accès lui a été envoyé par e-mail ✉️",
+    'admin.spammer_flag': '🚨 SPAMMEUR',
+    'admin.spammer_pardon': 'Il a régalé ☕',
+    'admin.spammer_pardon_confirm': "{name} a bien régalé l'équipe ? Le gage spammeur sera levé (il repart d'une page blanche).",
+    'admin.spammer_pardon_ok': 'Amende honorable enregistrée ✓ — il retrouve une virginité.',
+    'admin.spammer_pardon_error': "Échec de l'opération.",
+    'admin.dare_log_delete_confirm': "Supprimer cette entrée de l'historique ?",
 
     // Récupération de lien (« lien perdu »)
     'recover.link': 'Perdu ton lien ? Reçois-le par e-mail',
@@ -560,6 +566,12 @@ const translations = {
     'admin.reveal_confirm': 'This member receives their link by email. Copy the magic link anyway (troubleshooting)?',
     'admin.add_user_error': "Couldn't add this member.",
     'admin.add_user_email_sent': 'Member added — an access link was emailed to them ✉️',
+    'admin.spammer_flag': '🚨 SPAMMER',
+    'admin.spammer_pardon': 'They treated us ☕',
+    'admin.spammer_pardon_confirm': 'Did {name} treat the team? The spammer dare will be lifted (clean slate).',
+    'admin.spammer_pardon_ok': 'Amends recorded ✓ — clean slate.',
+    'admin.spammer_pardon_error': 'Operation failed.',
+    'admin.dare_log_delete_confirm': 'Delete this history entry?',
 
     // Link recovery ("lost link")
     'recover.link': 'Lost your link? Get it by email',

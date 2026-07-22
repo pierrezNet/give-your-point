@@ -355,26 +355,50 @@ const SPAM_RATIO = 3;          // donner >= 3× ce que l'on reçoit (buffer incl
 const SPAM_RATIO_BUFFER = 3;   // amortit les petits volumes / division par zéro
 const SPAM_TEAM_MULT = 2;      // donner >= 2× la moyenne de l'équipe
 
+// Calcule qui est "spammeur" (7 j glissants). Exclut ceux ayant fait amende honorable :
+// une entrée dare_log SANS catégorie = "spammeur régalé", valable 7 jours (il retrouve une virginité).
+async function computeSpammers(db: D1Database, teamId: string): Promise<Map<string, { flagged: boolean; name: string; given: number; received: number }>> {
+  const [givenRes, receivedRes, usersRes, pardonRes] = await Promise.all([
+    db.prepare("SELECT from_user_id AS uid, COUNT(*) as n FROM points_log WHERE team_id = ? AND created_at >= datetime('now','-7 days') GROUP BY from_user_id").bind(teamId).all<{ uid: string; n: number }>(),
+    db.prepare("SELECT to_user_id AS uid, COUNT(*) as n FROM points_log WHERE team_id = ? AND created_at >= datetime('now','-7 days') GROUP BY to_user_id").bind(teamId).all<{ uid: string; n: number }>(),
+    db.prepare("SELECT id, name FROM users WHERE active = 1 AND team_id = ?").bind(teamId).all<{ id: string; name: string }>(),
+    db.prepare("SELECT DISTINCT user_id FROM dare_log WHERE team_id = ? AND category_id IS NULL AND cleared_at >= datetime('now','-7 days')").bind(teamId).all<{ user_id: string }>(),
+  ]);
+
+  const given = new Map((givenRes.results || []).map(r => [r.uid, r.n]));
+  const received = new Map((receivedRes.results || []).map(r => [r.uid, r.n]));
+  const pardoned = new Set((pardonRes.results || []).map(r => r.user_id));
+  const users = usersRes.results || [];
+  const totalGiven = (givenRes.results || []).reduce((s, r) => s + r.n, 0);
+  const avgGiven = users.length ? totalGiven / users.length : 0;
+
+  const flags = new Map<string, { flagged: boolean; name: string; given: number; received: number }>();
+  for (const u of users) {
+    const G = given.get(u.id) || 0;
+    const R = received.get(u.id) || 0;
+    const flagged =
+      !pardoned.has(u.id) &&
+      G >= SPAM_MIN_GIVEN &&
+      G / (R + SPAM_RATIO_BUFFER) >= SPAM_RATIO &&
+      G >= SPAM_TEAM_MULT * avgGiven;
+    flags.set(u.id, { flagged, name: u.name, given: G, received: R });
+  }
+  return flags;
+}
+
 async function getUsersStats(db: D1Database, teamId: string) {
-  const [catRes, statsRes, rulesRes, usersRes, givenRes, receivedRes] = await Promise.all([
+  const [catRes, statsRes, rulesRes, usersRes, spamFlags] = await Promise.all([
     db.prepare("SELECT id, name, emoji FROM categories WHERE team_id = ?").bind(teamId).all(),
     db.prepare("SELECT to_user_id, category_id, COUNT(*) as total FROM points_log WHERE team_id = ? GROUP BY to_user_id, category_id").bind(teamId).all<PointStat>(),
     db.prepare("SELECT * FROM dare_rules WHERE team_id = ?").bind(teamId).all<DareRule>(),
     db.prepare("SELECT id, name FROM users WHERE active = 1 AND team_id = ?").bind(teamId).all(),
-    db.prepare("SELECT from_user_id AS uid, COUNT(*) as n FROM points_log WHERE team_id = ? AND created_at >= datetime('now','-7 days') GROUP BY from_user_id").bind(teamId).all<{ uid: string; n: number }>(),
-    db.prepare("SELECT to_user_id AS uid, COUNT(*) as n FROM points_log WHERE team_id = ? AND created_at >= datetime('now','-7 days') GROUP BY to_user_id").bind(teamId).all<{ uid: string; n: number }>(),
+    computeSpammers(db, teamId),
   ]);
 
   const catMap = new Map((catRes.results || []).map((cat: any) => [cat.id, cat]));
   const stats = statsRes.results || [];
   const rules = rulesRes.results || [];
   const users = usersRes.results || [];
-
-  // Donné / reçu sur 7 j + moyenne de l'équipe (pour le gage "spammeur").
-  const given7d = new Map((givenRes.results || []).map(r => [r.uid, r.n]));
-  const received7d = new Map((receivedRes.results || []).map(r => [r.uid, r.n]));
-  const totalGiven7d = (givenRes.results || []).reduce((s, r) => s + r.n, 0);
-  const avgGiven = users.length ? totalGiven7d / users.length : 0;
 
   const data = users.map((user: any) => {
     const userPoints = stats.filter(p => p.to_user_id === user.id);
@@ -394,15 +418,7 @@ async function getUsersStats(db: D1Database, teamId: string) {
       if (score && score.total >= rule.threshold) { activeDare = rule.dare_text; break; }
     }
 
-    // Spammeur : donne beaucoup (volume), bien plus qu'il ne reçoit (déséquilibre)
-    // ET bien plus que la moyenne (écart à l'équipe). Auto-nettoyant (recalculé à chaque appel).
-    const G = given7d.get(user.id) || 0;
-    const R = received7d.get(user.id) || 0;
-    const spammer =
-      G >= SPAM_MIN_GIVEN &&
-      G / (R + SPAM_RATIO_BUFFER) >= SPAM_RATIO &&
-      G >= SPAM_TEAM_MULT * avgGiven;
-
+    const spammer = spamFlags.get(user.id)?.flagged || false;
     return { ...user, total_points, topCategories, gage: activeDare, spammer };
   });
 
@@ -1288,6 +1304,29 @@ app.patch('/api/admin/categories/:id/restore', requireAdmin, async (c) => {
   return c.json({ success: true });
 });
 
+// Spammeurs actifs de l'équipe (gage automatique non encore "régalé").
+app.get('/api/admin/spammers', requireAdmin, async (c) => {
+  const admin = c.get('user');
+  const flags = await computeSpammers(c.env.DB, admin.team_id);
+  const spammers = [...flags.entries()]
+    .filter(([, f]) => f.flagged)
+    .map(([userId, f]) => ({ userId, name: f.name, given: f.given, received: f.received }));
+  return c.json(spammers);
+});
+
+// "Amende honorable" : le spammeur a régalé l'équipe → on logue (historique) et on le blanchit 7 j.
+app.post('/api/admin/users/:id/pardon-spammer', requireAdmin, async (c) => {
+  const admin = c.get('user');
+  const id = c.req.param('id');
+  const target = await c.env.DB.prepare("SELECT id FROM users WHERE id = ? AND team_id = ?").bind(id, admin.team_id).first();
+  if (!target) return c.json({ error: "Membre introuvable dans ton équipe." }, 404);
+  // Entrée dare_log SANS catégorie = marqueur "spammeur régalé" (suspend le flag 7 j + trace l'historique).
+  await c.env.DB.prepare(
+    "INSERT INTO dare_log (team_id, user_id, category_id, dare_text) VALUES (?, ?, NULL, ?)"
+  ).bind(admin.team_id, id, "🚨 Spammeur — a régalé l'équipe ☕").run();
+  return c.json({ success: true });
+});
+
 app.get('/api/admin/dares', requireAdmin, async (c) => {
   const admin = c.get('user');
   const teamId = admin.team_id;
@@ -1504,16 +1543,28 @@ app.post('/api/admin/clear-category/:userId/:categoryId', requireAdmin, async (c
 
 app.get('/api/admin/dare-log', requireAdmin, async (c) => {
   const admin = c.get('user');
+  // LEFT JOIN : les entrées "spammeur régalé" n'ont pas de catégorie (category_id NULL).
   const { results } = await c.env.DB.prepare(`
     SELECT dl.*, u.name as user_name, c.name as cat_name, c.emoji
     FROM dare_log dl
     JOIN users u ON dl.user_id = u.id
-    JOIN categories c ON dl.category_id = c.id
+    LEFT JOIN categories c ON dl.category_id = c.id
     WHERE dl.team_id = ?
     ORDER BY dl.cleared_at DESC
     LIMIT 50
   `).bind(admin.team_id).all();
   return c.json(results);
+});
+
+// CRUD : supprimer une entrée d'historique de gage acquitté (annuler un acquittement).
+app.delete('/api/admin/dare-log/:id', requireAdmin, async (c) => {
+  const admin = c.get('user');
+  const id = c.req.param('id');
+  const result = await c.env.DB.prepare(
+    "DELETE FROM dare_log WHERE id = ? AND team_id = ?"
+  ).bind(id, admin.team_id).run();
+  if (result.meta.changes === 0) return c.json({ error: "Entrée introuvable." }, 404);
+  return c.json({ success: true });
 });
 
 // === Routes superadmin (scope = société du superadmin) ===

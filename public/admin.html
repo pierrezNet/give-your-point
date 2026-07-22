@@ -199,15 +199,17 @@
 
         async function loadAdminUsers() {
             try {
-                const [resUsers, resDares, resCats] = await Promise.all([
+                const [resUsers, resDares, resCats, resSpam] = await Promise.all([
                     adminFetch('/api/admin/users'),
                     adminFetch('/api/admin/dares'),
-                    adminFetch('/api/categories')
+                    adminFetch('/api/categories'),
+                    adminFetch('/api/admin/spammers')
                 ]);
 
                 const users = await resUsers.json();
                 const dares = await resDares.json();
                 const categories = await resCats.json();
+                const spammers = (resSpam && resSpam.ok) ? await resSpam.json() : [];
 
                 const list = document.getElementById('admin-users-list');
                 if (!list) return;
@@ -215,6 +217,7 @@
                 list.innerHTML = users.map(u => {
                     const isActive = u.active === 1;
                     const activeDares = dares.filter(d => d.userId === u.id);
+                    const isSpammer = isActive && spammers.some(s => s.userId === u.id);
 
                     return `
                         <tr class="border-b border-slate-100 ${!isActive ? 'bg-slate-50 opacity-60' : 'hover:bg-slate-50/50'} transition-colors">
@@ -223,6 +226,10 @@
                                     ${u.name} ${!isActive ? t('admin.user_deactivated') : ''}
                                 </div>
                                 ${activeDares.map(d => `<div class="text-[9px] text-orange-600 font-black uppercase">${t('admin.has_gage')}</div>`).join('')}
+                                ${isSpammer ? `<div class="flex items-center gap-2 mt-1">
+                                    <span class="text-[9px] text-purple-600 font-black uppercase">${t('admin.spammer_flag')}</span>
+                                    <button onclick="pardonSpammer('${u.id}', '${encodeURIComponent(u.name)}')" class="text-[9px] font-black uppercase text-emerald-600 hover:underline">${t('admin.spammer_pardon')}</button>
+                                </div>` : ''}
                             </td>
 
                             <td class="p-4 text-xs hidden sm:table-cell">
@@ -592,18 +599,40 @@
                 return;
             }
 
-            container.innerHTML = logs.map(log => `
-                <div class="flex items-center justify-between p-3 bg-orange-50 rounded-xl border border-orange-100">
-                    <div class="flex items-center gap-3 text-sm">
-                        <span class="text-lg">${log.emoji}</span>
-                        <span class="text-slate-600">
+            container.innerHTML = logs.map(log => {
+                const isSpam = !log.category_id; // entrée "spammeur régalé" (sans catégorie)
+                return `
+                <div class="flex items-center justify-between p-3 ${isSpam ? 'bg-purple-50 border-purple-100' : 'bg-orange-50 border-orange-100'} rounded-xl border">
+                    <div class="flex items-center gap-3 text-sm min-w-0">
+                        <span class="text-lg shrink-0">${log.emoji || '🚨'}</span>
+                        <span class="text-slate-600 min-w-0">
                             <b class="text-slate-800">${log.user_name}</b>
-                            ${t('admin.dare_log_did')} <span class="text-orange-600 font-bold">${log.dare_text}</span>
+                            ${t('admin.dare_log_did')} <span class="${isSpam ? 'text-purple-600' : 'text-orange-600'} font-bold">${log.dare_text}</span>
                         </span>
                     </div>
-                    <span class="text-[10px] font-bold text-slate-400 shrink-0 ml-4">${formatSmartDate(log.cleared_at)}</span>
-                </div>
-            `).join('');
+                    <div class="flex items-center gap-3 shrink-0 ml-4">
+                        <span class="text-[10px] font-bold text-slate-400">${formatSmartDate(log.cleared_at)}</span>
+                        <button onclick="deleteDareLog('${log.id}')" title="${t('common.delete')}" class="text-slate-300 hover:text-red-500 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        async function pardonSpammer(id, encName) {
+            const name = decodeURIComponent(encName || '');
+            if (!confirm(t('admin.spammer_pardon_confirm', { name }))) return;
+            const res = await adminFetch(`/api/admin/users/${id}/pardon-spammer`, { method: 'POST' });
+            if (res && res.ok) { alert(t('admin.spammer_pardon_ok')); loadAdminUsers(); loadDareLog(); }
+            else { alert(t('admin.spammer_pardon_error')); }
+        }
+
+        async function deleteDareLog(id) {
+            if (!confirm(t('admin.dare_log_delete_confirm'))) return;
+            const res = await adminFetch(`/api/admin/dare-log/${id}`, { method: 'DELETE' });
+            if (res && res.ok) loadDareLog();
+            else alert(t('common.access_denied'));
         }
 
         async function loadGlobalLog() {
