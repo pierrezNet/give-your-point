@@ -27,6 +27,8 @@
     "db:migrate:invite:local": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=migrations/2026-11-invite.sql",
     "db:migrate:email-verify": "wrangler d1 execute give-your-point-eu --remote --file=migrations/2026-12-email-verify.sql",
     "db:migrate:email-verify:local": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=migrations/2026-12-email-verify.sql",
+    "db:migrate:point-reason": "wrangler d1 execute give-your-point-eu --remote --file=migrations/2026-13-point-reason.sql",
+    "db:migrate:point-reason:local": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=migrations/2026-13-point-reason.sql",
     "generate:vapid": "node generate-vapid.mjs",
     "deploy": "npm run build && wrangler pages deploy public",
     "build": "npx @tailwindcss/cli -i public/input.css -o public/styles.css --minify"

@@ -349,18 +349,32 @@ const requireOwner = async (c: any, next: any) => {
   await next();
 };
 
+// Gage "spammeur" (automatique, calculé sur 7 jours glissants). Seuils réglables.
+const SPAM_MIN_GIVEN = 15;     // volume plancher : avoir donné au moins tant de points
+const SPAM_RATIO = 3;          // donner >= 3× ce que l'on reçoit (buffer inclus)
+const SPAM_RATIO_BUFFER = 3;   // amortit les petits volumes / division par zéro
+const SPAM_TEAM_MULT = 2;      // donner >= 2× la moyenne de l'équipe
+
 async function getUsersStats(db: D1Database, teamId: string) {
-  const [catRes, statsRes, rulesRes, usersRes] = await Promise.all([
+  const [catRes, statsRes, rulesRes, usersRes, givenRes, receivedRes] = await Promise.all([
     db.prepare("SELECT id, name, emoji FROM categories WHERE team_id = ?").bind(teamId).all(),
     db.prepare("SELECT to_user_id, category_id, COUNT(*) as total FROM points_log WHERE team_id = ? GROUP BY to_user_id, category_id").bind(teamId).all<PointStat>(),
     db.prepare("SELECT * FROM dare_rules WHERE team_id = ?").bind(teamId).all<DareRule>(),
-    db.prepare("SELECT id, name FROM users WHERE active = 1 AND team_id = ?").bind(teamId).all()
+    db.prepare("SELECT id, name FROM users WHERE active = 1 AND team_id = ?").bind(teamId).all(),
+    db.prepare("SELECT from_user_id AS uid, COUNT(*) as n FROM points_log WHERE team_id = ? AND created_at >= datetime('now','-7 days') GROUP BY from_user_id").bind(teamId).all<{ uid: string; n: number }>(),
+    db.prepare("SELECT to_user_id AS uid, COUNT(*) as n FROM points_log WHERE team_id = ? AND created_at >= datetime('now','-7 days') GROUP BY to_user_id").bind(teamId).all<{ uid: string; n: number }>(),
   ]);
 
   const catMap = new Map((catRes.results || []).map((cat: any) => [cat.id, cat]));
   const stats = statsRes.results || [];
   const rules = rulesRes.results || [];
   const users = usersRes.results || [];
+
+  // Donné / reçu sur 7 j + moyenne de l'équipe (pour le gage "spammeur").
+  const given7d = new Map((givenRes.results || []).map(r => [r.uid, r.n]));
+  const received7d = new Map((receivedRes.results || []).map(r => [r.uid, r.n]));
+  const totalGiven7d = (givenRes.results || []).reduce((s, r) => s + r.n, 0);
+  const avgGiven = users.length ? totalGiven7d / users.length : 0;
 
   const data = users.map((user: any) => {
     const userPoints = stats.filter(p => p.to_user_id === user.id);
@@ -380,7 +394,16 @@ async function getUsersStats(db: D1Database, teamId: string) {
       if (score && score.total >= rule.threshold) { activeDare = rule.dare_text; break; }
     }
 
-    return { ...user, total_points, topCategories, gage: activeDare };
+    // Spammeur : donne beaucoup (volume), bien plus qu'il ne reçoit (déséquilibre)
+    // ET bien plus que la moyenne (écart à l'équipe). Auto-nettoyant (recalculé à chaque appel).
+    const G = given7d.get(user.id) || 0;
+    const R = received7d.get(user.id) || 0;
+    const spammer =
+      G >= SPAM_MIN_GIVEN &&
+      G / (R + SPAM_RATIO_BUFFER) >= SPAM_RATIO &&
+      G >= SPAM_TEAM_MULT * avgGiven;
+
+    return { ...user, total_points, topCategories, gage: activeDare, spammer };
   });
 
   return data.sort((a: any, b: any) => b.total_points - a.total_points)
@@ -598,6 +621,7 @@ app.post('/api/points', requireUser, async (c) => {
   try {
     const body = await c.req.json();
     const { to_user_id, category_id } = body;
+    const reason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 140) || null : null;
     const fromUser = c.get('user');
 
     if (fromUser.id === to_user_id) {
@@ -642,10 +666,19 @@ app.post('/api/points', requireUser, async (c) => {
       return c.json({ error: "Tu as distribué tes 10 points du jour ! Reviens demain 🌙" }, 429);
     }
 
+    // Plafond anti-concentration : max 3 points au même collègue par jour.
+    const pairToday = await c.env.DB.prepare(
+      "SELECT COUNT(*) as count FROM points_log WHERE from_user_id = ? AND to_user_id = ? AND created_at >= date('now')"
+    ).bind(fromUser.id, to_user_id).first<{ count: number }>();
+
+    if ((pairToday?.count ?? 0) >= 3) {
+      return c.json({ error: `Tu as déjà bien félicité ${toUser.name} aujourd'hui (3 max) 😄` }, 429);
+    }
+
     await c.env.DB.prepare(
-      'INSERT INTO points_log (team_id, from_user_id, to_user_id, category_id, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)'
+      'INSERT INTO points_log (team_id, from_user_id, to_user_id, category_id, reason, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)'
     )
-    .bind(fromUser.team_id, fromUser.id, to_user_id, category_id)
+    .bind(fromUser.team_id, fromUser.id, to_user_id, category_id, reason)
     .run();
 
     // Vérifier si un gage vient d'être déclenché ou est à 1 point

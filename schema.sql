@@ -63,6 +63,7 @@ CREATE TABLE points_log (
     from_user_id TEXT,
     to_user_id TEXT,
     category_id TEXT,
+    reason TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

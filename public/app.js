@@ -230,7 +230,7 @@ function renderUsers(users) {
             </div>
             <h3 class="font-bold text-gray-800 text-lg">${user.name} ${isMe ? t('index.you_label') : ''}</h3>
             <p class="user-points-total text-blue-600 font-black text-sm mb-3"></p>
-            <div class="top-categories-container flex gap-2 mt-2"></div>
+            <div class="top-categories-container flex flex-wrap justify-center gap-2 mt-2 w-full"></div>
         `;
 
         if (isMe) {
@@ -260,10 +260,10 @@ function renderUsers(users) {
                 e.preventDefault();
                 div.classList.remove('border-blue-400', 'bg-blue-50');
                 const catId = e.dataTransfer.getData('text/plain');
-                if (catId) addPoint(user.id, div, catId);
+                if (catId) giveWithReason(user.id, div, catId, user.name);
             };
             div.onclick = () => {
-                if (selectedCategoryId) addPoint(user.id, div, selectedCategoryId);
+                if (selectedCategoryId) giveWithReason(user.id, div, selectedCategoryId, user.name);
             };
         }
 
@@ -373,6 +373,20 @@ function updateCardUI(card, user) {
         card.classList.remove('gage-active', 'border-orange-500');
         if (banner) banner.remove();
     }
+
+    // Gage automatique "spammeur" (calculé côté serveur sur 7 j, auto-nettoyant)
+    const spamBanner = card.querySelector('.spammer-banner');
+    if (user.spammer) {
+        card.classList.add('gage-active', 'border-orange-500');
+        if (!spamBanner) {
+            const s = document.createElement('div');
+            s.className = 'spammer-banner absolute -bottom-3 left-1/2 -translate-x-1/2 bg-purple-600 text-white px-3 py-1 rounded-full text-[10px] font-black shadow-lg z-10 whitespace-nowrap';
+            s.innerText = t('index.spammer_label');
+            card.appendChild(s);
+        }
+    } else if (spamBanner) {
+        spamBanner.remove();
+    }
 }
 
 function selectCategory(el, id) {
@@ -423,7 +437,7 @@ async function openUserSelector(catId, emoji) {
             
             <div class="grid grid-cols-3 gap-4 mb-6">
                 ${otherUsers.map(u => `
-                    <button onclick="sendPointAndClose('${u.id}', '${catId}')" 
+                    <button onclick="sendPointAndClose('${u.id}', '${catId}', '${encodeURIComponent(u.name)}')"
                             class="flex flex-col items-center gap-2 group">
                         <div class="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 font-bold text-xl group-active:bg-blue-600 group-active:text-white transition-all shadow-sm">
                             ${u.name[0].toUpperCase()}
@@ -444,7 +458,7 @@ async function openUserSelector(catId, emoji) {
 }
 
 // Fonction de pont pour envoyer et fermer
-window.sendPointAndClose = async (userId, catId) => {
+window.sendPointAndClose = async (userId, catId, encodedName) => {
     const selector = document.getElementById('wheel-selector');
     const modalContent = selector.querySelector('.bg-white'); // La boîte blanche
 
@@ -455,9 +469,9 @@ window.sendPointAndClose = async (userId, catId) => {
     selector.remove();
     isModalOpen = false;
 
-    requestAnimationFrame(async () => {
+    requestAnimationFrame(() => {
         const cardMock = document.createElement('div');
-        await addPoint(userId, cardMock, catId);
+        giveWithReason(userId, cardMock, catId, decodeURIComponent(encodedName || ''));
     });
 };
 
@@ -465,12 +479,46 @@ function clearSelection() {
     document.querySelectorAll('.category-card').forEach(c => c.classList.remove('ring-4', 'ring-blue-500', 'category-active'));
 }
 
-async function addPoint(userId, cardEl, catId) {
+// Petite modale optionnelle « pourquoi ? » avant d'envoyer le point (lien avec le réel).
+function giveWithReason(userId, cardEl, catId, userName) {
+    if (document.getElementById('reason-modal')) return;
+    isModalOpen = true;
+    const name = escapeHtml(userName || '');
+    document.body.insertAdjacentHTML('beforeend', `
+        <div id="reason-modal" class="fixed inset-0 bg-slate-900/85 z-[300] flex items-center justify-center p-4"
+             onclick="if(event.target===this){this.remove();isModalOpen=false;}">
+            <div class="bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl animate-pop text-center">
+                <div class="text-4xl mb-2">🎯</div>
+                <h2 class="text-lg font-black text-slate-800 mb-1">${t('reason.title', { name })}</h2>
+                <p class="text-xs text-slate-500 mb-4">${t('reason.hint')}</p>
+                <form id="reason-form" class="space-y-3">
+                    <input id="reason-input" type="text" maxlength="140" autocomplete="off"
+                           placeholder="${t('reason.placeholder')}"
+                           class="w-full p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 text-left" />
+                    <div class="flex gap-2">
+                        <button type="button" onclick="document.getElementById('reason-modal').remove();isModalOpen=false;" class="flex-1 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-50">${t('common.cancel')}</button>
+                        <button type="submit" class="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700">${t('reason.submit')}</button>
+                    </div>
+                </form>
+            </div>
+        </div>`);
+    const input = document.getElementById('reason-input');
+    if (input) input.focus();
+    document.getElementById('reason-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const reason = input.value.trim();
+        document.getElementById('reason-modal').remove();
+        isModalOpen = false;
+        addPoint(userId, cardEl, catId, reason);
+    });
+}
+
+async function addPoint(userId, cardEl, catId, reason) {
     try {
         const res = await authFetch('/api/points', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ to_user_id: String(userId), category_id: String(catId) })
+            body: JSON.stringify({ to_user_id: String(userId), category_id: String(catId), reason: reason || null })
         });
 
         if (res.ok) {
@@ -618,9 +666,12 @@ async function showHistory(event, userId, userName) {
                     </h3>
                     <div class="space-y-3 mb-8">
                         ${data.received.length > 0 ? data.received.map(p => `
-                            <div class="flex items-center justify-between text-sm bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                <span class="text-slate-700">${p.emoji} <b>${p.cat_name}</b> <span class="text-slate-400 text-xs">${t('history.received_from')}</span> ${p.from_name}</span>
-                                <span class="text-[10px] font-bold text-slate-400 bg-white px-2 py-1 rounded-md shadow-sm">${formatSmartDate(p.created_at)}</span>
+                            <div class="flex items-start justify-between gap-2 text-sm bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <div class="min-w-0">
+                                    <span class="text-slate-700">${p.emoji} <b>${p.cat_name}</b> <span class="text-slate-400 text-xs">${t('history.received_from')}</span> ${p.from_name}</span>
+                                    ${p.reason ? `<div class="text-xs italic text-slate-500 mt-1">« ${escapeHtml(p.reason)} »</div>` : ''}
+                                </div>
+                                <span class="text-[10px] font-bold text-slate-400 bg-white px-2 py-1 rounded-md shadow-sm shrink-0">${formatSmartDate(p.created_at)}</span>
                             </div>
                         `).join('') : `<p class="text-xs italic text-slate-400 py-2 text-center">${t('history.empty_received')}</p>`}
                     </div>
@@ -630,9 +681,12 @@ async function showHistory(event, userId, userName) {
                     </h3>
                     <div class="space-y-3">
                         ${data.given.length > 0 ? data.given.map(p => `
-                            <div class="flex items-center justify-between text-sm bg-emerald-50/30 p-3 rounded-xl border border-emerald-100">
-                                <span class="text-slate-700">${t('history.gave')} ${p.emoji} <b>${p.cat_name}</b> <span class="text-slate-400 text-xs">${t('history.given_to')}</span> ${p.to_name}</span>
-                                <span class="text-[10px] font-bold text-emerald-600/50 bg-white px-2 py-1 rounded-md shadow-sm">${formatSmartDate(p.created_at)}</span>
+                            <div class="flex items-start justify-between gap-2 text-sm bg-emerald-50/30 p-3 rounded-xl border border-emerald-100">
+                                <div class="min-w-0">
+                                    <span class="text-slate-700">${t('history.gave')} ${p.emoji} <b>${p.cat_name}</b> <span class="text-slate-400 text-xs">${t('history.given_to')}</span> ${p.to_name}</span>
+                                    ${p.reason ? `<div class="text-xs italic text-slate-500 mt-1">« ${escapeHtml(p.reason)} »</div>` : ''}
+                                </div>
+                                <span class="text-[10px] font-bold text-emerald-600/50 bg-white px-2 py-1 rounded-md shadow-sm shrink-0">${formatSmartDate(p.created_at)}</span>
                             </div>
                         `).join('') : `<p class="text-xs italic text-slate-400 py-2 text-center">${t('history.empty_given')}</p>`}
                     </div>

@@ -45,6 +45,11 @@ const translations = {
     'index.no_badge': 'Aucun badge',
     'index.pts_short': 'pts',
     'index.gage_label': '🚨 GAGE : {dare}',
+    'index.spammer_label': "🚨 SPAMMEUR · régale l'équipe ☕",
+    'reason.title': 'Point pour {name}',
+    'reason.hint': "Ajoute une raison (optionnel) — ça rend le point plus fort.",
+    'reason.placeholder': 'Pourquoi ? (ex : coup de main sur le déploiement)',
+    'reason.submit': 'Donner le point',
 
     // Auth restreint / session invalide
     'auth.restricted_title': 'Accès restreint 🔒',
@@ -441,6 +446,11 @@ const translations = {
     'index.no_badge': 'No badge',
     'index.pts_short': 'pts',
     'index.gage_label': '🚨 DARE: {dare}',
+    'index.spammer_label': '🚨 SPAMMER · treat the team ☕',
+    'reason.title': 'Point for {name}',
+    'reason.hint': 'Add a reason (optional) — it makes the point count more.',
+    'reason.placeholder': 'Why? (e.g. helped me with the deploy)',
+    'reason.submit': 'Give the point',
 
     'auth.restricted_title': 'Restricted access 🔒',
     'auth.restricted_msg': 'Use your magic link to log in.',
