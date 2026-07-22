@@ -1327,6 +1327,27 @@ app.post('/api/admin/users/:id/pardon-spammer', requireAdmin, async (c) => {
   return c.json({ success: true });
 });
 
+// Régénère le lien magique d'un membre : rotation de token (nouvel UUID) + cascade sur ses données.
+// L'ancien lien devient invalide (utile si un lien a fuité / a été partagé à la mauvaise personne).
+app.post('/api/admin/users/:id/regenerate-link', requireAdmin, async (c) => {
+  const admin = c.get('user');
+  const oldId = c.req.param('id');
+  const target = await c.env.DB.prepare("SELECT id FROM users WHERE id = ? AND team_id = ?").bind(oldId, admin.team_id).first();
+  if (!target) return c.json({ error: "Membre introuvable dans ton équipe." }, 404);
+
+  const newId = crypto.randomUUID();
+  // Invariant id == token → on cascade le changement d'id sur toutes les références. D1 batch = transactionnel.
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE points_log SET from_user_id = ? WHERE from_user_id = ? AND team_id = ?").bind(newId, oldId, admin.team_id),
+    c.env.DB.prepare("UPDATE points_log SET to_user_id = ? WHERE to_user_id = ? AND team_id = ?").bind(newId, oldId, admin.team_id),
+    c.env.DB.prepare("UPDATE dare_log SET user_id = ? WHERE user_id = ? AND team_id = ?").bind(newId, oldId, admin.team_id),
+    c.env.DB.prepare("UPDATE push_subscriptions SET user_id = ? WHERE user_id = ?").bind(newId, oldId),
+    c.env.DB.prepare("UPDATE users SET id = ?, token = ? WHERE id = ?").bind(newId, newId, oldId),
+  ]);
+
+  return c.json({ success: true, token: newId });
+});
+
 app.get('/api/admin/dares', requireAdmin, async (c) => {
   const admin = c.get('user');
   const teamId = admin.team_id;

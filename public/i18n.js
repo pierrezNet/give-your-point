@@ -170,6 +170,10 @@ const translations = {
     'admin.spammer_pardon_ok': 'Amende honorable enregistrée ✓ — il retrouve une virginité.',
     'admin.spammer_pardon_error': "Échec de l'opération.",
     'admin.dare_log_delete_confirm': "Supprimer cette entrée de l'historique ?",
+    'admin.regen_title': "Régénérer le lien (invalide l'ancien)",
+    'admin.regen_confirm': "Régénérer le lien de {name} ? L'ancien lien deviendra INVALIDE — la personne devra utiliser le nouveau.",
+    'admin.regen_ok': "Nouveau lien généré (copié dans le presse-papier) :\n{url}\n\n⚠️ L'ancien lien ne fonctionne plus.",
+    'admin.regen_error': 'Échec de la régénération du lien.',
 
     // Récupération de lien (« lien perdu »)
     'recover.link': 'Perdu ton lien ? Reçois-le par e-mail',
@@ -572,6 +576,10 @@ const translations = {
     'admin.spammer_pardon_ok': 'Amends recorded ✓ — clean slate.',
     'admin.spammer_pardon_error': 'Operation failed.',
     'admin.dare_log_delete_confirm': 'Delete this history entry?',
+    'admin.regen_title': 'Regenerate link (invalidates the old one)',
+    'admin.regen_confirm': "Regenerate {name}'s link? The old link will become INVALID — they'll need to use the new one.",
+    'admin.regen_ok': 'New link generated (copied to clipboard):\n{url}\n\n⚠️ The old link no longer works.',
+    'admin.regen_error': 'Link regeneration failed.',
 
     // Link recovery ("lost link")
     'recover.link': 'Lost your link? Get it by email',

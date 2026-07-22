@@ -267,6 +267,7 @@
                                                 ? `<button onclick="resendLink('${u.id}')" class="text-xs font-black text-blue-600 uppercase hover:underline">${t('admin.resend_link')}</button>
                                                    <button onclick="revealLink('${u.token}')" class="text-sm text-slate-400 hover:text-slate-600" title="${t('admin.reveal_link_title')}">🔗</button>`
                                                 : `<button onclick="copyLink('${u.token}')" class="text-xs font-black text-blue-600 uppercase hover:underline">${t('common.copy_link')}</button>`}
+                                            <button onclick="regenerateLink('${u.id}', '${encodeURIComponent(u.name)}')" title="${t('admin.regen_title')}" class="text-base text-amber-500 hover:text-amber-600 leading-none">↻</button>
                                             <button onclick="toggleUser('${u.id}', false)" class="text-xs font-black text-red-400 hover:text-red-600 uppercase">${t('common.deactivate')}</button>
                                         ` : `
                                             <button onclick="toggleUser('${u.id}', true)" class="text-xs font-black text-emerald-600 uppercase">${t('common.restore')}</button>
@@ -317,6 +318,23 @@
         function revealLink(token) {
             if (!confirm(t('admin.reveal_confirm'))) return;
             copyLink(token);
+        }
+
+        // Régénère le lien magique d'un membre (rotation de token) : l'ancien lien est invalidé.
+        async function regenerateLink(id, encName) {
+            const name = decodeURIComponent(encName || '');
+            if (!confirm(t('admin.regen_confirm', { name }))) return;
+            const res = await adminFetch(`/api/admin/users/${id}/regenerate-link`, { method: 'POST' });
+            if (res && res.ok) {
+                const data = await res.json();
+                const url = `${window.location.origin}/login/${data.token}`;
+                try { await navigator.clipboard.writeText(url); } catch {}
+                alert(t('admin.regen_ok', { url }));
+                loadAdminUsers();
+            } else {
+                const e = res ? await res.json().catch(() => ({})) : {};
+                alert(e.error || t('admin.regen_error'));
+            }
         }
 
         // --- Invitation d'équipe (lien d'auto-inscription) ---
