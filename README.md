@@ -9,6 +9,7 @@ L'app est **multi-tenant** : chaque société peut héberger plusieurs équipes 
 - 🎁 **Donner un point** dans une catégorie (drag-and-drop ou clic mobile)
 - ⚡ **Mises à jour temps réel** via Server-Sent Events
 - ⚖️ **Gages automatiques** quand un seuil est atteint sur une catégorie
+- 🛡️ **Anti-triche** : raison optionnelle par point, plafond 3/collègue/jour, gage « spammeur » automatique (calcul sur 7 jours)
 - 🏛️ **Hiérarchie** : `member` < `admin` < `superadmin` < `owner`
 - 🔗 **Invitation** : lien d'auto-inscription par équipe + envoi du lien magique par email, avec **vérification d'e-mail** (unicité, « lien perdu »)
 - ✉️ **Notifications email** (Resend, uniquement aux adresses vérifiées) + notifications **push** (WebPush)
@@ -41,6 +42,7 @@ TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
 RESEND_API_KEY=
 RESEND_FROM_EMAIL=notifications@example.com
 CRON_SECRET=
+APP_BASE_URL=http://localhost:8788
 EOF
 
 # 3. Créer la base locale + données d'exemple
@@ -100,7 +102,7 @@ wrangler.toml      # Config Cloudflare D1
 | `users` | Membres (`role`, `locale`, `email` **unique**, `email_verified`) |
 | `categories` | Badges, scope équipe |
 | `dare_rules`, `dare_log` | Règles et historique des gages |
-| `points_log` | Tous les points distribués |
+| `points_log` | Tous les points distribués (+ `reason` optionnelle) |
 | `push_subscriptions` | Abonnements WebPush |
 | `analytics_events` | Entonnoir d'acquisition (mesure cookieless) |
 
@@ -116,7 +118,7 @@ npm run db:pull  # Synchronise la prod vers le local
 
 ## 🌍 Déploiement
 
-Cloudflare Pages est **connecté au dépôt GitHub** : tout `git push` sur `main` déclenche un build + déploiement automatique en production (`give-your-point.pages.dev`, `compteur.pierrez.net`, `donnetonpoint.fr` — le domaine principal).
+Cloudflare Pages est **connecté au dépôt GitHub** : tout `git push` sur `main` déclenche un build + déploiement automatique en production (`give-your-point.pages.dev`, `donnetonpoint.fr`, `donnetonpoint.fr` — le domaine principal).
 
 ```bash
 # Si une migration DB est nécessaire, l'appliquer AVANT le push (sinon le code peut planter) :
