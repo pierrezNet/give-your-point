@@ -13,6 +13,7 @@ type Bindings = {
   RESEND_API_KEY: string
   RESEND_FROM_EMAIL: string
   CRON_SECRET: string
+  APP_BASE_URL: string
 }
 
 const DEFAULT_CATEGORIES_FR = [
@@ -54,6 +55,18 @@ async function emailTaken(db: D1Database, email: string, exceptId?: string): Pro
 // Code d'invitation opaque et partageable pour une équipe (16 hex).
 function generateInviteCode(): string {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+}
+
+// Base canonique pour les liens des e-mails / invitations (indépendante du domaine d'accès).
+// Prod : fallback donnetonpoint.fr. En local, poser APP_BASE_URL=http://localhost:8788 dans .dev.vars.
+function appBaseUrl(c: any): string {
+  // 1. APP_BASE_URL explicite (prod / config) prime toujours.
+  if (c.env.APP_BASE_URL) return c.env.APP_BASE_URL as string;
+  // 2. En dev local (host localhost/127.0.0.1), on renvoie l'origine réelle → liens testables en local.
+  const host = c.req.header('Host') || '';
+  if (host.startsWith('localhost') || host.startsWith('127.0.0.1')) return `http://${host}`;
+  // 3. Défaut : domaine canonique de prod.
+  return 'https://donnetonpoint.fr';
 }
 
 async function sendEmail(env: Bindings, to: string, subject: string, html: string): Promise<void> {
@@ -350,14 +363,15 @@ const requireOwner = async (c: any, next: any) => {
 };
 
 // Gage "spammeur" (automatique, calculé sur 7 jours glissants). Seuils réglables.
-const SPAM_MIN_GIVEN = 15;     // volume plancher : avoir donné au moins tant de points
+// La jauge de proximité affichée = dons_7j / SPAM_MIN_GIVEN (100 % = pleine zone spam).
+const SPAM_MIN_GIVEN = 8;      // volume plancher : 8 dons/7j = zone spam (rythme normal ~2-3/sem)
 const SPAM_RATIO = 3;          // donner >= 3× ce que l'on reçoit (buffer inclus)
-const SPAM_RATIO_BUFFER = 3;   // amortit les petits volumes / division par zéro
+const SPAM_RATIO_BUFFER = 1;   // amortit les petits volumes / division par zéro
 const SPAM_TEAM_MULT = 2;      // donner >= 2× la moyenne de l'équipe
 
 // Calcule qui est "spammeur" (7 j glissants). Exclut ceux ayant fait amende honorable :
 // une entrée dare_log SANS catégorie = "spammeur régalé", valable 7 jours (il retrouve une virginité).
-async function computeSpammers(db: D1Database, teamId: string): Promise<Map<string, { flagged: boolean; name: string; given: number; received: number }>> {
+async function computeSpammers(db: D1Database, teamId: string): Promise<Map<string, { flagged: boolean; name: string; given: number; received: number; progress: number; pardoned: boolean }>> {
   const [givenRes, receivedRes, usersRes, pardonRes] = await Promise.all([
     db.prepare("SELECT from_user_id AS uid, COUNT(*) as n FROM points_log WHERE team_id = ? AND created_at >= datetime('now','-7 days') GROUP BY from_user_id").bind(teamId).all<{ uid: string; n: number }>(),
     db.prepare("SELECT to_user_id AS uid, COUNT(*) as n FROM points_log WHERE team_id = ? AND created_at >= datetime('now','-7 days') GROUP BY to_user_id").bind(teamId).all<{ uid: string; n: number }>(),
@@ -372,16 +386,21 @@ async function computeSpammers(db: D1Database, teamId: string): Promise<Map<stri
   const totalGiven = (givenRes.results || []).reduce((s, r) => s + r.n, 0);
   const avgGiven = users.length ? totalGiven / users.length : 0;
 
-  const flags = new Map<string, { flagged: boolean; name: string; given: number; received: number }>();
+  const flags = new Map<string, { flagged: boolean; name: string; given: number; received: number; progress: number; pardoned: boolean }>();
   for (const u of users) {
     const G = given.get(u.id) || 0;
     const R = received.get(u.id) || 0;
+    const isPardoned = pardoned.has(u.id);
+    // Jauge de proximité INTUITIVE = volume donné rapporté au seuil (100 % = pleine zone spam).
+    const progress = G / SPAM_MIN_GIVEN;
+    // Le gage ne se déclenche que si le volume EST atteint ET c'est déséquilibré (donne >> reçoit)
+    // ET au-dessus de la moyenne équipe — pour ne pas punir un donneur populaire mais équilibré.
     const flagged =
-      !pardoned.has(u.id) &&
+      !isPardoned &&
       G >= SPAM_MIN_GIVEN &&
       G / (R + SPAM_RATIO_BUFFER) >= SPAM_RATIO &&
       G >= SPAM_TEAM_MULT * avgGiven;
-    flags.set(u.id, { flagged, name: u.name, given: G, received: R });
+    flags.set(u.id, { flagged, name: u.name, given: G, received: R, progress, pardoned: isPardoned });
   }
   return flags;
 }
@@ -591,7 +610,7 @@ app.patch('/api/me', requireUser, async (c) => {
     if (cleanEmail && cleanEmail !== u.email) {
       // Nouvel e-mail → repart non vérifié, on envoie un lien de confirmation.
       await c.env.DB.prepare("UPDATE users SET email = ?, email_verified = 0 WHERE id = ?").bind(cleanEmail, u.id).run();
-      const loginUrl = `${new URL(c.req.url).origin}/login/${u.id}`;
+      const loginUrl = `${appBaseUrl(c)}/login/${u.id}`;
       const mail = buildWelcomeEmail({ isEn: u.locale === 'en', name: u.name, teamName: u.team_name, loginUrl });
       c.executionCtx.waitUntil(sendEmail(c.env, cleanEmail, mail.subject, mail.html));
     } else if (cleanEmail === null) {
@@ -691,6 +710,13 @@ app.post('/api/points', requireUser, async (c) => {
       return c.json({ error: `Tu as déjà bien félicité ${toUser.name} aujourd'hui (3 max) 😄` }, 429);
     }
 
+    // Gel du spammeur : tant qu'il est signalé (gage spam non acquitté), il ne peut plus distribuer.
+    // Le gel se lève quand un admin valide son gage (« il a régalé ») ou quand la fenêtre 7 j le déclasse.
+    const spamFlags = await computeSpammers(c.env.DB, fromUser.team_id);
+    if (spamFlags.get(fromUser.id)?.flagged) {
+      return c.json({ error: "🚨 Tu es signalé comme spammeur. Un admin doit valider ton gage (régaler l'équipe) avant que tu puisses redonner des points." }, 429);
+    }
+
     await c.env.DB.prepare(
       'INSERT INTO points_log (team_id, from_user_id, to_user_id, category_id, reason, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)'
     )
@@ -732,7 +758,7 @@ app.post('/api/points', requireUser, async (c) => {
     // Si ce point vient de déclencher un gage, on envoie le mail de gage à la place.
     if (toUser.email && toUser.email_verified) {
       const isEn = toUser.locale === 'en';
-      const baseUrl = new URL(c.req.url).origin;
+      const baseUrl = appBaseUrl(c);
       const catLabel = `${cat.emoji} ${cat.name}`;
       const mail = gageTriggered
         ? buildGageEmail({ isEn, name: toUser.name, fromName: fromUser.name, catLabel, dare: gageTriggered.dare, baseUrl })
@@ -798,33 +824,57 @@ app.get('/api/stats', requireUser, async (c) => {
   const u = c.get('user');
   const teamId = u.team_id;
 
-  const [giversRes, receiversRes, catsRes, matrixRes, evolutionRes] = await Promise.all([
+  // Période : 7 j / 30 j / tout (défaut 30). Filtre les tops, catégories, heatmap et gages.
+  const periodParam = c.req.query('period');
+  const period = periodParam === '7' || periodParam === 'all' ? periodParam : '30';
+  const days = period === '7' ? 7 : period === 'all' ? 0 : 30;
+  const pf = days ? `AND p.created_at >= datetime('now', '-${days} days')` : '';   // alias points_log = p
+  const cf = days ? `AND created_at >= datetime('now', '-${days} days')` : '';     // sans alias
+  const df = days ? `AND dl.cleared_at >= datetime('now', '-${days} days')` : '';  // alias dare_log = dl
+
+  const [giversRes, receiversRes, catsRes, matrixRes, gagesRes, gageLogRes, totalRes, evolutionRes] = await Promise.all([
     c.env.DB.prepare(`
-      SELECT u.name, COUNT(*) as total
+      SELECT u.id, u.name, COUNT(*) as total
       FROM points_log p JOIN users u ON p.from_user_id = u.id
-      WHERE u.active = 1 AND p.team_id = ?
-      GROUP BY p.from_user_id ORDER BY total DESC LIMIT 10
+      WHERE u.active = 1 AND p.team_id = ? ${pf}
+      GROUP BY p.from_user_id ORDER BY total DESC LIMIT 50
     `).bind(teamId).all(),
     c.env.DB.prepare(`
-      SELECT u.name, COUNT(*) as total
+      SELECT u.id, u.name, COUNT(*) as total
       FROM points_log p JOIN users u ON p.to_user_id = u.id
-      WHERE u.active = 1 AND p.team_id = ?
-      GROUP BY p.to_user_id ORDER BY total DESC LIMIT 10
+      WHERE u.active = 1 AND p.team_id = ? ${pf}
+      GROUP BY p.to_user_id ORDER BY total DESC LIMIT 50
     `).bind(teamId).all(),
     c.env.DB.prepare(`
       SELECT c.name, c.emoji, COUNT(*) as total
       FROM points_log p JOIN categories c ON p.category_id = c.id
-      WHERE p.team_id = ?
+      WHERE p.team_id = ? ${pf}
       GROUP BY p.category_id ORDER BY total DESC
     `).bind(teamId).all(),
     c.env.DB.prepare(`
-      SELECT u_from.name as from_name, u_to.name as to_name, COUNT(*) as total
+      SELECT u_from.id as from_id, u_from.name as from_name, u_to.id as to_id, u_to.name as to_name, COUNT(*) as total
       FROM points_log p
       JOIN users u_from ON p.from_user_id = u_from.id
       JOIN users u_to ON p.to_user_id = u_to.id
-      WHERE u_from.active = 1 AND u_to.active = 1 AND p.team_id = ?
+      WHERE u_from.active = 1 AND u_to.active = 1 AND p.team_id = ? ${pf}
       GROUP BY p.from_user_id, p.to_user_id
     `).bind(teamId).all(),
+    c.env.DB.prepare(`
+      SELECT u.id, u.name, COUNT(*) as total
+      FROM dare_log dl JOIN users u ON dl.user_id = u.id
+      WHERE dl.team_id = ? AND dl.category_id IS NOT NULL AND u.active = 1 ${df}
+      GROUP BY dl.user_id ORDER BY total DESC LIMIT 50
+    `).bind(teamId).all(),
+    // Détail des gages tombés (survit à l'effacement des points par clear-category).
+    c.env.DB.prepare(`
+      SELECT dl.id, u.name, c.name AS category, c.emoji, dl.dare_text, dl.cleared_at
+      FROM dare_log dl JOIN users u ON dl.user_id = u.id JOIN categories c ON dl.category_id = c.id
+      WHERE dl.team_id = ? AND dl.category_id IS NOT NULL AND u.active = 1 ${df}
+      ORDER BY dl.cleared_at DESC LIMIT 30
+    `).bind(teamId).all(),
+    c.env.DB.prepare(`
+      SELECT COUNT(*) as total FROM points_log WHERE team_id = ? ${cf}
+    `).bind(teamId).first<{ total: number }>(),
     c.env.DB.prepare(`
       SELECT strftime('%Y-%W', created_at) as week, COUNT(*) as total
       FROM points_log WHERE team_id = ?
@@ -832,13 +882,29 @@ app.get('/api/stats', requireUser, async (c) => {
     `).bind(teamId).all(),
   ]);
 
-  const receivers = receiversRes.results || [];
-  const totalPoints = receivers.reduce((sum: number, u: any) => sum + u.total, 0);
+  const givers = (giversRes.results || []) as any[];
+  const receivers = (receiversRes.results || []) as any[];
+  const gages = (gagesRes.results || []) as any[];
+
+  // « Toi cette période » : rang + compteurs perso de l'appelant.
+  const giverIdx = givers.findIndex(x => x.id === u.id);
+  const receiverIdx = receivers.findIndex(x => x.id === u.id);
+  const me = {
+    given: giverIdx >= 0 ? givers[giverIdx].total : 0,
+    received: receiverIdx >= 0 ? receivers[receiverIdx].total : 0,
+    rankGiver: giverIdx >= 0 ? giverIdx + 1 : null,
+    rankReceiver: receiverIdx >= 0 ? receiverIdx + 1 : null,
+    gages: gages.find(x => x.id === u.id)?.total || 0,
+  };
 
   return c.json({
-    totalPoints,
-    givers: giversRes.results || [],
+    period,
+    totalPoints: totalRes?.total || 0,
+    me,
+    givers,
     receivers,
+    gages,
+    gageLog: gageLogRes.results || [],
     categories: catsRes.results || [],
     matrix: matrixRes.results || [],
     evolution: (evolutionRes.results || []).reverse(),
@@ -932,7 +998,8 @@ app.post('/api/track', async (c) => {
   try {
     // Anti-spam léger : on ignore les requêtes cross-origin (les beacons du site sont same-origin).
     const origin = c.req.header('Origin');
-    if (origin && origin !== new URL(c.req.url).origin) return c.json({ ok: true });
+    const host = c.req.header('Host') || '';
+    if (origin && !origin.endsWith('://' + host)) return c.json({ ok: true });
     const { event } = await c.req.json();
     if (typeof event === 'string' && TRACKED_EVENTS.has(event)) {
       await c.env.DB.prepare("INSERT INTO analytics_events (name) VALUES (?)").bind(event).run();
@@ -1027,7 +1094,7 @@ app.post('/api/onboarding', async (c) => {
 
     // Lien magique de bienvenue au fondateur (si email fourni)
     if (email) {
-      const loginUrl = `${new URL(c.req.url).origin}/login/${userId}`;
+      const loginUrl = `${appBaseUrl(c)}/login/${userId}`;
       const mail = buildWelcomeEmail({ isEn: userLocale === 'en', name: admin, teamName: company, loginUrl });
       c.executionCtx.waitUntil(sendEmail(c.env, email, mail.subject, mail.html));
     }
@@ -1083,7 +1150,7 @@ app.post('/api/recover', async (c) => {
         WHERE u.email = ? AND u.active = 1
       `).bind(clean).first<{ id: string; name: string; email: string; locale: string | null; team_name: string | null }>();
       if (user) {
-        const loginUrl = `${new URL(c.req.url).origin}/login/${user.id}`;
+        const loginUrl = `${appBaseUrl(c)}/login/${user.id}`;
         const mail = buildWelcomeEmail({ isEn: user.locale === 'en', name: user.name, teamName: user.team_name || '', loginUrl });
         c.executionCtx.waitUntil(sendEmail(c.env, user.email, mail.subject, mail.html));
       }
@@ -1126,10 +1193,12 @@ app.post('/api/join', async (c) => {
     if (!team) return c.json({ error: "Lien d'invitation invalide ou expiré." }, 404);
 
     const userId = crypto.randomUUID();
+    // active = 0 : l'auto-inscrit est "en attente" tant qu'un admin ne l'a pas validé.
+    // getUserByToken filtre active = 1 → un faux compte ne peut ni se connecter ni donner de points.
     await c.env.DB.prepare(
-      "INSERT INTO users (id, team_id, name, role, active, token) VALUES (?, ?, ?, 'member', 1, ?)"
+      "INSERT INTO users (id, team_id, name, role, active, token) VALUES (?, ?, ?, 'member', 0, ?)"
     ).bind(userId, team.id, cleanName, userId).run();
-    return c.json({ success: true, token: userId });
+    return c.json({ success: true, pending: true });
   } catch (err) {
     console.error("Erreur join:", err);
     return c.json({ error: "Erreur lors de l'inscription" }, 500);
@@ -1140,9 +1209,14 @@ app.post('/api/join', async (c) => {
 
 app.get('/api/admin/users', requireAdmin, async (c) => {
   const admin = c.get('user');
-  const users = await c.env.DB.prepare(
-    "SELECT * FROM users WHERE team_id = ? ORDER BY active DESC, name ASC"
-  ).bind(admin.team_id).all();
+  // has_activity : a-t-il déjà donné/reçu au moins un point ? Sert à distinguer un membre
+  // "en attente de validation" (auto-inscrit, active=0, aucune activité) d'un "désactivé".
+  const users = await c.env.DB.prepare(`
+    SELECT u.*, EXISTS(
+      SELECT 1 FROM points_log p WHERE p.from_user_id = u.id OR p.to_user_id = u.id
+    ) AS has_activity
+    FROM users u WHERE u.team_id = ? ORDER BY u.active DESC, u.name ASC
+  `).bind(admin.team_id).all();
   return c.json(users.results);
 });
 
@@ -1170,7 +1244,7 @@ app.post('/api/admin/users', requireAdmin, async (c) => {
 
   // Lien magique envoyé au nouveau membre (si email fourni)
   if (cleanEmail) {
-    const loginUrl = `${new URL(c.req.url).origin}/login/${id}`;
+    const loginUrl = `${appBaseUrl(c)}/login/${id}`;
     const mail = buildWelcomeEmail({ isEn: admin.locale === 'en', name, teamName: admin.team_name, loginUrl });
     c.executionCtx.waitUntil(sendEmail(c.env, cleanEmail, mail.subject, mail.html));
   }
@@ -1187,7 +1261,7 @@ app.post('/api/admin/users/:id/resend-link', requireAdmin, async (c) => {
   ).bind(id, admin.team_id).first<{ id: string; name: string; email: string | null; locale: string | null }>();
   if (!user) return c.json({ error: "Membre introuvable dans ton équipe." }, 404);
   if (!user.email) return c.json({ error: "Ce membre n'a pas d'e-mail." }, 400);
-  const loginUrl = `${new URL(c.req.url).origin}/login/${user.id}`;
+  const loginUrl = `${appBaseUrl(c)}/login/${user.id}`;
   const mail = buildWelcomeEmail({ isEn: (user.locale || admin.locale) === 'en', name: user.name, teamName: admin.team_name, loginUrl });
   c.executionCtx.waitUntil(sendEmail(c.env, user.email, mail.subject, mail.html));
   return c.json({ success: true });
@@ -1205,8 +1279,30 @@ async function getOrCreateInviteCode(db: D1Database, teamId: string): Promise<st
 app.get('/api/team-invite', requireAdmin, async (c) => {
   const admin = c.get('user');
   const code = await getOrCreateInviteCode(c.env.DB, admin.team_id);
-  const origin = new URL(c.req.url).origin;
+  const origin = appBaseUrl(c);
   return c.json({ code, url: `${origin}/join/${code}`, team_name: admin.team_name });
+});
+
+// Kill switch : régénère le code d'invitation → l'ancien lien (fuité/abusé pour créer de faux comptes) meurt.
+app.post('/api/admin/regenerate-invite', requireAdmin, async (c) => {
+  const admin = c.get('user');
+  const code = generateInviteCode();
+  await c.env.DB.prepare("UPDATE teams SET invite_code = ? WHERE id = ?").bind(code, admin.team_id).run();
+  return c.json({ success: true, code, url: `${appBaseUrl(c)}/join/${code}` });
+});
+
+// Rejeter un auto-inscrit "en attente" = suppression définitive. Garde-fou : uniquement si inactif
+// ET sans aucune activité (aucune ligne points_log) → suppression sûre, pas de cascade à gérer.
+app.delete('/api/admin/users/:id/reject', requireAdmin, async (c) => {
+  const admin = c.get('user');
+  const id = c.req.param('id');
+  const u = await c.env.DB.prepare("SELECT active FROM users WHERE id = ? AND team_id = ?").bind(id, admin.team_id).first<{ active: number }>();
+  if (!u) return c.json({ error: "Membre introuvable dans ton équipe." }, 404);
+  if (u.active === 1) return c.json({ error: "Ce membre est actif — désactive-le plutôt." }, 400);
+  const activity = await c.env.DB.prepare("SELECT 1 FROM points_log WHERE from_user_id = ? OR to_user_id = ? LIMIT 1").bind(id, id).first();
+  if (activity) return c.json({ error: "Ce membre a déjà une activité — désactive-le plutôt." }, 400);
+  await c.env.DB.prepare("DELETE FROM users WHERE id = ? AND team_id = ?").bind(id, admin.team_id).run();
+  return c.json({ success: true });
 });
 
 // Envoyer le lien d'invitation par email (réutilise Resend).
@@ -1217,7 +1313,7 @@ app.post('/api/admin/invite', requireAdmin, async (c) => {
   if (!clean || !isValidEmail(clean)) return c.json({ error: "Email invalide" }, 400);
 
   const code = await getOrCreateInviteCode(c.env.DB, admin.team_id);
-  const joinUrl = `${new URL(c.req.url).origin}/join/${code}`;
+  const joinUrl = `${appBaseUrl(c)}/join/${code}`;
   const isEn = admin.locale === 'en';
   const subject = isEn
     ? `${admin.name} invites you to ${admin.team_name} on Give Your Point`
@@ -1308,10 +1404,15 @@ app.patch('/api/admin/categories/:id/restore', requireAdmin, async (c) => {
 app.get('/api/admin/spammers', requireAdmin, async (c) => {
   const admin = c.get('user');
   const flags = await computeSpammers(c.env.DB, admin.team_id);
-  const spammers = [...flags.entries()]
-    .filter(([, f]) => f.flagged)
-    .map(([userId, f]) => ({ userId, name: f.name, given: f.given, received: f.received }));
-  return c.json(spammers);
+  // On renvoie les spammeurs avérés ET ceux qui s'en approchent (≥ 50 %), pour l'indicateur admin.
+  const rows = [...flags.entries()]
+    .map(([userId, f]) => ({
+      userId, name: f.name, given: f.given, received: f.received,
+      progress: Math.round(f.progress * 100) / 100, flagged: f.flagged, pardoned: f.pardoned,
+    }))
+    .filter(r => r.flagged || (!r.pardoned && r.progress >= 0.5 && r.given > r.received))
+    .sort((a, b) => b.progress - a.progress);
+  return c.json(rows);
 });
 
 // "Amende honorable" : le spammeur a régalé l'équipe → on logue (historique) et on le blanchit 7 j.
@@ -1694,7 +1795,7 @@ app.post('/api/superadmin/teams/:id/users', requireSuperadmin, async (c) => {
 
   // Lien magique envoyé au nouveau membre (si email fourni)
   if (cleanEmail) {
-    const loginUrl = `${new URL(c.req.url).origin}/login/${id}`;
+    const loginUrl = `${appBaseUrl(c)}/login/${id}`;
     const mail = buildWelcomeEmail({ isEn: sa.locale === 'en', name: name.trim(), teamName: team.name, loginUrl });
     c.executionCtx.waitUntil(sendEmail(c.env, cleanEmail, mail.subject, mail.html));
   }
@@ -1766,10 +1867,12 @@ app.post('/api/superadmin/users/:id/demote', requireSuperadmin, async (c) => {
   }
 
   if (target.role === 'superadmin') {
+    // Un owner hérite du rôle superadmin → il compte comme superadmin restant (anti-lockout).
+    const rolePlaceholders = SUPERADMIN_ROLES.map(() => '?').join(',');
     const others = await c.env.DB.prepare(`
       SELECT COUNT(*) as n FROM users u JOIN teams t ON t.id = u.team_id
-      WHERE t.company_id = ? AND u.role = 'superadmin' AND u.active = 1 AND u.id != ?
-    `).bind(sa.company_id, id).first<{ n: number }>();
+      WHERE t.company_id = ? AND u.role IN (${rolePlaceholders}) AND u.active = 1 AND u.id != ?
+    `).bind(sa.company_id, ...SUPERADMIN_ROLES, id).first<{ n: number }>();
     if ((others?.n ?? 0) === 0) {
       return c.json({ error: "Impossible : c'est le dernier superadmin de la société." }, 400);
     }
@@ -1804,7 +1907,7 @@ app.post('/api/cron/weekly-digest', async (c) => {
     return c.json({ error: 'Non autorisé' }, 401);
   }
   const dryRun = c.req.query('dry') === '1';
-  const baseUrl = new URL(c.req.url).origin;
+  const baseUrl = appBaseUrl(c);
   const MAX_EMAILS = 200;
 
   const teamsRes = await c.env.DB.prepare(`

@@ -150,7 +150,7 @@ async function saveProfileEmail(email) {
 }
 
 async function removeProfileEmail() {
-    if (!confirm(t('profile.confirm_remove'))) return;
+    if (!await uiConfirm(t('profile.confirm_remove'))) return;
     await saveProfileEmail('');
 }
 
@@ -709,7 +709,7 @@ async function showHistory(event, userId, userName) {
         document.body.insertAdjacentHTML('beforeend', historyHtml);
     } catch (err) {
         console.error(err);
-        alert(t('history.error'));
+        uiToast(t('history.error'));
     }
 }
 
@@ -1138,7 +1138,7 @@ async function renderJoin(code) {
                 </div>
             </header>
             <section class="max-w-md mx-auto px-4 py-16">
-                <div class="bg-white rounded-3xl shadow-xl p-8 space-y-5 border border-slate-200 text-center">
+                <div id="join-card" class="bg-white rounded-3xl shadow-xl p-8 space-y-5 border border-slate-200 text-center">
                     <div class="text-5xl">🎉</div>
                     <div>
                         <h1 class="text-2xl font-black text-slate-800">${t('join.heading', { team: teamName })}</h1>
@@ -1191,9 +1191,17 @@ async function renderJoin(code) {
                 body: JSON.stringify({ code, name, turnstile_token: ts }),
             });
             if (res.ok) {
-                const data = await res.json();
                 track('join_soumis');
-                window.location.href = `/login/${data.token}`;
+                // active=0 : l'inscrit est en attente de validation par un admin (anti-faux-comptes).
+                const card = document.getElementById('join-card');
+                if (card) {
+                    card.innerHTML = `
+                        <div class="text-5xl">⏳</div>
+                        <h1 class="text-2xl font-black text-slate-800">${t('join.pending_title')}</h1>
+                        <p class="text-sm text-slate-500">${t('join.pending_msg', { team: teamName })}</p>
+                        <a href="/" class="text-xs font-bold text-slate-400 hover:underline block">${t('join.back_home')}</a>`;
+                    applyI18n();
+                }
                 return;
             }
             const err = await res.json().catch(() => ({}));

@@ -6,6 +6,7 @@
     <title>Superadmin DSAF - Donne Ton Point</title>
     <link rel="stylesheet" href="/styles.css">
     <script src="i18n.js"></script>
+    <script src="ui.js"></script>
     <script src="app.js"></script>
 </head>
 <body class="bg-slate-50 min-h-screen p-4 md:p-8 opacity-0 transition-opacity duration-500" id="superadmin-body">
@@ -66,19 +67,19 @@
 
         async function checkAndLoad() {
             if (!myUserId) {
-                alert(t('superadmin.connect_first'));
+                uiToast(t('superadmin.connect_first'));
                 return window.location.href = "/";
             }
 
             const res = await fetch('/api/me', { headers: { 'Authorization': `Bearer ${myUserId}` } });
             if (!res.ok) {
-                alert(t('admin.session_invalid'));
+                uiToast(t('admin.session_invalid'));
                 return window.location.href = "/";
             }
 
             const me = await res.json();
             if (me.role !== 'superadmin' && me.role !== 'owner') {
-                alert(t('superadmin.not_superadmin'));
+                uiToast(t('superadmin.not_superadmin'));
                 return window.location.href = "/";
             }
 
@@ -97,7 +98,7 @@
             options.headers = { ...(options.headers || {}), 'Authorization': `Bearer ${myUserId}` };
             const res = await fetch(url, options);
             if (res.status === 401 || res.status === 403) {
-                alert(t('common.access_denied'));
+                uiToast(t('common.access_denied'));
                 window.location.href = "/";
                 return;
             }
@@ -171,7 +172,7 @@
         }
 
         async function openCreateTeam() {
-            const name = prompt("Nom de la nouvelle équipe :");
+            const name = await uiPrompt(t('superadmin.prompt_create_team'));
             if (!name || !name.trim()) return;
             const res = await saFetch('/api/superadmin/teams', {
                 method: 'POST',
@@ -182,10 +183,10 @@
         }
 
         async function addUserToTeam(teamId, teamName) {
-            const name = prompt(t('superadmin.prompt_add_member_intro', { team: teamName }));
+            const name = await uiPrompt(t('superadmin.prompt_add_member_intro', { team: teamName }));
             if (!name || !name.trim()) return;
-            const email = prompt(t('superadmin.prompt_add_member_email', { name: name.trim() })) || '';
-            const makeAdmin = confirm(t('superadmin.confirm_make_admin', { name: name.trim(), team: teamName }));
+            const email = await uiPrompt(t('superadmin.prompt_add_member_email', { name: name.trim() })) || '';
+            const makeAdmin = await uiConfirm(t('superadmin.confirm_make_admin', { name: name.trim(), team: teamName }));
             const res = await saFetch(`/api/superadmin/teams/${teamId}/users`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -194,19 +195,19 @@
             if (res && res.ok) {
                 const data = await res.json();
                 const url = `${window.location.origin}/login/${data.token}`;
-                if (confirm(t('superadmin.member_created_link', { name: name.trim(), url }))) {
+                if (await uiConfirm(t('superadmin.member_created_link', { name: name.trim(), url }))) {
                     navigator.clipboard.writeText(url);
                 }
                 await loadTeams();
                 if (makeAdmin) await loadAdmins();
             } else if (res) {
                 const err = await res.json().catch(() => ({}));
-                alert(err.error || t('common.error'));
+                uiToast(err.error || t('common.error'));
             }
         }
 
         async function renameTeam(id, currentName) {
-            const name = prompt(t('superadmin.prompt_new_team_name'), currentName);
+            const name = await uiPrompt(t('superadmin.prompt_new_team_name'), currentName);
             if (!name || !name.trim() || name === currentName) return;
             const res = await saFetch(`/api/superadmin/teams/${id}`, {
                 method: 'PATCH',
@@ -218,32 +219,32 @@
 
         async function toggleTeam(id, shouldActivate) {
             const msg = shouldActivate ? t('superadmin.confirm_restore_team') : t('superadmin.confirm_deactivate_team');
-            if (!confirm(msg)) return;
+            if (!await uiConfirm(msg)) return;
             const url = shouldActivate ? `/api/superadmin/teams/${id}/restore` : `/api/superadmin/teams/${id}`;
             const method = shouldActivate ? 'PATCH' : 'DELETE';
             const res = await saFetch(url, { method });
             if (res && res.ok) loadTeams();
             else if (res) {
                 const err = await res.json().catch(() => ({}));
-                alert(err.error || t('common.error'));
+                uiToast(err.error || t('common.error'));
             }
         }
 
         function copyMagicLink(token) {
             const url = `${window.location.origin}/login/${token}`;
             navigator.clipboard.writeText(url);
-            alert(t('superadmin.toast_link_copied'));
+            uiToast(t('superadmin.toast_link_copied'));
         }
 
         async function demote(userId, name, currentRole) {
-            if (!confirm(t('superadmin.confirm_revoke', { role: currentRole, name }))) return;
+            if (!await uiConfirm(t('superadmin.confirm_revoke', { role: currentRole, name }))) return;
             const res = await saFetch(`/api/superadmin/users/${userId}/demote`, { method: 'POST' });
             if (res && res.ok) {
                 await loadAdmins();
                 await loadTeams();
             } else if (res) {
                 const err = await res.json().catch(() => ({}));
-                alert(err.error || t('common.error'));
+                uiToast(err.error || t('common.error'));
             }
         }
 
@@ -253,15 +254,15 @@
             // Filtrer les members actifs uniquement
             const candidates = users.filter(u => u.role === 'member' && u.active === 1);
             if (!candidates.length) {
-                alert(t('superadmin.no_member_to_promote'));
+                uiToast(t('superadmin.no_member_to_promote'));
                 return;
             }
             const choices = candidates.map((u, i) => `${i + 1}. ${u.name} (${u.team_name})`).join('\n');
-            const pick = prompt(t('superadmin.prompt_promote_pick', { choices }));
+            const pick = await uiPrompt(t('superadmin.prompt_promote_pick', { choices }));
             const idx = parseInt(pick, 10) - 1;
             if (isNaN(idx) || idx < 0 || idx >= candidates.length) return;
             const target = candidates[idx];
-            const role = confirm(t('superadmin.confirm_promote', { name: target.name, team: target.team_name }))
+            const role = await uiConfirm(t('superadmin.confirm_promote', { name: target.name, team: target.team_name }))
                 ? 'superadmin' : 'admin';
             const res2 = await saFetch(`/api/superadmin/users/${target.id}/promote`, {
                 method: 'POST',

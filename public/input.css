@@ -66,10 +66,15 @@
   .hover\:bg-purple-50:hover   { background-color: #2e1065 !important; }
   .hover\:bg-emerald-50:hover  { background-color: #022c22 !important; }
   .hover\:bg-blue-50:hover     { background-color: #172554 !important; }
+  .hover\:bg-orange-100:hover  { background-color: #431407 !important; }
+  .hover\:bg-emerald-100:hover { background-color: #064e3b !important; }
+  .hover\:bg-red-100:hover     { background-color: #450a0a !important; }
+  .hover\:bg-white:hover       { background-color: #334155 !important; }
 
   /* Fonds colorés pastels — overrides dark pour rester lisibles */
   .bg-blue-50      { background-color: #172554; }
   .bg-emerald-50   { background-color: #022c22; }
+  .bg-orange-50    { background-color: #431407; }
   .bg-amber-50     { background-color: #451a03; }
   .bg-yellow-50    { background-color: #422006; }
   .bg-purple-50    { background-color: #2e1065; }

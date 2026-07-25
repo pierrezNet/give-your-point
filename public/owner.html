@@ -6,6 +6,7 @@
     <title>Owner - Donne Ton Point</title>
     <link rel="stylesheet" href="/styles.css">
     <script src="i18n.js"></script>
+    <script src="ui.js"></script>
     <script src="app.js"></script>
 </head>
 <body class="bg-slate-50 min-h-screen p-4 md:p-8 opacity-0 transition-opacity duration-500" id="owner-body">
@@ -129,14 +130,14 @@
 
         async function checkAndLoad() {
             if (!myUserId) {
-                alert(t('owner.connect_first'));
+                uiToast(t('owner.connect_first'));
                 return window.location.href = "/";
             }
             const res = await fetch('/api/me', { headers: { 'Authorization': `Bearer ${myUserId}` } });
             if (!res.ok) { window.location.href = "/"; return; }
             const me = await res.json();
             if (me.role !== 'owner') {
-                alert(t('owner.not_owner'));
+                uiToast(t('owner.not_owner'));
                 return window.location.href = "/";
             }
             myCompanyId = me.company_id;
@@ -231,7 +232,7 @@
                 members: c.member_count,
                 points: c.total_points,
             });
-            if (!confirm(msg)) return;
+            if (!await uiConfirm(msg)) return;
             const res = await fetch(`/api/owner/companies/${id}`, {
                 method: 'DELETE',
                 headers: { 'Authorization': `Bearer ${myUserId}` },
@@ -240,7 +241,7 @@
                 loadCompanies();
             } else {
                 const e = await res.json().catch(() => ({}));
-                alert(e.error || t('owner.delete_error'));
+                uiToast(e.error || t('owner.delete_error'));
             }
         }
 

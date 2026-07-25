@@ -15,6 +15,7 @@
     </style>
     <link rel="stylesheet" href="/styles.css">
     <script src="i18n.js"></script>
+    <script src="ui.js"></script>
     <script src="app.js"></script>
 </head>
 <body class="bg-slate-50 min-h-screen p-4 md:p-8 opacity-0 transition-opacity duration-500" id="admin-body">
@@ -45,6 +46,7 @@
                 <input id="invite-link" type="text" readonly value="…" onclick="this.select()"
                        class="flex-1 p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 text-sm outline-none">
                 <button onclick="copyInviteLink()" class="bg-slate-800 text-white px-5 py-3 rounded-xl font-bold hover:bg-slate-900 transition-colors whitespace-nowrap" data-i18n="admin.invite_copy">Copier le lien</button>
+                <button onclick="regenerateInvite()" title="" data-i18n-title="admin.invite_regen_title" class="bg-slate-100 text-slate-600 px-4 py-3 rounded-xl font-bold hover:bg-slate-200 transition-colors whitespace-nowrap" data-i18n="admin.invite_regen">Régénérer 🔄</button>
             </div>
             <div class="flex flex-col md:flex-row gap-3">
                 <input id="invite-email" type="email" data-i18n-placeholder="admin.invite_email_placeholder" placeholder="Envoyer à un email…"
@@ -63,6 +65,8 @@
                     <span class="hidden md:inline" data-i18n="common.add">Ajouter</span>
                 </button>
             </div>
+            <div id="pending-banner"></div>
+            <div id="spam-banner"></div>
             <table class="w-full text-left">
                 <thead class="bg-slate-100 border-b border-slate-200">
                     <tr>
@@ -139,7 +143,7 @@
 
         async function checkAndLoad() {
             if (!myUserId) {
-                alert(t('admin.connect_first'));
+                uiToast(t('admin.connect_first'));
                 return window.location.href = "/";
             }
 
@@ -148,14 +152,14 @@
             });
 
             if (!res.ok) {
-                alert(t('admin.session_invalid'));
+                uiToast(t('admin.session_invalid'));
                 return window.location.href = "/";
             }
 
             const me = await res.json();
 
             if (me.role !== 'admin' && me.role !== 'superadmin' && me.role !== 'owner') {
-                alert(t('admin.not_admin'));
+                uiToast(t('admin.not_admin'));
                 return window.location.href = "/";
             }
 
@@ -190,7 +194,7 @@
             const res = await fetch(url, options);
 
             if (res.status === 401 || res.status === 403) {
-                alert(t('common.access_denied'));
+                uiToast(t('common.access_denied'));
                 window.location.href = "/";
                 return;
             }
@@ -211,25 +215,30 @@
                 const categories = await resCats.json();
                 const spammers = (resSpam && resSpam.ok) ? await resSpam.json() : [];
 
+                renderSpamBanner(spammers);
+
+                // Bandeau « en attente de validation » : auto-inscrits (active=0, aucune activité).
+                const pending = users.filter(u => u.active !== 1 && !u.has_activity);
+                const pb = document.getElementById('pending-banner');
+                if (pb) pb.innerHTML = pending.length
+                    ? `<div class="bg-blue-50 border border-blue-200 rounded-2xl p-4 mb-6 text-sm text-slate-800 font-bold">⏳ ${t('admin.pending_banner', { n: pending.length })}</div>`
+                    : '';
+
                 const list = document.getElementById('admin-users-list');
                 if (!list) return;
                 
                 list.innerHTML = users.map(u => {
                     const isActive = u.active === 1;
+                    const isPending = !isActive && !u.has_activity; // auto-inscrit jamais validé
                     const activeDares = dares.filter(d => d.userId === u.id);
-                    const isSpammer = isActive && spammers.some(s => s.userId === u.id);
 
                     return `
-                        <tr class="border-b border-slate-100 ${!isActive ? 'bg-slate-50 opacity-60' : 'hover:bg-slate-50/50'} transition-colors">
+                        <tr class="border-b border-slate-100 ${!isActive ? 'bg-slate-50 opacity-60' : 'hover:bg-slate-50'} transition-colors">
                             <td class="p-4">
                                 <div class="font-bold ${isActive ? 'text-slate-800' : 'text-slate-400 italic'}">
-                                    ${u.name} ${!isActive ? t('admin.user_deactivated') : ''}
+                                    ${u.name} ${!isActive ? (isPending ? `<span class="text-[10px] font-black uppercase text-blue-600 not-italic">⏳ ${t('admin.pending_flag')}</span>` : t('admin.user_deactivated')) : ''}
                                 </div>
                                 ${activeDares.map(d => `<div class="text-[9px] text-orange-600 font-black uppercase">${t('admin.has_gage')}</div>`).join('')}
-                                ${isSpammer ? `<div class="flex items-center gap-2 mt-1">
-                                    <span class="text-[9px] text-purple-600 font-black uppercase">${t('admin.spammer_flag')}</span>
-                                    <button onclick="pardonSpammer('${u.id}', '${encodeURIComponent(u.name)}')" class="text-[9px] font-black uppercase text-emerald-600 hover:underline">${t('admin.spammer_pardon')}</button>
-                                </div>` : ''}
                             </td>
 
                             <td class="p-4 text-xs hidden sm:table-cell">
@@ -270,7 +279,8 @@
                                             <button onclick="regenerateLink('${u.id}', '${encodeURIComponent(u.name)}')" title="${t('admin.regen_title')}" class="text-base text-amber-500 hover:text-amber-600 leading-none">↻</button>
                                             <button onclick="toggleUser('${u.id}', false)" class="text-xs font-black text-red-400 hover:text-red-600 uppercase">${t('common.deactivate')}</button>
                                         ` : `
-                                            <button onclick="toggleUser('${u.id}', true)" class="text-xs font-black text-emerald-600 uppercase">${t('common.restore')}</button>
+                                            <button onclick="toggleUser('${u.id}', true)" class="text-xs font-black text-emerald-600 uppercase">${isPending ? t('admin.validate') : t('common.restore')}</button>
+                                            ${isPending ? `<button onclick="rejectPending('${u.id}', '${encodeURIComponent(u.name)}')" title="${t('admin.reject_title')}" class="text-xs font-black text-red-400 hover:text-red-600 uppercase">${t('admin.reject')}</button>` : ''}
                                         `}
                                     </div>
 
@@ -284,11 +294,20 @@
             }
         }
 
+        // Rejeter un auto-inscrit en attente : suppression définitive (sûr, il n'a aucune donnée).
+        async function rejectPending(id, encName) {
+            const name = decodeURIComponent(encName || '');
+            if (!await uiConfirm(t('admin.reject_confirm', { name }))) return;
+            const res = await adminFetch(`/api/admin/users/${id}/reject`, { method: 'DELETE' });
+            if (res && res.ok) loadAdminUsers();
+            else { const e = res ? await res.json().catch(() => ({})) : {}; uiToast(e.error || t('admin.reject_error')); }
+        }
+
         async function toggleUser(id, shouldActivate) {
             const url = shouldActivate ? `/api/admin/users/${id}/restore` : `/api/admin/users/${id}`;
             const method = shouldActivate ? 'PATCH' : 'DELETE'; // On utilise DELETE pour désactiver car c'est notre route existante
             
-            if (confirm(shouldActivate ? t('admin.confirm_restore_user') : t('admin.confirm_deactivate_user'))) {
+            if (await uiConfirm(shouldActivate ? t('admin.confirm_restore_user') : t('admin.confirm_deactivate_user'))) {
                 await adminFetch(url, { method });
                 loadAdminUsers();
             }
@@ -297,7 +316,7 @@
         function copyLink(token) {
             const url = `${window.location.origin}/login/${token}`;
             navigator.clipboard.writeText(url);
-            alert(t('admin.toast_link_copied'));
+            uiToast(t('admin.toast_link_copied'));
         }
 
         // Masque l'adresse dans la table admin (ex : em…@…net)
@@ -310,30 +329,30 @@
         // Renvoyer à un membre son lien magique par e-mail
         async function resendLink(id) {
             const res = await adminFetch(`/api/admin/users/${id}/resend-link`, { method: 'POST' });
-            if (res && res.ok) { alert(t('admin.resend_ok')); }
-            else { const e = res ? await res.json().catch(() => ({})) : {}; alert(e.error || t('admin.resend_error')); }
+            if (res && res.ok) { uiToast(t('admin.resend_ok')); }
+            else { const e = res ? await res.json().catch(() => ({})) : {}; uiToast(e.error || t('admin.resend_error')); }
         }
 
         // Filet de secours : afficher/copier le lien malgré l'e-mail (dépannage), derrière confirmation
-        function revealLink(token) {
-            if (!confirm(t('admin.reveal_confirm'))) return;
+        async function revealLink(token) {
+            if (!await uiConfirm(t('admin.reveal_confirm'))) return;
             copyLink(token);
         }
 
         // Régénère le lien magique d'un membre (rotation de token) : l'ancien lien est invalidé.
         async function regenerateLink(id, encName) {
             const name = decodeURIComponent(encName || '');
-            if (!confirm(t('admin.regen_confirm', { name }))) return;
+            if (!await uiConfirm(t('admin.regen_confirm', { name }))) return;
             const res = await adminFetch(`/api/admin/users/${id}/regenerate-link`, { method: 'POST' });
             if (res && res.ok) {
                 const data = await res.json();
                 const url = `${window.location.origin}/login/${data.token}`;
                 try { await navigator.clipboard.writeText(url); } catch {}
-                alert(t('admin.regen_ok', { url }));
+                uiToast(t('admin.regen_ok', { url }));
                 loadAdminUsers();
             } else {
                 const e = res ? await res.json().catch(() => ({})) : {};
-                alert(e.error || t('admin.regen_error'));
+                uiToast(e.error || t('admin.regen_error'));
             }
         }
 
@@ -353,7 +372,21 @@
             if (!input || !input.value || input.value === '…') return;
             navigator.clipboard.writeText(input.value);
             input.select();
-            alert(t('admin.invite_link_copied'));
+            uiToast(t('admin.invite_link_copied'));
+        }
+
+        // Kill switch : régénère le code d'invitation (l'ancien lien cesse de fonctionner).
+        async function regenerateInvite() {
+            if (!await uiConfirm(t('admin.invite_regen_confirm'))) return;
+            const res = await adminFetch('/api/admin/regenerate-invite', { method: 'POST' });
+            if (res && res.ok) {
+                const data = await res.json();
+                const input = document.getElementById('invite-link');
+                if (input) input.value = data.url;
+                uiToast(t('admin.invite_regen_ok'));
+            } else {
+                uiToast(t('admin.invite_regen_error'));
+            }
         }
 
         async function sendInvite() {
@@ -367,10 +400,10 @@
             });
             if (res && res.ok) {
                 emailInput.value = '';
-                alert(t('admin.invite_sent'));
+                uiToast(t('admin.invite_sent'));
             } else {
                 const err = res ? await res.json().catch(() => ({})) : {};
-                alert(err.error || t('admin.invite_email_invalid'));
+                uiToast(err.error || t('admin.invite_email_invalid'));
             }
         }
 
@@ -386,14 +419,14 @@
             });
             if (!res || !res.ok) {
                 const e = res ? await res.json().catch(() => ({})) : {};
-                alert(e.error || t('admin.add_user_error'));
+                uiToast(e.error || t('admin.add_user_error'));
                 return;
             }
 
             document.getElementById('new-user-name').value = '';
             document.getElementById('new-user-email').value = '';
             loadAdminUsers();
-            if (email.trim()) alert(t('admin.add_user_email_sent'));
+            if (email.trim()) uiToast(t('admin.add_user_email_sent'));
         }
 
         // Fonction universelle pour supprimer avec confirmation
@@ -402,7 +435,7 @@
                 ? `Es-tu sûr de vouloir retirer ${name} de l'équipe ?`
                 : `Supprimer le badge ${name} ?`;
 
-            if (confirm(confirmMessage)) {
+            if (await uiConfirm(confirmMessage)) {
                 const res = await adminFetch(`/api/admin/${type}s/${id}`, { method: 'DELETE' });
                 if (res.ok) {
                     type === 'user' ? loadAdminUsers() : loadAdminCategories();
@@ -415,7 +448,7 @@
             const emojiInput = document.getElementById('new-cat-emoji');
 
             if (!nameInput.value || !emojiInput.value) {
-                return alert(t('admin.fill_required'));
+                return uiToast(t('admin.fill_required'));
             }
 
             // On utilise adminFetch : il gère déjà le mot de passe et le 401
@@ -485,7 +518,7 @@
             const url = shouldActivate ? `/api/admin/categories/${id}/restore` : `/api/admin/categories/${id}`;
             const method = shouldActivate ? 'PATCH' : 'DELETE';
             
-            if (confirm(shouldActivate ? t('admin.confirm_restore_badge') : t('admin.confirm_deactivate_badge'))) {
+            if (await uiConfirm(shouldActivate ? t('admin.confirm_restore_badge') : t('admin.confirm_deactivate_badge'))) {
                 await adminFetch(url, { method });
                 loadAdminCategories();
             }
@@ -570,14 +603,14 @@
         }
 
         async function deleteRule(id) {
-            if(confirm(t('admin.rule_confirm_delete'))) {
+            if(await uiConfirm(t('admin.rule_confirm_delete'))) {
                 await adminFetch(`/api/admin/rules/${id}`, { method: 'DELETE' });
                 loadRules();
             }
         }
 
         async function clearCategoryPoints(userId, catId, catName, userName) {
-            if (!confirm(t('admin.confirm_clear_category', { cat: catName, user: userName }))) return;
+            if (!await uiConfirm(t('admin.confirm_clear_category', { cat: catName, user: userName }))) return;
 
             // Utilisation de adminFetch pour inclure le header X-Admin-Password
             const res = await adminFetch(`/api/admin/clear-category/${userId}/${catId}`, { 
@@ -638,19 +671,46 @@
             }).join('');
         }
 
+        // Bandeau récap « zone spam » au-dessus de la liste des membres.
+        function renderSpamBanner(spammers) {
+            const banner = document.getElementById('spam-banner');
+            if (!banner) return;
+            const list = (spammers || []).filter(s => s.flagged || s.progress >= 0.5);
+            if (!list.length) { banner.innerHTML = ''; return; }
+            const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+            banner.innerHTML = `
+                <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6">
+                    <div class="font-black text-amber-800 text-sm mb-3 flex items-center gap-2">⚠️ ${t('admin.spam_zone_title')}</div>
+                    <div class="space-y-2">
+                        ${list.map(s => {
+                            const pct = Math.min(Math.round(s.progress * 100), 100);
+                            const flagged = s.flagged;
+                            return `<div class="flex items-center gap-3">
+                                <span class="text-sm font-bold ${flagged ? 'text-purple-700' : 'text-amber-900'} w-28 sm:w-32 truncate shrink-0">${flagged ? '🚨 ' : ''}${esc(s.name)}</span>
+                                <div class="flex-1 h-2 bg-white rounded-full overflow-hidden border border-amber-100">
+                                    <div class="h-full ${flagged ? 'bg-purple-500' : 'bg-amber-400'} rounded-full" style="width:${pct}%"></div>
+                                </div>
+                                <span class="text-xs font-black ${flagged ? 'text-purple-700' : 'text-amber-700'} w-9 text-right shrink-0">${pct}%</span>
+                                ${flagged ? `<button onclick="pardonSpammer('${s.userId}', '${encodeURIComponent(s.name)}')" class="text-[10px] font-black uppercase text-emerald-600 hover:underline whitespace-nowrap shrink-0">${t('admin.spammer_pardon')}</button>` : ''}
+                            </div>`;
+                        }).join('')}
+                    </div>
+                </div>`;
+        }
+
         async function pardonSpammer(id, encName) {
             const name = decodeURIComponent(encName || '');
-            if (!confirm(t('admin.spammer_pardon_confirm', { name }))) return;
+            if (!await uiConfirm(t('admin.spammer_pardon_confirm', { name }))) return;
             const res = await adminFetch(`/api/admin/users/${id}/pardon-spammer`, { method: 'POST' });
-            if (res && res.ok) { alert(t('admin.spammer_pardon_ok')); loadAdminUsers(); loadDareLog(); }
-            else { alert(t('admin.spammer_pardon_error')); }
+            if (res && res.ok) { uiToast(t('admin.spammer_pardon_ok')); loadAdminUsers(); loadDareLog(); }
+            else { uiToast(t('admin.spammer_pardon_error')); }
         }
 
         async function deleteDareLog(id) {
-            if (!confirm(t('admin.dare_log_delete_confirm'))) return;
+            if (!await uiConfirm(t('admin.dare_log_delete_confirm'))) return;
             const res = await adminFetch(`/api/admin/dare-log/${id}`, { method: 'DELETE' });
             if (res && res.ok) loadDareLog();
-            else alert(t('common.access_denied'));
+            else uiToast(t('common.access_denied'));
         }
 
         async function loadGlobalLog() {
@@ -685,7 +745,7 @@
         }
 
         async function deletePoint(pointId) {
-            if (!confirm(t('admin.confirm_delete_point'))) return;
+            if (!await uiConfirm(t('admin.confirm_delete_point'))) return;
 
             const res = await adminFetch(`/api/admin/points/${pointId}`, {
                 method: 'DELETE'
@@ -700,7 +760,7 @@
         }
 
         async function deleteSpecificPoint(pointId, userName) {
-        if (!confirm(t('admin.confirm_delete_point'))) return;
+        if (!await uiConfirm(t('admin.confirm_delete_point'))) return;
 
             const res = await adminFetch(`/api/admin/points/${pointId}`, {
                 method: 'DELETE'
@@ -711,7 +771,7 @@
                 if (window.showToast) {
                     window.showToast("Le point a été effacé", "success");
                 } else {
-                    alert("Point effacé");
+                    uiToast("Point effacé");
                 }
                 
                 // On rafraîchit les données pour voir le score baisser

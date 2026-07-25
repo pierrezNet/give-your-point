@@ -18,10 +18,13 @@
         }
         .bar-fill { transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
         .week-bar { transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+        .podium-bar { transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
         .heatmap-cell {
             transition: transform 0.15s;
         }
         .heatmap-cell:hover { transform: scale(1.15); z-index: 10; position: relative; }
+        .award-card { transition: transform 0.15s; }
+        .award-card:hover { transform: translateY(-2px); }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen p-2 sm:p-4 lg:p-8">
@@ -43,15 +46,33 @@
     </div>
 
     <script>
-        async function loadStats() {
+        let currentPeriod = '30';
+
+        function esc(s) {
+            return String(s ?? '').replace(/[&<>"']/g, m => (
+                { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]
+            ));
+        }
+
+        // Date SQLite (UTC) → « 24 juil. »
+        function fmtDate(s) {
+            try {
+                const d = new Date(String(s).replace(' ', 'T') + 'Z');
+                return d.toLocaleDateString(getLang() === 'en' ? 'en-GB' : 'fr-FR', { day: 'numeric', month: 'short' });
+            } catch { return s; }
+        }
+
+        async function loadStats(period) {
+            if (period) currentPeriod = period;
             const myId = localStorage.getItem('my_user_id');
             if (!myId) {
                 document.getElementById('stats-content').innerHTML = `<p class="text-center text-slate-500">${t('stats.connect_first')}</p>`;
                 return;
             }
-            const res = await fetch('/api/stats', { headers: { 'Authorization': `Bearer ${myId}` } });
+            const res = await fetch('/api/stats?period=' + currentPeriod, { headers: { 'Authorization': `Bearer ${myId}` }, cache: 'no-store' });
             if (!res.ok) { document.getElementById('stats-content').innerHTML = `<p class="text-center text-red-500">${t('stats.error')}</p>`; return; }
             const data = await res.json();
+            currentPeriod = data.period || currentPeriod;
             render(data);
         }
 
@@ -63,74 +84,195 @@
                 </div>`;
         }
 
+        // Sélecteur de période + compteur global.
+        function periodBar(total) {
+            const btn = (p, label) => `<button onclick="loadStats('${p}')" class="px-3 py-1.5 rounded-full text-sm font-bold transition-colors ${currentPeriod === p ? 'bg-indigo-600 text-white shadow' : 'bg-white text-slate-500 hover:bg-slate-100 border border-slate-200'}">${label}</button>`;
+            return `
+                <div class="flex items-center justify-between flex-wrap gap-3">
+                    <div class="flex gap-2">
+                        ${btn('7', t('stats.period_7'))}
+                        ${btn('30', t('stats.period_30'))}
+                        ${btn('all', t('stats.period_all'))}
+                    </div>
+                    <span class="text-sm font-bold text-slate-500">🎯 ${total} ${t('stats.total_points')}</span>
+                </div>`;
+        }
+
+        // Carte « Toi cette période ».
+        function youCard(me) {
+            if (!me || (me.given + me.received + me.gages) === 0) return '';
+            const rank = (r) => r ? t('stats.you_rank', { n: r }) : t('stats.you_norank');
+            const cell = (val, label) => `<div><div class="text-3xl font-black">${val}</div><div class="text-[11px] opacity-80 mt-0.5">${label}</div></div>`;
+            return `
+                <div class="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl p-5 shadow text-white">
+                    <h2 class="font-black mb-3">${t('stats.you_title')}</h2>
+                    <div class="grid grid-cols-3 gap-3 text-center">
+                        ${cell(me.given, `${t('stats.you_given')} · ${rank(me.rankGiver)}`)}
+                        ${cell(me.received, `${t('stats.you_received')} · ${rank(me.rankReceiver)}`)}
+                        ${cell(me.gages, t('stats.you_gages'))}
+                    </div>
+                </div>`;
+        }
+
+        // Une carte de palmarès (titre + lauréat + description + valeur).
+        function awardCard(emoji, title, main, desc, value) {
+            return `
+                <div class="award-card bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center gap-3">
+                    <span class="text-3xl shrink-0">${emoji}</span>
+                    <div class="min-w-0 flex-1">
+                        <div class="text-[10px] font-black uppercase tracking-wider text-slate-400">${title}</div>
+                        <div class="text-sm font-black text-slate-800 truncate">${main}</div>
+                        <div class="text-[11px] text-slate-400 truncate">${desc}${value ? ' · ' + value : ''}</div>
+                    </div>
+                </div>`;
+        }
+
+        // Podium top 3 (🥈🥇🥉) + reste en liste.
+        function podium(list, color) {
+            if (!list.length) return `<p class="text-sm text-slate-400 py-4">${t('stats.empty')}</p>`;
+            const top3 = list.slice(0, 3);
+            const rest = list.slice(3);
+            const medals = ['🥇', '🥈', '🥉'];
+            const heights = { 0: 'h-20', 1: 'h-14', 2: 'h-10' };
+            const order = [1, 0, 2]; // 2e · 1er · 3e
+            const podiumHtml = `
+                <div class="flex items-end justify-center gap-2 mb-1">
+                    ${order.map(i => {
+                        const x = top3[i];
+                        if (!x) return `<div class="flex-1"></div>`;
+                        return `
+                            <div class="flex flex-col items-center gap-1 flex-1 min-w-0">
+                                <span class="text-2xl">${medals[i]}</span>
+                                <span class="text-xs font-bold text-slate-700 truncate w-full text-center">${esc(x.name)}</span>
+                                <div class="podium-bar w-full ${color} rounded-t-lg ${heights[i]} flex items-start justify-center pt-1">
+                                    <span class="text-white font-black text-sm">${x.total}</span>
+                                </div>
+                            </div>`;
+                    }).join('')}
+                </div>`;
+            const restHtml = rest.map((x, idx) => `
+                <div class="flex items-center gap-3">
+                    <span class="text-xs font-black text-slate-400 w-5">#${idx + 4}</span>
+                    <span class="text-sm font-bold text-slate-700 flex-1 truncate">${esc(x.name)}</span>
+                    <span class="text-sm font-black text-slate-500">${x.total}</span>
+                </div>`).join('');
+            return podiumHtml + (rest.length ? `<div class="space-y-2 pt-3 mt-2 border-t border-slate-100">${restHtml}</div>` : '');
+        }
+
         function render(data) {
-            const maxGiver    = data.givers[0]?.total || 1;
-            const maxReceiver = data.receivers[0]?.total || 1;
-            const maxCat      = data.categories[0]?.total || 1;
-            const maxWeek     = Math.max(...data.evolution.map(e => e.total), 1);
+            const G = data.givers || [], R = data.receivers || [], M = data.matrix || [], GA = data.gages || [];
+            const content = document.getElementById('stats-content');
 
-            // Heatmap : liste des noms uniques
-            const names = [...new Set([
-                ...data.matrix.map(m => m.from_name),
-                ...data.matrix.map(m => m.to_name)
-            ])].sort();
+            // Aucune donnée sur la période : juste le sélecteur + message.
+            if (!data.totalPoints) {
+                content.innerHTML = `
+                    <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">${periodBar(0)}</div>
+                    <div class="text-center py-16 text-slate-400 font-bold">${t('stats.empty')}</div>`;
+                return;
+            }
+
+            const maxCat  = data.categories[0]?.total || 1;
+            const maxWeek = Math.max(...data.evolution.map(e => e.total), 1);
+
+            // ---- Palmarès (calculs client) ----
+            // 👀 L'obsédé·e : plus grosse cellule donneur→receveur (hors soi-même).
+            let obsessed = null;
+            M.forEach(m => { if (m.from_id !== m.to_id && (!obsessed || m.total > obsessed.total)) obsessed = m; });
+            // 🤝 Le Duo : meilleure paire réciproque (les deux sens > 0), score = somme des deux sens.
+            const pairMap = {};
+            M.forEach(m => { if (m.from_id !== m.to_id) pairMap[m.from_id + '|' + m.to_id] = m; });
+            let duo = null;
+            M.forEach(m => {
+                if (m.from_id === m.to_id || m.from_id >= m.to_id) return; // une paire comptée une fois
+                const back = pairMap[m.to_id + '|' + m.from_id];
+                if (!back) return;
+                const score = m.total + back.total;
+                if (!duo || score > duo.score) duo = { a: m.from_name, b: m.to_name, score };
+            });
+            // 🐀 L'ingrat·e : reçoit beaucoup, donne peu (received - given max, reçus ≥ 3).
+            const givenById = {};
+            G.forEach(g => { givenById[g.id] = g.total; });
+            let ingrate = null;
+            R.forEach(r => {
+                if (r.total < 3) return;
+                const score = r.total - (givenById[r.id] || 0);
+                if (score > 0 && (!ingrate || score > ingrate.score)) ingrate = { name: r.name, score };
+            });
+
+            const awards = [];
+            if (G[0]) awards.push(awardCard('🎁', t('stats.award_santa_t'), esc(G[0].name), t('stats.award_santa_d'), `${G[0].total} ${t('stats.u_given')}`));
+            if (R[0]) awards.push(awardCard('⭐', t('stats.award_star_t'), esc(R[0].name), t('stats.award_star_d'), `${R[0].total} ${t('stats.u_received')}`));
+            if (obsessed) awards.push(awardCard('👀', t('stats.award_obsessed_t'), esc(obsessed.from_name) + ' → ' + esc(obsessed.to_name), t('stats.award_obsessed_d'), `${obsessed.total}×`));
+            if (GA[0]) awards.push(awardCard('🥐', t('stats.award_gageking_t'), esc(GA[0].name), t('stats.award_gageking_d'), `${GA[0].total} ${t('stats.u_gages_n')}`));
+            if (duo) awards.push(awardCard('🤝', t('stats.award_duo_t'), esc(duo.a) + ' ↔ ' + esc(duo.b), t('stats.award_duo_d'), `${duo.score}`));
+            if (ingrate) awards.push(awardCard('🐀', t('stats.award_ingrate_t'), esc(ingrate.name), t('stats.award_ingrate_d'), `+${ingrate.score}`));
+
+            // ---- Heatmap : noms uniques ----
+            const names = [...new Set([...M.map(m => m.from_name), ...M.map(m => m.to_name)])].sort();
             const matrixMap = {};
-            data.matrix.forEach(m => { matrixMap[`${m.from_name}|${m.to_name}`] = m.total; });
-            const maxCell = Math.max(...data.matrix.map(m => m.total), 1);
+            M.forEach(m => { matrixMap[`${m.from_name}|${m.to_name}`] = m.total; });
+            const maxCell = Math.max(...M.map(m => m.total), 1);
 
-            document.getElementById('stats-content').innerHTML = `
+            content.innerHTML = `
 
-                <!-- KPIs -->
-                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    ${kpi('🎯', 'Points distribués', data.totalPoints, 'bg-blue-600')}
-                    ${kpi('🏆', 'Plus récompensé', data.receivers[0]?.name || '—', 'bg-yellow-500', data.receivers[0]?.total + ' pts')}
-                    ${kpi('🎁', 'Plus généreux', data.givers[0]?.name || '—', 'bg-emerald-500', data.givers[0]?.total + ' donnés')}
-                    ${kpi('🔥', 'Catégorie #1', (data.categories[0]?.emoji || '') + ' ' + (data.categories[0]?.name || '—'), 'bg-orange-500', data.categories[0]?.total + ' fois')}
-                </div>
+                <!-- Période + total -->
+                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">${periodBar(data.totalPoints)}</div>
 
-                <!-- Top donateurs / receveurs -->
+                <!-- Toi cette période -->
+                ${youCard(data.me)}
+
+                <!-- Palmarès -->
+                ${awards.length ? `
+                <div>
+                    <h2 class="font-black text-slate-800 mb-3 flex items-center gap-2">${t('stats.awards_title')}</h2>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">${awards.join('')}</div>
+                </div>` : ''}
+
+                <!-- Podiums donneurs / receveurs -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
                         <h2 class="font-black text-slate-800 mb-4 flex items-center gap-2">
-                            <span class="w-2 h-5 bg-emerald-500 rounded-full"></span> Top donateurs
+                            <span class="w-2 h-5 bg-emerald-500 rounded-full"></span> ${t('stats.givers')}
                         </h2>
-                        <div class="space-y-3">
-                            ${data.givers.map((u, i) => `
-                                <div class="flex items-center gap-3">
-                                    <span class="text-xs font-black text-slate-400 w-5">#${i+1}</span>
-                                    <span class="text-sm font-bold text-slate-700 w-24 truncate">${u.name}</span>
-                                    ${bar(u.total, maxGiver, 'bg-emerald-400')}
-                                    <span class="text-sm font-black text-emerald-600 w-8 text-right">${u.total}</span>
-                                </div>`).join('')}
-                        </div>
+                        ${podium(G, 'bg-emerald-400')}
                     </div>
-
                     <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
                         <h2 class="font-black text-slate-800 mb-4 flex items-center gap-2">
-                            <span class="w-2 h-5 bg-blue-500 rounded-full"></span> Top receveurs
+                            <span class="w-2 h-5 bg-blue-500 rounded-full"></span> ${t('stats.receivers')}
                         </h2>
-                        <div class="space-y-3">
-                            ${data.receivers.map((u, i) => `
-                                <div class="flex items-center gap-3">
-                                    <span class="text-xs font-black text-slate-400 w-5">#${i+1}</span>
-                                    <span class="text-sm font-bold text-slate-700 w-24 truncate">${u.name}</span>
-                                    ${bar(u.total, maxReceiver, 'bg-blue-400')}
-                                    <span class="text-sm font-black text-blue-600 w-8 text-right">${u.total}</span>
-                                </div>`).join('')}
-                        </div>
+                        ${podium(R, 'bg-blue-400')}
                     </div>
                 </div>
+
+                <!-- Gages tombés -->
+                ${(data.gageLog && data.gageLog.length) ? `
+                <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
+                    <h2 class="font-black text-slate-800 mb-4 flex items-center gap-2">
+                        <span class="w-2 h-5 bg-orange-500 rounded-full"></span> ${t('stats.gages_title')}
+                    </h2>
+                    <div class="space-y-2">
+                        ${data.gageLog.map(g => `
+                            <div class="flex items-center gap-3 py-1">
+                                <span class="text-lg w-7 text-center shrink-0">${g.emoji || '🥐'}</span>
+                                <div class="min-w-0 flex-1">
+                                    <span class="text-sm font-bold text-slate-700">${esc(g.name)}</span>
+                                    <span class="text-sm text-slate-500"> — ${esc(g.dare_text)}</span>
+                                </div>
+                                <span class="text-[11px] text-slate-400 whitespace-nowrap shrink-0">${esc(g.category)} · ${fmtDate(g.cleared_at)}</span>
+                            </div>`).join('')}
+                    </div>
+                </div>` : ''}
 
                 <!-- Catégories -->
                 <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
                     <h2 class="font-black text-slate-800 mb-4 flex items-center gap-2">
-                        <span class="w-2 h-5 bg-purple-500 rounded-full"></span> Catégories
+                        <span class="w-2 h-5 bg-purple-500 rounded-full"></span> ${t('stats.categories')}
                     </h2>
                     <div class="space-y-3">
                         ${data.categories.map(c => `
                             <div class="flex items-center gap-3">
-                                <span class="text-lg w-7 text-center">${c.emoji}</span>
-                                <span class="text-sm font-bold text-slate-700 w-32 truncate">${c.name}</span>
+                                <span class="text-lg w-7 text-center">${c.emoji || ''}</span>
+                                <span class="text-sm font-bold text-slate-700 w-32 truncate">${esc(c.name)}</span>
                                 ${bar(c.total, maxCat, 'bg-purple-400')}
                                 <span class="text-sm font-black text-purple-600 w-8 text-right">${c.total}</span>
                             </div>`).join('')}
@@ -140,12 +282,13 @@
                 <!-- Évolution -->
                 <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100">
                     <h2 class="font-black text-slate-800 mb-6 flex items-center gap-2">
-                        <span class="w-2 h-5 bg-indigo-500 rounded-full"></span> Évolution (12 semaines)
+                        <span class="w-2 h-5 bg-indigo-500 rounded-full"></span> ${t('stats.evolution_title')}
                     </h2>
                     <div class="flex items-end gap-2 h-32">
                         ${data.evolution.map(w => {
                             const pct = Math.round((w.total / maxWeek) * 100);
-                            const label = w.week.split('-W')[1] ? 'S' + w.week.split('-W')[1] : w.week;
+                            const wk = w.week.split('-')[1];
+                            const label = wk ? 'S' + wk : w.week;
                             return `
                                 <div class="flex-1 flex flex-col items-center gap-1">
                                     <span class="text-[10px] font-black text-indigo-600">${w.total}</span>
@@ -162,20 +305,20 @@
                 ${names.length > 1 ? `
                 <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 overflow-x-auto">
                     <h2 class="font-black text-slate-800 mb-4 flex items-center gap-2">
-                        <span class="w-2 h-5 bg-rose-500 rounded-full"></span> Qui donne à qui
+                        <span class="w-2 h-5 bg-rose-500 rounded-full"></span> ${t('stats.heatmap_title')}
                     </h2>
-                    <p class="text-xs text-slate-400 mb-4">Ligne = donneur · Colonne = receveur</p>
+                    <p class="text-xs text-slate-400 mb-4">${t('stats.heatmap_hint')}</p>
                     <table class="text-[11px] border-collapse">
                         <thead>
                             <tr>
                                 <th class="p-1 w-20"></th>
-                                ${names.map(n => `<th class="p-1 text-center font-bold text-slate-500 max-w-12"><div class="rotate-[-45deg] origin-left translate-x-3 whitespace-nowrap">${n.split(' ')[0]}</div></th>`).join('')}
+                                ${names.map(n => `<th class="p-1 text-center font-bold text-slate-500 max-w-12"><div class="rotate-[-45deg] origin-left translate-x-3 whitespace-nowrap">${esc(n.split(' ')[0])}</div></th>`).join('')}
                             </tr>
                         </thead>
                         <tbody>
                             ${names.map(from => `
                                 <tr>
-                                    <td class="p-1 font-bold text-slate-600 pr-3 whitespace-nowrap">${from.split(' ')[0]}</td>
+                                    <td class="p-1 font-bold text-slate-600 pr-3 whitespace-nowrap">${esc(from.split(' ')[0])}</td>
                                     ${names.map(to => {
                                         const val = from === to ? null : (matrixMap[`${from}|${to}`] || 0);
                                         if (val === null) return `<td class="p-1"><div class="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-300">—</div></td>`;
@@ -184,7 +327,7 @@
                                         return `<td class="p-1">
                                             <div class="heatmap-cell w-8 h-8 rounded flex items-center justify-center font-black ${textColor} cursor-default"
                                                  style="background:rgba(244,63,94,${alpha})"
-                                                 title="${from} → ${to} : ${val} point(s)">
+                                                 title="${esc(from)} → ${esc(to)} : ${val} ${t('stats.u_points_n')}">
                                                 ${val > 0 ? val : ''}
                                             </div>
                                         </td>`;
@@ -197,27 +340,13 @@
 
             // Animer les barres après insertion
             requestAnimationFrame(() => {
-                document.querySelectorAll('.bar-fill').forEach(el => {
-                    el.style.width = el.dataset.pct + '%';
-                });
-                document.querySelectorAll('.week-bar').forEach(el => {
-                    el.style.height = el.dataset.pct + '%';
-                });
+                document.querySelectorAll('.bar-fill').forEach(el => { el.style.width = el.dataset.pct + '%'; });
+                document.querySelectorAll('.week-bar').forEach(el => { el.style.height = el.dataset.pct + '%'; });
             });
         }
 
-        function kpi(emoji, label, value, color, sub = '') {
-            return `
-                <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col gap-1">
-                    <div class="flex items-center gap-2 mb-1">
-                        <span class="w-2 h-2 rounded-full ${color}"></span>
-                        <span class="text-[10px] font-black uppercase tracking-widest text-slate-400">${label}</span>
-                    </div>
-                    <span class="text-2xl font-black text-slate-800">${value}</span>
-                    ${sub ? `<span class="text-xs text-slate-400">${sub}</span>` : ''}
-                </div>`;
-        }
-
+        // Rafraîchit au retour sur l'onglet (ex : après avoir honoré un gage dans /admin).
+        document.addEventListener('visibilitychange', () => { if (!document.hidden) loadStats(); });
         loadStats();
     </script>
 </body>
