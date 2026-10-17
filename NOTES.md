@@ -76,3 +76,13 @@ module ; chaque entrée cite le symbole concerné pour être retrouvée par rech
 - `escapeHtml` y est défini une fois pour toutes les pages. Règle : toute donnée venant de l'API
   passe par `escapeHtml` avant `innerHTML`, et aucun texte libre n'est placé dans un `onclick` —
   on passe un id et on relit le nom dans une `Map` (`adminUsersById`, `teamsById`…).
+
+## Déploiement — cache des fichiers statiques
+
+- Cloudflare Pages sert JS/CSS avec `max-age=14400` : après un déploiement, un navigateur pouvait
+  garder l'ancien `app.js` 4 h alors que le HTML (non mis en cache) était neuf. Le 2026-10-17, ce
+  mélange de versions a déconnecté des utilisateurs (ancien `app.js` lisant `my_user_id` déjà migré
+  vers `my_token` par le nouveau `session.js`).
+- Correctif : la route catch-all pose `Cache-Control: no-cache` sur `.js`/`.css` (revalidation par
+  ETag, réponse 304 si inchangé). Les `?v=20261017` dans les pages ne servent qu'à purger les copies
+  déjà en cache au moment du correctif ; inutile de les incrémenter ensuite.

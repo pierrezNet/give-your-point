@@ -2118,9 +2118,13 @@ app.get('/about.html', (c) => serveHtmlWithOg(c, '/about'));
 // Lien d'invitation : sert l'app (index) pour que le frontend rende l'écran "Rejoindre".
 app.get('/join/:code', (c) => serveHtmlWithOg(c, '/', '/'));
 
+const ALWAYS_REVALIDATED_ASSET = /\.(js|css)$/;
+
 app.get('/*', async (c) => {
   const asset = await c.env.ASSETS.fetch(c.req.raw);
-  return new Response(asset.body, asset);
+  const response = new Response(asset.body, asset);
+  if (ALWAYS_REVALIDATED_ASSET.test(c.req.path)) response.headers.set('Cache-Control', 'no-cache');
+  return response;
 });
 
 export default app;
