@@ -9,7 +9,7 @@ DB_FIX/
 *.sqlite-shm
 *.sqlite-wal
 data.json
-seed.sql
+/seed.sql
 prod*.sql
 migrate.js
 local-data.json
