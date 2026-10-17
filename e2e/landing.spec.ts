@@ -41,6 +41,9 @@ test.describe("page À propos", () => {
     const errors = collectPageErrors(page);
     await page.goto('/about');
     await expect(page.getByRole('heading', { name: 'Cloisonnement des espaces' })).toBeVisible();
+    await expect(page.getByText("Un superadmin ne voit ni ne modifie les équipes d'une autre société.")).toBeVisible();
+    await page.getByRole('link', { name: /Chaque société est un espace étanche/ }).click();
+    await expect(page).toHaveURL(/#cloisonnement$/);
     expect(errors).toEqual([]);
   });
 });

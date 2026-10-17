@@ -47,6 +47,7 @@
         <div class="text-center">
             <h1 class="text-4xl font-black text-slate-800" data-i18n="about.page_title">À propos</h1>
             <p class="text-slate-600 mt-3" data-i18n="about.tagline">Tout ce qu'il faut savoir avant de te lancer.</p>
+            <a href="#cloisonnement" class="inline-block mt-4 bg-emerald-100 text-emerald-900 font-bold text-sm px-4 py-2 rounded-full hover:bg-emerald-200" data-i18n="about.isolation_badge">🔒 Chaque société est un espace étanche</a>
         </div>
 
         <!-- Principe -->
@@ -57,6 +58,36 @@
                 <p data-i18n-html="about.principle_p2"></p>
                 <p data-i18n="about.principle_p3"></p>
             </div>
+        </section>
+
+        <section id="cloisonnement">
+            <h2 class="text-2xl font-black text-slate-800 mb-4" data-i18n="about.isolation_title">Cloisonnement des espaces</h2>
+            <div class="bg-emerald-50 rounded-2xl p-6 border-2 border-emerald-300 shadow-sm">
+                <div class="flex items-start gap-4">
+                    <span class="text-4xl leading-none" aria-hidden="true">🔒</span>
+                    <div>
+                        <h3 class="text-xl font-black text-emerald-900" data-i18n="about.isolation_company_title">Votre société est un espace étanche</h3>
+                        <p class="text-lg font-bold text-slate-800 mt-2" data-i18n="about.isolation_company_lead">Un superadmin ne voit ni ne modifie les équipes d'une autre société.</p>
+                    </div>
+                </div>
+                <ul class="mt-5 space-y-3 text-slate-700">
+                    <li class="flex gap-3"><span class="font-black text-emerald-700" aria-hidden="true">✓</span><span data-i18n="about.isolation_company_point1">Aucune donnée d'une société (équipes, membres, points, gages, e-mails) n'est visible depuis une autre société.</span></li>
+                    <li class="flex gap-3"><span class="font-black text-emerald-700" aria-hidden="true">✓</span><span data-i18n="about.isolation_company_point2">Le refus est appliqué par le serveur à chaque requête : il ne dépend pas de l'interface et ne peut pas être contourné en modifiant une adresse.</span></li>
+                    <li class="flex gap-3"><span class="font-black text-emerald-700" aria-hidden="true">✓</span><span data-i18n="about.isolation_company_point3">Seul l'éditeur de l'application voit la liste des sociétés, leurs administrateurs et des compteurs d'activité — jamais le détail des points ni la liste des membres.</span></li>
+                </ul>
+            </div>
+            <h3 class="font-bold text-slate-800 mt-6 mb-3" data-i18n="about.isolation_others_title">Et à l'intérieur d'une société</h3>
+            <div class="space-y-3">
+                <div class="bg-white rounded-xl p-4 border border-slate-200">
+                    <h4 class="font-bold text-slate-800" data-i18n="about.isolation_teams_title">👥 Entre équipes</h4>
+                    <p class="text-sm text-slate-600 mt-1" data-i18n="about.isolation_teams_desc">Un membre ne voit que son équipe et ne peut donner de points qu'à ses coéquipiers. Au sein d'une même société, seuls des totaux agrégés par équipe sont partagés, jamais le détail individuel.</p>
+                </div>
+                <div class="bg-white rounded-xl p-4 border border-slate-200">
+                    <h4 class="font-bold text-slate-800" data-i18n="about.isolation_roles_title">🔑 Entre rôles</h4>
+                    <p class="text-sm text-slate-600 mt-1" data-i18n="about.isolation_roles_desc">On ne gère que des rôles inférieurs au sien : un admin ne peut ni désactiver un superadmin, ni obtenir son lien de connexion. Les liens de connexion ne sont jamais affichés aux autres membres.</p>
+                </div>
+            </div>
+            <p class="text-xs text-slate-500 mt-3 italic" data-i18n="about.isolation_tested">Ces règles sont vérifiées par des tests automatisés à chaque mise à jour de l'application.</p>
         </section>
 
         <!-- Rôles -->
@@ -81,26 +112,6 @@
                     <p class="text-sm text-slate-600 mt-1" data-i18n="about.role_owner_desc">Vue globale sur toutes les sociétés.</p>
                 </div>
             </div>
-        </section>
-
-        <section>
-            <h2 class="text-2xl font-black text-slate-800 mb-4" data-i18n="about.isolation_title">Cloisonnement des espaces</h2>
-            <p class="text-slate-700 mb-6" data-i18n="about.isolation_intro">Chaque société est un espace fermé. Ce cloisonnement est appliqué par le serveur, pas seulement par l'interface.</p>
-            <div class="space-y-3">
-                <div class="bg-white border-slate-200 rounded-xl p-4 border">
-                    <h3 class="font-bold text-slate-800" data-i18n="about.isolation_companies_title">🏢 Entre sociétés</h3>
-                    <p class="text-sm text-slate-600 mt-1" data-i18n="about.isolation_companies_desc">Un superadmin ne voit ni ne modifie les équipes, les membres ou les points d'une autre société. Seul l'éditeur de l'application (owner) dispose d'une vue d'ensemble : la liste des sociétés et leurs compteurs.</p>
-                </div>
-                <div class="bg-white border-slate-200 rounded-xl p-4 border">
-                    <h3 class="font-bold text-slate-800" data-i18n="about.isolation_teams_title">👥 Entre équipes</h3>
-                    <p class="text-sm text-slate-600 mt-1" data-i18n="about.isolation_teams_desc">Un membre ne voit que son équipe et ne peut donner de points qu'à ses coéquipiers. Au sein d'une même société, seuls des totaux agrégés par équipe sont partagés, jamais le détail individuel.</p>
-                </div>
-                <div class="bg-white border-slate-200 rounded-xl p-4 border">
-                    <h3 class="font-bold text-slate-800" data-i18n="about.isolation_roles_title">🔑 Entre rôles</h3>
-                    <p class="text-sm text-slate-600 mt-1" data-i18n="about.isolation_roles_desc">On ne gère que des rôles inférieurs au sien : un admin ne peut ni désactiver un superadmin, ni obtenir son lien de connexion. Les liens de connexion ne sont jamais affichés aux autres membres.</p>
-                </div>
-            </div>
-            <p class="text-xs text-slate-500 mt-3 italic" data-i18n="about.isolation_tested">Ces règles sont vérifiées par des tests automatisés à chaque mise à jour de l'application.</p>
         </section>
 
         <!-- Aperçu console admin (mockup SVG) -->
