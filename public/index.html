@@ -24,12 +24,7 @@
     <meta name="twitter:description" content="{{OG_DESC}}">
     <meta name="twitter:image" content="{{OG_URL}}/og.svg">
     <link rel="stylesheet" href="/styles.css?v=20261017">
-    <!-- Chemins absolus : index.html est aussi servi sous /join/<code> (URL multi-segments),
-         où un src relatif se résoudrait en /join/app.js → 404. -->
-    <script src="/session.js?v=20261017"></script>
-    <script src="/i18n.js?v=20261017"></script>
-    <script src="/ui.js?v=20261017"></script>
-    <script src="/app.js?v=20261017"></script>
+    <script type="module" src="/js/pages/home.js"></script>
     <style>
         /* --- 1. CARTES UTILISATEURS & INTERACTIONS --- */
         .user-card { 
@@ -112,7 +107,7 @@
         }
 
         /* --- 6. HEADER ANIMÉ --- */
-        header {
+        #app-shell > header {
             background: linear-gradient(135deg, #1e3a8a, #2563eb, #4f46e5, #7c3aed, #2563eb);
             background-size: 300% 300%;
             animation: gradient-shift 8s ease infinite;
@@ -267,6 +262,8 @@
             font-size: 0.875rem;
             line-height: 1.25;
         }
+        #mobile-menu > .hidden { display: none; }
+        .header-username { cursor: pointer; }
         /* Couleur du texte — accessible en mode clair */
         #mobile-menu .nav-btn-admin       { color: #b45309; }  /* yellow-700 */
         #mobile-menu .nav-btn-superadmin  { color: #7e22ce; }  /* purple-700 */
@@ -303,9 +300,6 @@
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen p-2 sm:p-4 lg:p-8">
-    <!-- Contenu SEO statique : indexable par les moteurs (et affiché sans JavaScript).
-         app.js le retire dès qu'il s'exécute — les visiteurs voient la landing interactive,
-         les connectés voient l'app. Voir renderLanding() et init() dans app.js. -->
     <section id="seo-landing" class="max-w-3xl mx-auto px-4 py-10 text-slate-700">
         <h1 class="text-3xl md:text-4xl font-black text-slate-900">Donne Ton Point — le rituel d'équipe 🎯</h1>
         <p class="mt-4 text-lg">Récompensez les bons coups (et les bourdes) de votre équipe avec des badges. Quand un seuil est atteint dans une catégorie, c'est gage&nbsp;! Un outil de gamification d'équipe simple, gratuit et sans carte bancaire, hébergé en Europe.</p>
@@ -332,72 +326,67 @@
         <noscript><p class="mt-6 font-bold text-red-600">Activez JavaScript pour créer votre espace et utiliser l'application.</p></noscript>
     </section>
 
+    <div id="app-shell" class="hidden">
     <header class="relative flex justify-between items-center mb-2 lg:mb-8 rounded-xl shadow-lg p-3 lg:p-4">
-        <h1 class="text-md lg:text-2xl font-black flex items-center gap-2">
-            <span class="header-emoji">🎯</span>
+        <div class="text-md lg:text-2xl font-black flex items-center gap-2">
+            <span class="header-emoji" aria-hidden="true">🎯</span>
             <span class="header-title" data-i18n="app.title">Donne Ton Point</span>
-            <span class="header-username" id="current-user-display" onclick="showProfileModal()" style="cursor:pointer" data-i18n-title="app.edit_email_title">
-                <span class="header-username-avatar" id="current-user-avatar">?</span>
+            <button type="button" class="header-username" id="current-user-display" data-action="show-profile" data-i18n-title="app.edit_email_title">
+                <span class="header-username-avatar" id="current-user-avatar" aria-hidden="true">?</span>
                 <span id="current-user-name" data-i18n="app.connecting">Connexion en cours...</span>
-            </span>
-        </h1>
+            </button>
+        </div>
 
-        <!-- Navigation desktop -->
         <nav class="hidden md:flex items-center gap-2">
             <a href="/stats" class="nav-btn" data-i18n="nav.stats">Stats 📊</a>
             <a href="/about" class="nav-btn" data-i18n="nav.about">À propos</a>
-            <button onclick="showHelp()" class="nav-btn" data-i18n="nav.help">Aide</button>
-            <a href="/admin" class="nav-btn-admin" data-i18n="nav.admin">Admin 🔐</a>
-            <a href="/superadmin" class="nav-btn-superadmin" style="display:none;" data-i18n="nav.superadmin">Société 🏛️</a>
-            <a href="/owner" class="nav-btn-owner" style="display:none;" data-i18n="nav.owner">Owner 🌐</a>
+            <button type="button" data-action="show-help" class="nav-btn" data-i18n="nav.help">Aide</button>
+            <a href="/admin" class="nav-btn-admin hidden" data-i18n="nav.admin">Admin 🔐</a>
+            <a href="/superadmin" class="nav-btn-superadmin hidden" data-i18n="nav.superadmin">Société 🏛️</a>
+            <a href="/owner" class="nav-btn-owner hidden" data-i18n="nav.owner">Owner 🌐</a>
             <span class="lang-toggle">
-                <button data-lang-toggle="fr" onclick="setLang('fr')">FR</button>
-                <span class="lang-sep">|</span>
-                <button data-lang-toggle="en" onclick="setLang('en')">EN</button>
+                <button type="button" data-lang-toggle="fr" lang="fr">FR</button>
+                <span class="lang-sep" aria-hidden="true">|</span>
+                <button type="button" data-lang-toggle="en" lang="en">EN</button>
             </span>
         </nav>
 
-        <!-- Hamburger mobile -->
-        <button onclick="toggleMenu()" id="bg-white p-2 md:p-6 rounded-2xl "
+        <button type="button" data-action="toggle-menu" id="menu-toggle" aria-controls="mobile-menu" aria-expanded="false" data-i18n-aria-label="nav.menu"
                 class="md:hidden flex flex-col justify-center items-center w-9 h-9 gap-1.5 rounded-lg border border-white/25 bg-white/10 hover:bg-white/20 transition-colors">
-            <span class="block w-5 h-0.5 bg-white rounded-full"></span>
-            <span class="block w-5 h-0.5 bg-white rounded-full"></span>
-            <span class="block w-5 h-0.5 bg-white rounded-full"></span>
+            <span class="block w-5 h-0.5 bg-white rounded-full" aria-hidden="true"></span>
+            <span class="block w-5 h-0.5 bg-white rounded-full" aria-hidden="true"></span>
+            <span class="block w-5 h-0.5 bg-white rounded-full" aria-hidden="true"></span>
         </button>
 
-        <!-- Dropdown mobile -->
         <div id="mobile-menu" class="hidden absolute top-full right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-50 p-2 flex-col gap-1">
             <a href="/stats" class="px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors" data-i18n="nav.stats">Stats 📊</a>
             <a href="/about" class="px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors" data-i18n="nav.about">À propos</a>
-            <button onclick="showHelp(); toggleMenu()" class="text-left px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors" data-i18n="nav.help">Aide</button>
-            <a href="/admin" class="nav-btn-admin px-4 py-3 rounded-xl text-sm font-bold text-yellow-600 hover:bg-yellow-50 transition-colors" data-i18n="nav.admin">Admin 🔐</a>
-            <a href="/superadmin" class="nav-btn-superadmin px-4 py-3 rounded-xl text-sm font-bold text-purple-600 hover:bg-purple-50 transition-colors" style="display:none;" data-i18n="nav.superadmin">Société 🏛️</a>
-            <a href="/owner" class="nav-btn-owner px-4 py-3 rounded-xl text-sm font-bold text-emerald-600 hover:bg-emerald-50 transition-colors" style="display:none;" data-i18n="nav.owner">Owner 🌐</a>
+            <button type="button" data-action="show-help" class="text-left px-4 py-3 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors" data-i18n="nav.help">Aide</button>
+            <a href="/admin" class="nav-btn-admin hidden px-4 py-3 rounded-xl text-sm font-bold text-yellow-600 hover:bg-yellow-50 transition-colors" data-i18n="nav.admin">Admin 🔐</a>
+            <a href="/superadmin" class="nav-btn-superadmin hidden px-4 py-3 rounded-xl text-sm font-bold text-purple-600 hover:bg-purple-50 transition-colors" data-i18n="nav.superadmin">Société 🏛️</a>
+            <a href="/owner" class="nav-btn-owner hidden px-4 py-3 rounded-xl text-sm font-bold text-emerald-600 hover:bg-emerald-50 transition-colors" data-i18n="nav.owner">Owner 🌐</a>
             <div class="flex justify-center gap-2 pt-2 border-t border-slate-100 mt-1">
-                <button data-lang-toggle="fr" onclick="setLang('fr')" class="text-xs font-bold text-slate-500 px-2">FR</button>
-                <span class="text-slate-300">|</span>
-                <button data-lang-toggle="en" onclick="setLang('en')" class="text-xs font-bold text-slate-500 px-2">EN</button>
+                <button type="button" data-lang-toggle="fr" lang="fr" class="text-xs font-bold text-slate-500 px-2">FR</button>
+                <span class="text-slate-300" aria-hidden="true">|</span>
+                <button type="button" data-lang-toggle="en" lang="en" class="text-xs font-bold text-slate-500 px-2">EN</button>
             </div>
         </div>
     </header>
-    <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
-        <div class="md:col-span-1">
+    <main class="grid grid-cols-1 md:grid-cols-4 gap-8">
+        <section class="md:col-span-1">
             <h2 class="text-xl font-semibold mb-4 text-gray-600" data-i18n="index.section_categories">Offrir un point</h2>
-            <div id="categories-list" class="flex flex-wrap md:flex-col gap-3">
-                </div>
-        </div>
+            <div id="categories-list" class="flex flex-wrap md:flex-col gap-3"></div>
+        </section>
 
-        <div class="md:col-span-3">
+        <section class="md:col-span-3">
             <div class="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4">
                 <h2 class="text-xl font-semibold text-gray-600"><span data-i18n="index.section_team">Équipe :</span> <span id="current-team-name" class="text-gray-800">…</span></h2>
-                <button id="company-activity-pill" type="button" onclick="showCompanyActivityModal()"
+                <button id="company-activity-pill" type="button" data-action="show-company-activity"
                         class="hidden items-center gap-2 bg-white border border-slate-200 shadow-sm rounded-full px-3 py-1.5 text-sm hover:shadow-md hover:border-slate-300 transition-all cursor-pointer"></button>
             </div>
-            <div id="users-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                </div>
-        </div>
+            <div id="users-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+        </section>
+    </main>
     </div>
-
-
 </body>
 </html>

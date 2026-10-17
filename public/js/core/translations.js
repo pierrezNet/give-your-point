@@ -1,13 +1,8 @@
-// version 1779476918
-// Système d'internationalisation léger pour Donne Ton Point.
-// Convention : t('section.clé') ; les éléments HTML utilisent data-i18n / data-i18n-placeholder / data-i18n-title.
-// Chargé en premier dans toutes les pages, AVANT app.js.
-
-const translations = {
+export const translations = {
   fr: {
-    // Commun
     'common.save': 'Enregistrer',
     'common.cancel': 'Annuler',
+    'common.close': 'Fermer',
     'common.delete': 'Supprimer',
     'common.remove': 'Retirer',
     'common.restore': 'Réactiver',
@@ -24,21 +19,19 @@ const translations = {
     'common.error': 'Erreur',
     'common.access_denied': 'Accès refusé',
 
-    // Header app principale
     'app.title': 'Donne Ton Point',
     'app.tagline': "Le rituel d'équipe pour s'offrir points et gages.",
     'app.connecting': 'Connexion en cours…',
     'app.edit_email_title': 'Modifier mon email pour les notifications',
 
-    // Navigation
     'nav.stats': 'Stats 📊',
     'nav.about': 'À propos',
+    'nav.menu': 'Menu',
     'nav.help': 'Aide',
     'nav.admin': 'Admin 🔐',
     'nav.superadmin': 'Société 🏛️',
     'nav.owner': 'Owner 🌐',
 
-    // Page d'accueil (index)
     'index.section_categories': 'Offrir un point',
     'index.section_team': 'Équipe :',
     'index.you_label': '(toi)',
@@ -51,13 +44,11 @@ const translations = {
     'reason.placeholder': 'Pourquoi ? (ex : coup de main sur le déploiement)',
     'reason.submit': 'Donner le point',
 
-    // Auth restreint / session invalide
     'auth.restricted_title': 'Accès restreint 🔒',
     'auth.restricted_msg': 'Utilise ton lien magique pour te connecter.',
     'auth.session_invalid_title': 'Session invalide 🔒',
     'auth.session_invalid_msg': 'Demande un nouveau lien magique à ton admin.',
 
-    // Onboarding (landing publique)
     'onboarding.have_link_title': 'Tu as déjà un lien magique ?',
     'onboarding.have_link_desc': 'Clique simplement dessus pour te connecter (format <span class="font-mono text-[11px] bg-slate-100 px-1 py-0.5 rounded">/login/&lt;token&gt;</span>).',
     'onboarding.create_title': '✨ Crée ton espace',
@@ -68,7 +59,6 @@ const translations = {
     'onboarding.submit_loading': 'Création en cours…',
     'onboarding.footer_note': 'En créant ton espace, tu deviens son administrateur et reçois ton lien magique de connexion.',
 
-    // Landing publique — sections marketing
     'landing.hero_pitch': "Récompense les bons coups (et les bourdes) de ton équipe avec des badges. Quand un seuil est atteint, c'est gage !",
     'landing.cta_create': '🚀 Créer mon espace',
     'landing.have_link_link': "J'ai déjà un lien magique →",
@@ -88,6 +78,7 @@ const translations = {
     'landing.who_friends_desc': 'Vannes du soir et gages du lendemain — un classique.',
     'landing.create_title': '✨ Lance ton espace',
     'landing.create_subtitle': "C'est gratuit, 30 secondes, pas de carte bleue.",
+    'landing.mockup_dare': '🚨 GAGE : VIENNOISERIES',
     'landing.mockup_alt': "Aperçu de l'application",
     'landing.faq_title': 'Questions fréquentes',
     'landing.faq_free_q': "C'est vraiment gratuit ?",
@@ -102,7 +93,6 @@ const translations = {
     'landing.mockup_demo_label': 'Démo',
     'landing.legal_note': "En créant ton espace, tu acceptes que tes données soient stockées sur Cloudflare D1 (UE). Aucune publicité, aucun pistage tiers.",
 
-    // Page /about
     'about.page_title': 'À propos',
     'about.tagline': "Tout ce qu'il faut savoir avant de te lancer.",
     'about.principle_title': 'Le principe',
@@ -196,7 +186,6 @@ const translations = {
     'onboarding.error_server': 'Impossible de joindre le serveur',
     'onboarding.error_generic': 'Erreur lors de la création',
 
-    // Modale profil email
     'profile.title': 'Mon email ✉️',
     'profile.desc': "Recevoir un email à chaque fois qu'un collègue te donne un point.",
     'profile.placeholder': 'ton.email@exemple.fr',
@@ -207,7 +196,6 @@ const translations = {
     'profile.toast_verify': 'E-mail enregistré — clique le lien de confirmation reçu par mail ✉️',
     'profile.toast_removed': 'Email retiré',
 
-    // Vérification d'e-mail / gestion des liens (admin)
     'admin.email_confirmed': 'e-mail confirmé',
     'admin.email_pending': 'en attente',
     'admin.resend_link': 'Renvoyer le lien',
@@ -241,7 +229,6 @@ const translations = {
     'admin.regen_ok': "Nouveau lien généré (copié dans le presse-papier) :\n{url}\n\n⚠️ L'ancien lien ne fonctionne plus.",
     'admin.regen_error': 'Échec de la régénération du lien.',
 
-    // Récupération de lien (« lien perdu »)
     'recover.link': 'Perdu ton lien ? Reçois-le par e-mail',
     'recover.title': 'Récupérer mon accès',
     'recover.desc': "Entre l'adresse e-mail associée à ton compte : on t'y renvoie ton lien de connexion.",
@@ -250,13 +237,11 @@ const translations = {
     'recover.sent': "Si cette adresse est associée à un compte, tu vas recevoir ton lien. Pense à vérifier tes spams.",
     'recover.captcha_error': 'Vérification anti-bot échouée. Réessaie.',
 
-    // À propos
     'about.title': 'À propos 🎯',
     'about.body1': "<b>Donne Ton Point</b> est un outil de gamification interne pour célébrer (et taquiner) les comportements de l'équipe.",
     'about.body2': "Chaque collègue peut offrir des badges dans différentes catégories. Quand un seuil est atteint… un gage s'impose !",
     'about.footer': 'Fait avec ❤️ pour l\'équipe par Emmanuel et Claude.',
 
-    // Aide
     'help.title': 'Comment ça marche ? 💡',
     'help.step1': 'Sélectionne une catégorie dans la colonne de gauche.',
     'help.step2': "Clique sur la carte d'un collègue pour lui offrir le badge.",
@@ -264,7 +249,6 @@ const translations = {
     'help.step4': 'Tu as 15 secondes pour annuler via le bouton qui apparaît.',
     'help.step5': "Quand le seuil d'une catégorie est atteint, un gage s'active !",
 
-    // Toasts (donner un point)
     'toast.point_sent': 'Point envoyé !',
     'toast.self_forbidden': "Interdit de s'auto-mousser ! 😅",
     'toast.gage_triggered': '🚨 Gage activé pour {name} : {dare} !',
@@ -272,11 +256,10 @@ const translations = {
     'toast.generic_error': 'Une erreur est survenue',
     'toast.server_unreachable': 'Impossible de contacter le serveur',
     'toast.undo': 'Annuler',
+    'toast.undo_expired': 'Trop tard pour annuler ce point.',
 
-    // Sélecteur destinataire (mobile)
     'selector.who': 'À qui offres-tu ce badge ?',
 
-    // Historique
     'history.title': 'Historique de {name}',
     'history.received': 'Derniers points reçus',
     'history.given': 'Derniers points donnés',
@@ -289,12 +272,10 @@ const translations = {
     'history.gave': 'Offert',
     'history.error': "Erreur lors de la récupération de l'historique.",
 
-    // Date formatée
     'date.today_at': "Aujourd'hui à {time}",
     'date.yesterday_at': 'Hier à {time}',
     'date.day_month_at': '{date} à {time}',
 
-    // Page Admin équipe
     'admin.title': 'Console Admin 🛠️',
     'admin.scope': 'Équipe :',
     'admin.add_user_title': 'Ajouter un collègue',
@@ -338,7 +319,6 @@ const translations = {
     'admin.session_invalid': 'Session invalide. Reconnecte-toi via ton lien magique.',
     'admin.not_admin': "Accès refusé : tu n'es pas administrateur de ton équipe.",
 
-    // Page Superadmin
     'superadmin.title': 'Console Superadmin 🏛️',
     'superadmin.company_label': 'Société :',
     'superadmin.teams_title': 'Équipes',
@@ -374,7 +354,6 @@ const translations = {
     'superadmin.not_superadmin': "Accès refusé : tu n'es pas superadmin.",
     'superadmin.label_default_space': 'Mon espace',
 
-    // Page Owner
     'owner.title': 'Console Owner 🌐',
     'owner.subtitle': 'Vue globale des sociétés inscrites',
     'owner.kpi_companies': 'Sociétés',
@@ -408,7 +387,6 @@ const translations = {
     'owner.delete_confirm': 'Supprimer définitivement « {name} » ?\n\nCela efface {teams} équipe(s), {members} membre(s) et {points} point(s).\nAction irréversible.',
     'owner.delete_error': 'Échec de la suppression.',
 
-    // Page Stats
     'stats.title': 'Stats 📊',
     'stats.loading': 'Chargement des statistiques…',
     'stats.error': 'Erreur de chargement',
@@ -420,6 +398,7 @@ const translations = {
     'stats.evolution': 'Évolution hebdomadaire',
     'stats.evolution_title': 'Évolution (12 semaines)',
     'stats.empty': "Rien à afficher sur cette période. Distribuez quelques points ! 🎁",
+    'stats.period_label': 'Période',
     'stats.period_7': '7 jours',
     'stats.period_30': '30 jours',
     'stats.period_all': 'Tout',
@@ -450,7 +429,6 @@ const translations = {
     'stats.u_gages_n': 'gage(s)',
     'stats.u_points_n': 'point(s)',
 
-    // Écran d'invitation (auto-inscription)
     'join.heading': "Rejoins l'équipe {team}",
     'join.subtitle': 'chez {company}',
     'join.name_placeholder': 'Ton prénom',
@@ -464,7 +442,6 @@ const translations = {
     'join.invalid_msg': "Ce lien d'invitation n'est plus valide. Demande-en un nouveau à ton admin.",
     'join.error_generic': "Impossible de rejoindre l'équipe. Réessaie.",
 
-    // Carte d'invitation (admin)
     'admin.invite_title': 'Inviter des membres',
     'admin.invite_desc': "Partage ce lien : chacun s'inscrit tout seul, sans que tu aies à créer les comptes un par un.",
     'admin.invite_copy': 'Copier le lien',
@@ -474,7 +451,6 @@ const translations = {
     'admin.invite_sent': 'Invitation envoyée !',
     'admin.invite_email_invalid': 'Email invalide.',
 
-    // Entonnoir d'acquisition (owner)
     'owner.funnel_title': "Entonnoir d'acquisition",
     'owner.funnel_subtitle': '30 derniers jours',
     'owner.funnel_landing': 'Vues landing',
@@ -485,7 +461,6 @@ const translations = {
     'owner.funnel_join_views': 'vues',
     'owner.funnel_join_signups': 'inscriptions',
 
-    // Étage 2 — état vide / invitation (équipe seule)
     'empty.welcome_title': '🎉 Ton espace est prêt !',
     'empty.title': 'Invite ton équipe pour commencer',
     'empty.desc': "Tu es seul·e ici pour l'instant. Partage le lien ci-dessous : dès qu'un coéquipier rejoint, tu peux commencer à distribuer des points.",
@@ -498,7 +473,6 @@ const translations = {
     'empty.email_error': "Échec de l'envoi. Réessaie.",
     'empty.wait_desc': "Dès que d'autres membres rejoignent l'équipe, tu pourras leur donner des points.",
 
-    // Panneau « autres équipes » (preuve sociale inter-services)
     'company.activity_title': 'Ailleurs chez {company} 👀',
     'company.activity_hint': "Activité des 7 derniers jours — les autres équipes de ta société. Étanchéité préservée : aucun détail individuel.",
     'company.pill_label': 'Ailleurs',
@@ -522,6 +496,7 @@ const translations = {
   en: {
     'common.save': 'Save',
     'common.cancel': 'Cancel',
+    'common.close': 'Close',
     'common.delete': 'Delete',
     'common.remove': 'Remove',
     'common.restore': 'Restore',
@@ -545,6 +520,7 @@ const translations = {
 
     'nav.stats': 'Stats 📊',
     'nav.about': 'About',
+    'nav.menu': 'Menu',
     'nav.help': 'Help',
     'nav.admin': 'Admin 🔐',
     'nav.superadmin': 'Company 🏛️',
@@ -596,6 +572,7 @@ const translations = {
     'landing.who_friends_desc': "Jokes tonight, dares tomorrow — a classic.",
     'landing.create_title': '✨ Launch your space',
     'landing.create_subtitle': "It's free, 30 seconds, no credit card.",
+    'landing.mockup_dare': '🚨 DARE: PASTRIES',
     'landing.mockup_alt': 'App preview',
     'landing.faq_title': 'Frequently asked questions',
     'landing.faq_free_q': 'Is it really free?',
@@ -713,7 +690,6 @@ const translations = {
     'profile.toast_verify': 'Email saved — click the confirmation link we just sent you ✉️',
     'profile.toast_removed': 'Email removed',
 
-    // Email verification / link management (admin)
     'admin.email_confirmed': 'email confirmed',
     'admin.email_pending': 'pending',
     'admin.resend_link': 'Resend link',
@@ -747,7 +723,6 @@ const translations = {
     'admin.regen_ok': 'New link generated (copied to clipboard):\n{url}\n\n⚠️ The old link no longer works.',
     'admin.regen_error': 'Link regeneration failed.',
 
-    // Link recovery ("lost link")
     'recover.link': 'Lost your link? Get it by email',
     'recover.title': 'Recover my access',
     'recover.desc': "Enter the email linked to your account and we'll send your login link back to it.",
@@ -775,6 +750,7 @@ const translations = {
     'toast.generic_error': 'An error occurred',
     'toast.server_unreachable': 'Cannot reach the server',
     'toast.undo': 'Undo',
+    'toast.undo_expired': 'Too late to undo this point.',
 
     'selector.who': 'Who do you give this badge to?',
 
@@ -916,6 +892,7 @@ const translations = {
     'stats.evolution': 'Weekly evolution',
     'stats.evolution_title': 'Trend (12 weeks)',
     'stats.empty': 'Nothing to show for this period. Hand out a few points! 🎁',
+    'stats.period_label': 'Period',
     'stats.period_7': '7 days',
     'stats.period_30': '30 days',
     'stats.period_all': 'All time',
@@ -946,7 +923,6 @@ const translations = {
     'stats.u_gages_n': 'dare(s)',
     'stats.u_points_n': 'point(s)',
 
-    // Invite / join screen
     'join.heading': 'Join the {team} team',
     'join.subtitle': 'at {company}',
     'join.name_placeholder': 'Your first name',
@@ -960,7 +936,6 @@ const translations = {
     'join.invalid_msg': 'This invitation link is no longer valid. Ask your admin for a new one.',
     'join.error_generic': "Couldn't join the team. Please try again.",
 
-    // Invite card (admin)
     'admin.invite_title': 'Invite members',
     'admin.invite_desc': 'Share this link: everyone signs up on their own — no need to create accounts one by one.',
     'admin.invite_copy': 'Copy link',
@@ -970,7 +945,6 @@ const translations = {
     'admin.invite_sent': 'Invitation sent!',
     'admin.invite_email_invalid': 'Invalid email.',
 
-    // Acquisition funnel (owner)
     'owner.funnel_title': 'Acquisition funnel',
     'owner.funnel_subtitle': 'Last 30 days',
     'owner.funnel_landing': 'Landing views',
@@ -981,7 +955,6 @@ const translations = {
     'owner.funnel_join_views': 'views',
     'owner.funnel_join_signups': 'signups',
 
-    // Étage 2 — empty state / invite (solo team)
     'empty.welcome_title': '🎉 Your space is ready!',
     'empty.title': 'Invite your team to get started',
     'empty.desc': "You're on your own here for now. Share the link below: as soon as a teammate joins, you can start giving out points.",
@@ -994,7 +967,6 @@ const translations = {
     'empty.email_error': 'Sending failed. Please try again.',
     'empty.wait_desc': "As soon as other members join the team, you'll be able to give them points.",
 
-    // "Other teams" panel (cross-team social proof)
     'company.activity_title': 'Elsewhere at {company} 👀',
     'company.activity_hint': 'Last 7 days — the other teams in your company. Isolation preserved: no individual details.',
     'company.pill_label': 'Elsewhere',
@@ -1015,65 +987,3 @@ const translations = {
     'company.flavor_calm_4': "Nothing to report at {team}… too well-behaved to be honest.",
   },
 };
-
-function getLang() {
-  const stored = localStorage.getItem('lang');
-  if (stored && translations[stored]) return stored;
-  const nav = (navigator.language || 'fr').toLowerCase();
-  return nav.startsWith('en') ? 'en' : 'fr';
-}
-
-async function setLang(lang) {
-  if (!translations[lang]) return;
-  localStorage.setItem('lang', lang);
-  // Synchroniser côté serveur si connecté
-  if (typeof getSessionToken === 'function' && getSessionToken()) {
-    try {
-      await authFetch('/api/me', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ locale: lang }),
-      });
-    } catch {}
-  }
-  location.reload();
-}
-
-function t(key, vars = {}) {
-  const lang = getLang();
-  let s = translations[lang]?.[key] ?? translations.fr[key] ?? key;
-  for (const [k, v] of Object.entries(vars)) {
-    s = s.replace(new RegExp(`\\{${k}\\}`, 'g'), v);
-  }
-  return s;
-}
-
-function applyI18n(root = document) {
-  root.querySelectorAll('[data-i18n]').forEach(el => {
-    el.textContent = t(el.dataset.i18n);
-  });
-  root.querySelectorAll('[data-i18n-html]').forEach(el => {
-    el.innerHTML = t(el.dataset.i18nHtml);
-  });
-  root.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
-    el.placeholder = t(el.dataset.i18nPlaceholder);
-  });
-  root.querySelectorAll('[data-i18n-title]').forEach(el => {
-    el.title = t(el.dataset.i18nTitle);
-  });
-  // Mettre à jour les boutons FR/EN
-  const lang = getLang();
-  root.querySelectorAll('[data-lang-toggle]').forEach(btn => {
-    const target = btn.dataset.langToggle;
-    btn.classList.toggle('active', target === lang);
-  });
-  // Mettre à jour <html lang>
-  document.documentElement.setAttribute('lang', lang);
-}
-
-// Auto-apply au DOMContentLoaded pour les chaînes statiques (avant que app.js prenne le relai)
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => applyI18n());
-} else {
-  applyI18n();
-}

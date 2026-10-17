@@ -79,8 +79,9 @@ public/
   superadmin.html  # Console superadmin (équipes, admins)
   owner.html       # Console owner (vue globale des sociétés + entonnoir)
   stats.html       # Tableaux de bord
-  i18n.js          # Dictionnaire FR/EN + helpers t(), setLang()
-  app.js           # Logique frontend (auth, points, UI, push, invitation, lien perdu)
+  js/core/         # Modules ES communs (session, i18n + dictionnaire FR/EN, dialogues, actions…)
+  js/home/         # Fonctionnalités de l'accueil (don de point, landing, invitation, historique…)
+  js/pages/        # Un point d'entrée par page
   sw.js            # Service worker (push + PWA)
   manifest.json    # PWA installable (+ icon.svg, icon-192.png, icon-512.png)
   robots.txt, sitemap.xml   # SEO
@@ -115,6 +116,7 @@ wrangler.toml      # Config Cloudflare D1
 npm run dev      # Build + serveur local (port 8788)
 npm run deploy   # Build + déploiement Cloudflare Pages
 npm test         # Tests (vitest + D1 locale)
+npm run test:e2e # Tests de bout en bout (Playwright, D1 jetable)
 npm run check    # Typecheck + tests (lancé par la CI)
 
 npm run db:reset # Recrée la base locale (init + seed)

@@ -233,7 +233,10 @@ describe('en-têtes de sécurité', () => {
     expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
     expect(response.headers.get('Referrer-Policy')).toBe('no-referrer');
     expect(response.headers.get('Strict-Transport-Security')).toContain('max-age=');
-    expect(response.headers.get('Content-Security-Policy')).toContain("frame-ancestors 'none'");
+    const policy = response.headers.get('Content-Security-Policy') ?? '';
+    expect(policy).toContain("frame-ancestors 'none'");
+    expect(policy).toContain("script-src 'self' https://challenges.cloudflare.com");
+    expect(policy).not.toMatch(/script-src[^;]*'unsafe-inline'/);
   });
 });
 

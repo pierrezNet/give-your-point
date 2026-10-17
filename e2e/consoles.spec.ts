@@ -15,14 +15,14 @@ test.describe('console admin', () => {
 
   test("copie le lien de connexion d'un membre", async ({ page }) => {
     await openAs(page, TOKENS.admin, '/admin');
-    await page.locator('#admin-users-list tr', { hasText: 'Bob' }).getByRole('button', { name: 'Lien' }).click();
+    await page.locator('#admin-users-list tr', { hasText: 'Bob' }).getByRole('button', { name: 'Lien', exact: true }).click();
     await expect(page.getByText('Lien copié')).toBeVisible();
     expect(await page.evaluate(() => navigator.clipboard.readText())).toContain('/login/k-bob');
   });
 
   test("refuse le lien d'un rôle supérieur", async ({ page }) => {
     await openAs(page, TOKENS.admin, '/admin');
-    await page.locator('#admin-users-list tr', { hasText: 'Olivia' }).getByRole('button', { name: 'Lien' }).click();
+    await page.locator('#admin-users-list tr', { hasText: 'Olivia' }).getByRole('button', { name: 'Lien', exact: true }).click();
     await expect(page.getByText('Action réservée à un rôle supérieur')).toBeVisible();
   });
 
@@ -42,14 +42,14 @@ test.describe('console admin', () => {
   test('valide un membre en attente', async ({ page }) => {
     await openAs(page, TOKENS.admin, '/admin');
     await page.locator('#admin-users-list tr', { hasText: 'Dan' }).getByRole('button', { name: 'Valider' }).click();
-    await page.getByRole('button', { name: 'Confirmer' }).click();
+    await page.getByRole('button', { name: 'Confirmer', exact: true }).click();
     await expect(page.locator('#admin-users-list tr', { hasText: 'Dan' })).not.toContainText('en attente');
   });
 
   test('régénère son propre lien sans perdre la session', async ({ page }) => {
     await openAs(page, TOKENS.admin, '/admin');
     await page.locator('#admin-users-list tr', { hasText: 'Adam' }).getByTitle(/./).filter({ hasText: '↻' }).click();
-    await page.getByRole('button', { name: 'Confirmer' }).click();
+    await page.getByRole('button', { name: 'Confirmer', exact: true }).click();
     await expect(page.getByText("L'ancien lien ne fonctionne plus")).toBeVisible();
     await page.reload();
     await expect(page.locator('#admin-users-list tr').first()).toBeVisible();
@@ -69,7 +69,7 @@ test.describe('console superadmin', () => {
     await expect(page.locator('#admins-list')).toContainText('Adam');
     await page.getByRole('button', { name: '+ Créer une équipe' }).click();
     await page.locator('.ui-input').fill('Design');
-    await page.getByRole('button', { name: 'Confirmer' }).click();
+    await page.getByRole('button', { name: 'Confirmer', exact: true }).click();
     await expect(page.locator('#teams-list')).toContainText('Design');
     expect(errors).toEqual([]);
   });

@@ -109,14 +109,42 @@ module ; chaque entrée cite le symbole concerné pour être retrouvée par rech
   restriction de domaine est déjà configurée côté sitekey. L'IP n'est plus journalisée (RGPD).
 - `/api/track` exige un `Origin` same-origin (les navigateurs l'envoient sur tout POST, beacon compris).
 
-## Frontend — session (`public/session.js`)
+## Frontend — architecture (`public/js/`)
 
-- Seul module qui connaît le stockage : `my_token` (jeton) et `my_id` (id, relu via `/api/me`).
-  L'ancienne clé `my_user_id` contenait le jeton : elle est migrée vers `my_token` au premier
-  chargement puis supprimée.
-- `escapeHtml` y est défini une fois pour toutes les pages. Règle : toute donnée venant de l'API
-  passe par `escapeHtml` avant `innerHTML`, et aucun texte libre n'est placé dans un `onclick` —
-  on passe un id et on relit le nom dans une `Map` (`adminUsersById`, `teamsById`…).
+- Modules ES natifs, sans bundler : `core/` (commun), `home/` (fonctionnalités de l'accueil),
+  `pages/` (un point d'entrée par page HTML, chargé par `<script type="module">`).
+- **Aucun script inline ni `onclick`** : c'est ce qui autorise la CSP stricte
+  (`script-src 'self' https://challenges.cloudflare.com`). Un bouton déclare `data-action="nom"` et
+  la page enregistre `registerActions({ nom: (bouton) => … })` (`core/actions.js`, délégation sur
+  `document`). Les données utiles passent par des `data-*` (ids uniquement, jamais de texte libre).
+- `style-src` garde `'unsafe-inline'` : attributs `style` (largeurs de barres, couleurs de heatmap)
+  et blocs `<style>` des pages. Risque faible (pas d'exécution de script), à resserrer quand le CSS
+  inline aura migré vers `input.css`.
+- `core/session.js` est le seul module qui connaît le stockage : `my_token` (jeton), `my_id` (id,
+  relu via `/api/me`). L'ancienne clé `my_user_id` (qui contenait le jeton) est migrée au premier
+  accès puis supprimée.
+- `core/i18n.js` : `t(clé, params)` **échappe les paramètres** (sortie destinée à `innerHTML`) ;
+  `tText(clé, params)` les laisse bruts (sortie destinée à `textContent`, toasts, confirmations).
+  Le texte du dictionnaire lui-même est considéré sûr (il peut contenir du HTML voulu).
+  Règle : toute autre donnée venant de l'API passe par `escapeHtml` avant `innerHTML`.
+- `core/dialogs.js#openModal` : `role="dialog"`, `aria-modal`, titre relié par `aria-labelledby`,
+  fermeture par Échap / clic sur le fond / `[data-close-modal]`, focus restitué à la fermeture.
+  `isModalOpen()` (présence d'un `[data-modal]`) suspend le rafraîchissement temps réel.
+- Dates : `parseSqlDate` interprète les dates SQLite (`AAAA-MM-JJ HH:MM:SS`, sans fuseau) comme de
+  l'UTC. L'ancien code les lisait en heure locale (décalage d'1 à 2 h dans l'historique).
+- Le shell de l'application (`#app-shell`) est masqué tant qu'on ne sait pas si l'utilisateur est
+  connecté : plus de flash « Connexion en cours… » chez les visiteurs.
+
+## Tests de bout en bout (`e2e/`)
+
+- Playwright contre `wrangler pages dev` sur une D1 jetable (`.e2e-db/`, recréée à chaque run depuis
+  `schema.sql` + `e2e/seed.sql`). Aucun utilisateur n'a d'e-mail : aucun envoi Resend possible même
+  si `.dev.vars` contient une clé. Turnstile utilise les clés de test publiques « always passes ».
+- Locale du navigateur forcée en `fr-FR` (sinon Chromium headless sert l'anglais).
+- `csp.spec.ts` parcourt toutes les pages et échoue à la moindre erreur console : une violation CSP
+  ou une erreur JS introduite par une modification est donc détectée.
+- Les tests partagent la base sur un run (exécution séquentielle) : chaque scénario utilise des
+  données qui ne gênent pas les autres (ex. le don de point est annulé dans le même test).
 
 ## Déploiement — cache des fichiers statiques
 

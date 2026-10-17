@@ -4,7 +4,7 @@ import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-plugin';
 
 export default defineConfig(async () => {
   const schema = await readD1Migrations({ migrationsDir: '.', migrationsPattern: 'schema.sql' });
-  const frontendTranslations = await readFile('public/i18n.js', 'utf8');
+  const frontendTranslations = await readFile('public/js/core/translations.js', 'utf8');
   const [splitTokenMigration] = await readD1Migrations({ migrationsDir: 'migrations', migrationsPattern: 'migrations/2026-14-split-token.sql' });
 
   return {
