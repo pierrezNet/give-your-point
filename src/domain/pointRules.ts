@@ -3,6 +3,7 @@ export const DUPLICATE_WINDOW_MINUTES = 5;
 export const MAX_POINTS_PER_DAY = 10;
 export const MAX_POINTS_PER_RECIPIENT_PER_DAY = 3;
 export const UNDO_WINDOW_SECONDS = 15;
+export const REASON_EDIT_WINDOW_SECONDS = 300;
 
 export type PointRefusal = 'DUPLICATE' | 'DAILY_LIMIT' | 'RECIPIENT_DAILY_LIMIT' | 'SPAMMER_FROZEN';
 

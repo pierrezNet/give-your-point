@@ -69,7 +69,5 @@ function withTranslation(rewriter: Rewriter, language: Language): Rewriter {
 }
 
 export function renderPublicPage(asset: Response, page: PublicPage, language: Language): Response {
-  const rewriter = withMetadata(new HTMLRewriter(), page, language);
-  const localized = language === 'fr' ? rewriter : withTranslation(rewriter, language);
-  return localized.transform(asset);
+  return withTranslation(withMetadata(new HTMLRewriter(), page, language), language).transform(asset);
 }

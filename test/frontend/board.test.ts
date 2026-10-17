@@ -13,6 +13,11 @@ describe('carte de membre', () => {
     expect(html).toContain('bg-yellow-400');
   });
 
+  it('offre un bouton nommé pour donner le badge au clavier', () => {
+    expect(userCardHtml(user, { isMe: false })).toContain('aria-label="Donner le badge sélectionné à Bob"');
+    expect(userCardHtml(user, { isMe: true })).toContain('aria-disabled="true"');
+  });
+
   it("marque la carte de l'utilisateur courant", () => {
     const html = userCardHtml(user, { isMe: true });
     expect(html).toContain('data-is-me="true"');
@@ -38,6 +43,10 @@ describe('carte de membre', () => {
 });
 
 describe('badges à offrir', () => {
+  it("expliquent quoi faire quand l'équipe n'a encore aucun badge", () => {
+    expect(categoryButtonsHtml([])).toContain('un admin peut en créer');
+  });
+
   it('rendent un bouton accessible et glissable par badge', () => {
     const html = categoryButtonsHtml([{ id: 'c1', emoji: '🤝', name: '<b>Entraide</b>' }]);
     expect(html).toContain('data-category-id="c1"');
@@ -48,8 +57,9 @@ describe('badges à offrir', () => {
 });
 
 describe('toast après un don', () => {
-  it("propose l'annulation pour un succès, pas pour une erreur", () => {
-    expect(pointToastHtml('ok', 'success')).toContain('undo-last-point');
+  it("propose d'ajouter un mot et d'annuler (avec le délai) pour un succès, rien pour une erreur", () => {
+    expect(pointToastHtml('ok', 'success')).toContain('add-point-reason');
+    expect(pointToastHtml('ok', 'success')).toContain('Annuler (15 s)');
     expect(pointToastHtml('ko', 'error')).not.toContain('undo-last-point');
   });
 

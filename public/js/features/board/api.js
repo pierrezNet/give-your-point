@@ -10,8 +10,13 @@ export async function fetchLeaderboard() {
   return response.ok ? response.json() : null;
 }
 
-export async function sendPoint({ recipientId, categoryId, reason }) {
-  const response = await postJson('/api/points', { to_user_id: String(recipientId), category_id: String(categoryId), reason: reason || null });
+export async function sendPoint({ recipientId, categoryId }) {
+  const response = await postJson('/api/points', { to_user_id: String(recipientId), category_id: String(categoryId) });
+  return { ok: response.ok, body: await response.json().catch(() => ({})) };
+}
+
+export async function addReason(pointId, reason) {
+  const response = await postJson(`/api/points/${encodeURIComponent(pointId)}/reason`, { reason }, 'PATCH');
   return { ok: response.ok, body: await response.json().catch(() => ({})) };
 }
 

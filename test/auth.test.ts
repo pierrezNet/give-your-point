@@ -64,3 +64,13 @@ describe('étanchéité entre sociétés', () => {
     expect(response.status).toBe(400);
   });
 });
+
+describe('lien de connexion invalide', () => {
+  it('affiche une page dans la langue du navigateur', async () => {
+    const french = await (await api('/login/inconnu')).text();
+    expect(french).toContain("Ce lien n'est plus valide");
+    const english = await (await api('/login/inconnu', { headers: { 'Accept-Language': 'en-GB' } })).text();
+    expect(english).toContain('This link is no longer valid');
+    expect(english).toContain('href="/en/?lost=1"');
+  });
+});

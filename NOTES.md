@@ -225,3 +225,28 @@ traduisent le résultat en réponse HTTP. C'est ce qui les rend testables sans b
 - CSP : `style-src 'self'` (tout le CSS est dans `input.css`) ; seuls les attributs `style` restent
   permis (`style-src-attr 'unsafe-inline'`), pour les largeurs de barres, couleurs de heatmap et
   `view-transition-name` calculées par les vues.
+
+## Expérience et accessibilité (phase 6)
+
+- **Don en deux gestes** : badge puis membre ; le point part aussitôt. Le mot (« pourquoi ? ») est
+  devenu optionnel et s'ajoute après coup depuis le toast (`PATCH /api/points/:id/reason`, réservé
+  au donneur, 5 min). Avant, une fenêtre s'ouvrait à chaque don : 3 à 4 interactions par point.
+- Le toast reste affiché toute la **fenêtre d'annulation serveur** (15 s, `UNDO_WINDOW_SECONDS`)
+  avec un compte à rebours ; avant, il disparaissait après 5 s alors que l'annulation restait
+  possible 15 s. Il ne se ferme pas tant que le champ du mot a le focus.
+- **Clavier** : chaque carte de membre contient un bouton couvrant (`give-button`, nommé « Donner
+  le badge sélectionné à X ») ; le bouton d'historique est au-dessus (`z-30`). Les éléments
+  décoratifs positionnés (rang, bandeaux) sont en `pointer-events-none` pour ne pas intercepter
+  les clics. Sans badge sélectionné, un clic sur un membre explique quoi faire.
+- **Modales** : `<dialog>` natif + `showModal()` : focus piégé et arrière-plan inerte gérés par le
+  navigateur, Échap via l'événement `cancel`. Le clic sur le fond est détecté par la position du
+  clic hors de la boîte (le `<dialog>` est lui-même le panneau).
+- **Contrastes** : vérifiés par axe-core (`e2e/a11y.spec.ts`, WCAG 2.1 AA). En Tailwind v4,
+  `slate-500` ne suffit pas sur fond `gray-100` (4,32:1) → textes secondaires en `slate-600`.
+  Pas d'`opacity` sur du texte (lignes désactivées : fond gris à la place).
+- `prefers-reduced-motion` coupe animations, transitions et View Transitions.
+- Notifications push : plus de demande d'autorisation automatique ; bouton dans la fenêtre profil.
+  Le contenu de la notification suit la langue du destinataire (`pointNotification`).
+- Vocabulaire : on *donne un badge*, il rapporte des *points*, un *gage* se déclenche ; « lien de
+  connexion » plutôt que « lien magique » dans l'app (la landing garde l'accroche « magique ») ;
+  « Trop de dons » plutôt que « SPAMMEUR » (stigmatisant).

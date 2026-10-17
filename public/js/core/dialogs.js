@@ -39,35 +39,44 @@ export const isModalOpen = () => document.querySelector('[data-modal]') !== null
 export const closeButtonHtml = () =>
   `<button type="button" data-close-modal aria-label="${tText('common.close')}" class="text-slate-600 hover:text-slate-600 text-3xl leading-none">&times;</button>`;
 
+const clickedOutside = (dialog, event) => {
+  const box = dialog.getBoundingClientRect();
+  return event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom;
+};
+
 export function openModal({ id, content, panelClass = 'bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl', onClose }) {
   document.getElementById(id)?.remove();
   const previousFocus = document.activeElement;
-  const overlay = document.createElement('div');
-  overlay.id = id;
-  overlay.dataset.modal = '';
-  overlay.className = 'fixed inset-0 bg-black/85 flex items-center justify-center z-[300] p-4';
-  overlay.innerHTML = `<div class="${panelClass}" role="dialog" aria-modal="true">${content}</div>`;
+  const dialog = document.createElement('dialog');
+  dialog.id = id;
+  dialog.dataset.modal = '';
+  dialog.className = panelClass;
+  dialog.innerHTML = content;
 
   const close = () => {
-    document.removeEventListener('keydown', onKeydown);
-    overlay.remove();
+    if (!dialog.isConnected) return;
+    dialog.close();
+    dialog.remove();
     if (previousFocus instanceof HTMLElement) previousFocus.focus();
     onClose?.();
   };
-  const onKeydown = (event) => { if (event.key === 'Escape') close(); };
 
-  overlay.addEventListener('click', (event) => {
-    if (event.target === overlay || event.target.closest('[data-close-modal]')) close();
+  dialog.addEventListener('cancel', (event) => {
+    event.preventDefault();
+    close();
   });
-  document.addEventListener('keydown', onKeydown);
-  document.body.append(overlay);
-  const heading = overlay.querySelector('h2');
+  dialog.addEventListener('click', (event) => {
+    if (event.target.closest('[data-close-modal]') || (event.target === dialog && clickedOutside(dialog, event))) close();
+  });
+  document.body.append(dialog);
+  const heading = dialog.querySelector('h2');
   if (heading) {
     heading.id ||= `${id}-title`;
-    overlay.firstElementChild.setAttribute('aria-labelledby', heading.id);
+    dialog.setAttribute('aria-labelledby', heading.id);
   }
-  (overlay.querySelector('[autofocus]') ?? overlay.querySelector('input, button, [href]'))?.focus();
-  return { element: overlay, close };
+  dialog.showModal();
+  dialog.querySelector('[autofocus]')?.focus();
+  return { element: dialog, close };
 }
 
 function askInDialog({ message, withInput, defaultValue = '', placeholder = '' }) {

@@ -3,8 +3,8 @@ import { tText } from '../../core/i18n.js';
 import { apiErrorMessage } from '../../core/api.js';
 import { registerActions } from '../../core/actions.js';
 import { openModal } from '../../core/dialogs.js';
-import { fetchCategories, fetchLeaderboard, sendPoint, undoLastPoint } from './api.js';
-import { POINT_TOAST_STYLES, categoryButtonsHtml, pointOutcomeMessage, pointToastHtml, reasonDialogHtml, recipientSelectorHtml, userCardHtml } from './view.js';
+import { addReason, fetchCategories, fetchLeaderboard, sendPoint, undoLastPoint } from './api.js';
+import { UNDO_WINDOW_SECONDS, categoryButtonsHtml, pointOutcomeMessage, pointToastHtml, reasonFormHtml, recipientSelectorHtml, userCardHtml } from './view.js';
 import { renderEmptyTeam } from '../emptyTeam/controller.js';
 import { showHistory } from '../history/controller.js';
 
@@ -12,7 +12,10 @@ const MOBILE_BREAKPOINT_PX = 768;
 const MIN_PLAYERS = 2;
 const SELECTED_CLASSES = ['ring-4', 'ring-blue-500', 'category-active'];
 
-const state = { selectedCategoryId: null, members: [], transitioning: false };
+const TOAST_DURATION_MS = { undoable: UNDO_WINDOW_SECONDS * 1000, plain: 5000 };
+const SECOND_MS = 1000;
+
+const state = { selectedCategoryId: null, members: [], transitioning: false, lastPointId: null, toastTimers: [] };
 
 export const isRenderingTransition = () => state.transitioning;
 
@@ -21,15 +24,48 @@ const usersGrid = () => document.getElementById('users-grid');
 const isMe = (userId) => String(userId) === String(getCurrentUserId());
 const memberById = (userId) => state.members.find((member) => String(member.id) === String(userId));
 
+function clearToastTimers() {
+  state.toastTimers.forEach(clearInterval);
+  state.toastTimers = [];
+}
+
 function hidePointToast() {
+  clearToastTimers();
   document.getElementById('toast-notification')?.remove();
+}
+
+function startUndoCountdown(toast) {
+  const undoButton = toast.querySelector('[data-action="undo-last-point"]');
+  let secondsLeft = UNDO_WINDOW_SECONDS;
+  state.toastTimers.push(setInterval(() => {
+    secondsLeft -= 1;
+    if (secondsLeft > 0) undoButton.textContent = tText('toast.undo_countdown', { seconds: secondsLeft });
+    else undoButton.remove();
+  }, SECOND_MS));
 }
 
 function showPointToast(message, type) {
   hidePointToast();
   document.body.insertAdjacentHTML('beforeend', pointToastHtml(message, type));
   const toast = document.getElementById('toast-notification');
-  setTimeout(() => toast.remove(), (POINT_TOAST_STYLES[type] ?? POINT_TOAST_STYLES.error).durationMs);
+  const undoable = Boolean(toast.querySelector('[data-action="undo-last-point"]'));
+  if (undoable) startUndoCountdown(toast);
+  state.toastTimers.push(setTimeout(() => {
+    if (!toast.contains(document.activeElement)) hidePointToast();
+  }, undoable ? TOAST_DURATION_MS.undoable : TOAST_DURATION_MS.plain));
+}
+
+function openReasonForm() {
+  const toast = document.getElementById('toast-notification');
+  toast.querySelector('[data-action="add-point-reason"]').replaceWith(document.createRange().createContextualFragment(reasonFormHtml()));
+  const input = toast.querySelector('#point-reason');
+  input.focus();
+  input.addEventListener('keydown', (event) => { if (event.key === 'Escape') hidePointToast(); });
+  toast.querySelector('#point-reason-form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const outcome = await addReason(state.lastPointId, input.value.trim());
+    showPointToast(outcome.ok ? tText('toast.reason_saved') : apiErrorMessage(outcome.body, 'toast.generic_error'), outcome.ok ? 'info' : 'error');
+  });
 }
 
 function clearCategorySelection() {
@@ -60,9 +96,12 @@ function refuseSelfPoint() {
 }
 
 function targetCategory(card, categoryId) {
-  if (!categoryId) return;
+  if (!categoryId) {
+    showPointToast(tText('toast.pick_badge_first'), 'info');
+    return;
+  }
   if (card.dataset.isMe === 'true') refuseSelfPoint();
-  else askReasonAndGive(memberById(card.dataset.userId), categoryId);
+  else givePoint(card.dataset.userId, categoryId);
 }
 
 function openRecipientSelector(categoryId, emoji) {
@@ -74,28 +113,14 @@ function openRecipientSelector(categoryId, emoji) {
   });
   element.querySelectorAll('[data-recipient-id]').forEach((button) => button.addEventListener('click', () => {
     close();
-    askReasonAndGive(memberById(button.dataset.recipientId), categoryId);
+    givePoint(button.dataset.recipientId, categoryId);
   }));
 }
 
-function askReasonAndGive(recipient, categoryId) {
-  const { element, close } = openModal({
-    id: 'reason-modal',
-    panelClass: 'bg-white rounded-3xl w-full max-w-sm p-6 shadow-2xl animate-pop text-center',
-    content: reasonDialogHtml(recipient.name),
-  });
-  element.querySelector('form').addEventListener('submit', (event) => {
-    event.preventDefault();
-    const reason = element.querySelector('#reason-input').value.trim();
-    close();
-    givePoint(recipient.id, categoryId, reason);
-  });
-}
-
-async function givePoint(recipientId, categoryId, reason) {
+async function givePoint(recipientId, categoryId) {
   let outcome;
   try {
-    outcome = await sendPoint({ recipientId, categoryId, reason });
+    outcome = await sendPoint({ recipientId, categoryId });
   } catch {
     showPointToast(tText('toast.server_unreachable'), 'error');
     return;
@@ -105,6 +130,7 @@ async function givePoint(recipientId, categoryId, reason) {
     showPointToast(apiErrorMessage(outcome.body, 'toast.generic_error'), 'error');
     return;
   }
+  state.lastPointId = outcome.body.pointId;
   const { message, type } = pointOutcomeMessage(outcome.body);
   showPointToast(message, type);
   await refreshScores();
@@ -122,7 +148,7 @@ export function renderUsers(users) {
 export async function refreshScores() {
   const users = await fetchLeaderboard();
   if (!users) return;
-  if (!document.startViewTransition) {
+  if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) {
     renderUsers(users);
     return;
   }
@@ -181,6 +207,7 @@ export function startBoard() {
   wireCategories();
   wireUserCards();
   registerActions({
+    'add-point-reason': openReasonForm,
     'undo-last-point': async () => {
       if (!await undoLastPoint()) {
         showPointToast(tText('toast.undo_expired'), 'error');

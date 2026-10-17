@@ -10,7 +10,7 @@ const json = async (response: Response) => response.json() as Promise<any>;
 describe("format des erreurs de l'API", () => {
   it('renvoie un code stable en plus du message', async () => {
     const response = await api('/api/points', { as: USERS.alice, method: 'POST', body: { to_user_id: USERS.alice.id, category_id: CATEGORY_HELP } });
-    expect(await json(response)).toMatchObject({ code: 'SELF_POINT', error: expect.stringContaining('auto-mousser') });
+    expect(await json(response)).toMatchObject({ code: 'SELF_POINT', error: expect.stringContaining('toi-même') });
   });
 
   it("n'ajoute pas de paramètres quand le message n'en a pas", async () => {

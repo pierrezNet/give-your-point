@@ -91,7 +91,6 @@ html { scroll-behavior: smooth; }
 
 .category-card {
     -webkit-tap-highlight-color: transparent;
-    outline: none;
 }
 
 @media (max-width: 767px) {
@@ -349,4 +348,24 @@ background-color: #f3f4f6;
 }
 .animate-bounce-short {
     animation: bounce-short 1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+    ::view-transition-group(*), ::view-transition-old(*), ::view-transition-new(*) {
+        animation: none !important;
+    }
+}
+
+dialog[data-modal] {
+    margin: auto;
+    border: 0;
+}
+dialog[data-modal]::backdrop {
+    background: rgb(15 23 42 / 0.85);
 }

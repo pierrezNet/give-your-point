@@ -8,6 +8,12 @@ const PUSH_TTL_SECONDS = '60';
 const EXPIRED_SUBSCRIPTION_STATUSES = new Set([404, 410]);
 const FALLBACK_VAPID_SUBJECT = 'mailto:admin@example.com';
 
+export function pointNotification({ language, fromName, badge }: { language: 'fr' | 'en'; fromName: string; badge: string | null }) {
+  return language === 'en'
+    ? { title: '🎯 Give Your Point', body: `${fromName} gave you a point for ${badge ?? 'a badge'}!`, url: '/en/' }
+    : { title: '🎯 Donne Ton Point', body: `${fromName} t'a donné un point pour ${badge ?? 'un badge'} !`, url: '/' };
+}
+
 export function isKnownPushEndpoint(endpoint: unknown): endpoint is string {
   if (typeof endpoint !== 'string' || endpoint.length > MAX_PUSH_ENDPOINT_LENGTH) return false;
   try {
@@ -28,19 +34,19 @@ interface PushSubscriptionRow { id: number; endpoint: string; p256dh: string; au
 export async function sendPushToUser(env: Bindings, toUserId: string, fromUserName: string, categoryId: string): Promise<void> {
   if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY_JWK) return;
 
-  const [subscriptions, category] = await Promise.all([
+  const [subscriptions, category, recipient] = await Promise.all([
     env.DB.prepare('SELECT id, endpoint, p256dh, auth FROM push_subscriptions WHERE user_id = ?').bind(toUserId).all<PushSubscriptionRow>(),
     env.DB.prepare('SELECT name, emoji FROM categories WHERE id = ?').bind(categoryId).first<{ name: string; emoji: string }>(),
+    env.DB.prepare('SELECT locale FROM users WHERE id = ?').bind(toUserId).first<{ locale: string | null }>(),
   ]);
   if (!subscriptions.results?.length) return;
 
   const privateKeyJwk: JsonWebKey = JSON.parse(new TextDecoder().decode(decodeb64url(env.VAPID_PRIVATE_KEY_JWK)));
-  const badgeLabel = category ? `${category.emoji} ${category.name}` : 'un badge';
-  const payload = JSON.stringify({
-    title: '🎯 Donne Ton Point',
-    body: `${fromUserName} t'a donné un point pour ${badgeLabel} !`,
-    url: '/',
-  });
+  const payload = JSON.stringify(pointNotification({
+    language: recipient?.locale === 'en' ? 'en' : 'fr',
+    fromName: fromUserName,
+    badge: category ? `${category.emoji} ${category.name}` : null,
+  }));
 
   await Promise.all(subscriptions.results.map(async (subscription) => {
     try {

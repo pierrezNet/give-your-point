@@ -74,7 +74,7 @@ describe('limites de dons', () => {
     await logPoints(USERS.alice, USERS.admin, 9, "datetime('now', '-2 days')");
     const response = await givePoint(USERS.alice, USERS.bob, OTHER_CATEGORY);
     expect(response.status).toBe(429);
-    expect((await response.json() as { error: string }).error).toContain('spammeur');
+    expect((await response.json() as { error: string }).error).toContain('régales');
   });
 });
 
@@ -98,5 +98,34 @@ describe('gages', () => {
     await logPoints(USERS.admin, USERS.bob, 3, "datetime('now', '-1 day')");
     const board = await (await api('/api/users-stats', { as: USERS.alice })).json() as { name: string; gage: string | null; rank: number }[];
     expect(board[0]).toMatchObject({ name: 'bob', gage: 'croissants', rank: 1 });
+  });
+});
+
+describe('mot accompagnant un point', () => {
+  it("peut être ajouté par le donneur juste après le don", async () => {
+    const { pointId } = await (await givePoint(USERS.alice, USERS.bob)).json() as { pointId: number };
+    const response = await api(`/api/points/${pointId}/reason`, { as: USERS.alice, method: 'PATCH', body: { reason: '  Merci pour la relecture ' } });
+    expect(response.status).toBe(200);
+    const row = await env.DB.prepare('SELECT reason FROM points_log WHERE id = ?').bind(pointId).first<{ reason: string }>();
+    expect(row?.reason).toBe('Merci pour la relecture');
+  });
+
+  it("ne peut pas être ajouté par quelqu'un d'autre", async () => {
+    const { pointId } = await (await givePoint(USERS.alice, USERS.bob)).json() as { pointId: number };
+    const response = await api(`/api/points/${pointId}/reason`, { as: USERS.bob, method: 'PATCH', body: { reason: 'pirate' } });
+    expect((await response.json() as { code: string }).code).toBe('REASON_EDIT_EXPIRED');
+  });
+
+  it('ne peut plus être ajouté après 5 minutes', async () => {
+    await logPoints(USERS.alice, USERS.bob, 1, "datetime('now', '-10 minutes')");
+    const old = await env.DB.prepare('SELECT id FROM points_log ORDER BY id DESC LIMIT 1').first<{ id: number }>();
+    const response = await api(`/api/points/${old?.id}/reason`, { as: USERS.alice, method: 'PATCH', body: { reason: 'trop tard' } });
+    expect(response.status).toBe(403);
+  });
+
+  it('refuse un mot vide', async () => {
+    const { pointId } = await (await givePoint(USERS.alice, USERS.bob)).json() as { pointId: number };
+    const response = await api(`/api/points/${pointId}/reason`, { as: USERS.alice, method: 'PATCH', body: { reason: '   ' } });
+    expect(response.status).toBe(400);
   });
 });

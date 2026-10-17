@@ -3,7 +3,7 @@ import type { AppContext, AppEnv } from '../env';
 import { requireUser } from '../middleware/auth';
 import { apiError, readJsonObject, type ApiErrorCode, type ErrorParams } from '../http/errors';
 import {
-  DUPLICATE_WINDOW_MINUTES, MAX_POINTS_PER_DAY, MAX_POINTS_PER_RECIPIENT_PER_DAY, UNDO_WINDOW_SECONDS,
+  DUPLICATE_WINDOW_MINUTES, MAX_POINTS_PER_DAY, MAX_POINTS_PER_RECIPIENT_PER_DAY, REASON_EDIT_WINDOW_SECONDS, UNDO_WINDOW_SECONDS,
   findPointRefusal, normalizeReason, type PointRefusal,
 } from '../domain/pointRules';
 import { dareProgressAfterPoint } from '../domain/dares';
@@ -91,7 +91,7 @@ pointRoutes.post('/api/points', requireUser, async (c) => {
   const refusal = findPointRefusal(await giverActivity(c, recipientId, categoryId));
   if (refusal) return apiError(c, REFUSAL_ERROR[refusal].code, REFUSAL_ERROR[refusal].params(recipient));
 
-  await c.env.DB.prepare('INSERT INTO points_log (team_id, from_user_id, to_user_id, category_id, reason) VALUES (?, ?, ?, ?, ?)')
+  const inserted = await c.env.DB.prepare('INSERT INTO points_log (team_id, from_user_id, to_user_id, category_id, reason) VALUES (?, ?, ?, ?, ?)')
     .bind(giver.team_id, giver.id, recipientId, categoryId, normalizeReason(body.reason)).run();
 
   const progress = await dareProgressFor(c, recipientId, categoryId);
@@ -99,7 +99,18 @@ pointRoutes.post('/api/points', requireUser, async (c) => {
   const gageWarning = progress?.kind === 'warning' ? { name: recipient.name } : null;
   notifyRecipient(c, recipient, category, gageTriggered?.dare ?? null);
 
-  return c.json({ success: true, gageTriggered, gageWarning });
+  return c.json({ success: true, pointId: inserted.meta.last_row_id, gageTriggered, gageWarning });
+});
+
+pointRoutes.patch('/api/points/:id/reason', requireUser, async (c) => {
+  const reason = normalizeReason((await readJsonObject(c)).reason);
+  if (!reason) return apiError(c, 'REASON_INVALID');
+  const result = await c.env.DB.prepare(`
+    UPDATE points_log SET reason = ?
+    WHERE id = ? AND from_user_id = ? AND created_at >= datetime('now', ?)
+  `).bind(reason, c.req.param('id'), c.get('user').id, `-${REASON_EDIT_WINDOW_SECONDS} seconds`).run();
+  if (result.meta.changes === 0) return apiError(c, 'REASON_EDIT_EXPIRED');
+  return c.json({ success: true });
 });
 
 pointRoutes.post('/api/points/undo', requireUser, async (c) => {

@@ -2,12 +2,13 @@ import { escapeHtml } from '../../core/html.js';
 import { t } from '../../core/i18n.js';
 import { closeButtonHtml } from '../../core/dialogs.js';
 
-export const profileHtml = (email) => `
+export const profileHtml = (email, { canAskForPush }) => `
   <div class="flex justify-between items-center mb-4 border-b border-slate-100 pb-4">
     <h2 class="text-xl font-black text-slate-800">${t('profile.title')}</h2>
     ${closeButtonHtml()}
   </div>
   <p class="text-sm text-slate-600 mb-4">${t('profile.desc')}</p>
+  ${canAskForPush ? `<button type="button" data-action="enable-push" class="w-full mb-4 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-sm py-2 rounded-xl">${t('profile.enable_push')}</button>` : ''}
   <form id="profile-form" class="space-y-3">
     <label for="profile-email" class="sr-only">${t('profile.placeholder')}</label>
     <input id="profile-email" type="email" maxlength="120" autofocus value="${escapeHtml(email)}" placeholder="${t('profile.placeholder')}"

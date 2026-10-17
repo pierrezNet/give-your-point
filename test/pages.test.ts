@@ -27,6 +27,11 @@ describe('pages publiques', () => {
     expect(html).toContain('href="/about"');
   });
 
+  it('remplissent aussi en français les textes définis dans le dictionnaire', async () => {
+    const html = await (await get('/')).text();
+    expect(html).toContain('placeholder="Ton prénom"');
+  });
+
   it("servent l'accueil anglais traduit côté serveur", async () => {
     const html = await (await get('/en/')).text();
     expect(html).toContain('<html lang="en">');

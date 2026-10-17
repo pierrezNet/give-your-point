@@ -13,13 +13,40 @@ const EMPTY_BODY: Record<string, unknown> = {};
 
 const logFailure = (operation: string) => (error: unknown) => console.error(`${operation}:`, error);
 
-const INVALID_LINK_PAGE = `
-  <div style="font-family:sans-serif; text-align:center; padding:50px; max-width:420px; margin:auto;">
-    <h1>Oups ! ❌</h1>
-    <p>Ce lien n'est plus valide ou l'utilisateur n'existe pas.</p>
-    <p style="color:#64748b;font-size:14px">Tu as perdu ton lien ? Récupère-le par e-mail depuis la page d'accueil.</p>
-    <a href="/?lost=1" style="display:inline-block;margin-top:12px;background:#2563eb;color:#fff;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">Récupérer mon accès</a>
-  </div>`;
+const INVALID_LINK_COPY = {
+  fr: {
+    title: 'Oups ! ❌',
+    message: "Ce lien n'est plus valide ou l'utilisateur n'existe pas.",
+    hint: "Tu as perdu ton lien ? Récupère-le par e-mail depuis la page d'accueil.",
+    action: 'Récupérer mon accès',
+    home: '/',
+  },
+  en: {
+    title: 'Oops! ❌',
+    message: 'This link is no longer valid or the user does not exist.',
+    hint: 'Lost your link? Get it again by email from the home page.',
+    action: 'Recover my access',
+    home: '/en/',
+  },
+};
+
+function invalidLinkPage(language: 'fr' | 'en'): string {
+  const copy = INVALID_LINK_COPY[language];
+  return `<!DOCTYPE html>
+<html lang="${language}">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="robots" content="noindex"><title>${copy.title}</title><link rel="stylesheet" href="/styles.css"></head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-6">
+  <main class="max-w-md text-center bg-white rounded-3xl shadow-xl p-8 space-y-3">
+    <h1 class="text-2xl font-black text-slate-800">${copy.title}</h1>
+    <p class="text-slate-700">${copy.message}</p>
+    <p class="text-sm text-slate-600">${copy.hint}</p>
+    <a href="${copy.home}?lost=1" class="inline-block mt-2 bg-blue-600 text-white px-5 py-3 rounded-xl font-bold hover:bg-blue-700">${copy.action}</a>
+  </main>
+</body>
+</html>`;
+}
+
+const preferredLanguage = (c: AppContext): 'fr' | 'en' => ((c.req.header('Accept-Language') ?? '').toLowerCase().startsWith('en') ? 'en' : 'fr');
 
 function isSameOrigin(c: AppContext): boolean {
   const origin = c.req.header('Origin');
@@ -77,7 +104,7 @@ publicRoutes.get('/login/:token', async (c) => {
   const token = c.req.param('token');
   const user = await c.env.DB.prepare('SELECT id, email, email_verified FROM users WHERE token = ? AND active = 1')
     .bind(token).first<{ id: string; email: string | null; email_verified: number }>();
-  if (!user) return c.html(INVALID_LINK_PAGE, 404);
+  if (!user) return c.html(invalidLinkPage(preferredLanguage(c)), 404);
 
   if (user.email && !user.email_verified) {
     await c.env.DB.prepare('UPDATE users SET email_verified = 1 WHERE id = ?').bind(user.id).run();

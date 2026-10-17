@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { maskEmail, memberRowHtml, pendingBannerHtml, spamBannerHtml, spamWatchlist } from '../../public/js/features/admin/members.view.js';
 import { ruleHtml } from '../../public/js/features/admin/rules.view.js';
-import { dareLogHtml } from '../../public/js/features/admin/logs.view.js';
+import { dareLogHtml, pointsLogHtml } from '../../public/js/features/admin/logs.view.js';
 
 const member = { id: 'u1', name: 'Bob', active: 1, has_activity: 1, email: null, email_verified: 0 };
 const context = { dares: [], categories: [] };
@@ -71,7 +71,8 @@ describe('règles et historique des gages', () => {
     expect(rule).toContain('data-rule-id="r1"');
   });
 
-  it("indique un historique vide", () => {
+  it("indiquent un historique vide", () => {
     expect(dareLogHtml([])).toContain('Aucun gage');
+    expect(pointsLogHtml([])).toContain('Aucun point donné');
   });
 });

@@ -35,8 +35,10 @@ const pointLogEntryHtml = (point) => `
       <div class="flex items-center gap-4">
         <span class="text-xs font-bold text-slate-600">${escapeHtml(formatSmartDate(point.created_at))}</span>
         <button type="button" data-action="delete-point" data-point-id="${escapeHtml(point.id)}" aria-label="${t('common.delete')}"
-                class="text-red-600 hover:text-red-600 transition-colors p-1 opacity-0 group-hover:opacity-100 focus:opacity-100">${trashIcon('h-5 w-5')}</button>
+                class="text-red-600 hover:text-red-600 transition-colors p-1 md:opacity-0 md:group-hover:opacity-100 focus:opacity-100">${trashIcon('h-5 w-5')}</button>
       </div>
     </div>`;
 
-export const pointsLogHtml = (points) => points.map(pointLogEntryHtml).join('');
+export const pointsLogHtml = (points) => points.length
+  ? points.map(pointLogEntryHtml).join('')
+  : `<p class="text-xs italic text-slate-600 text-center py-4">${t('admin.global_log_empty')}</p>`;
