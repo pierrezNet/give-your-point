@@ -344,8 +344,8 @@ app.patch('/api/me', requireUser, async (c) => {
     if (cleanEmail && cleanEmail !== u.email) {
       // Nouvel e-mail → repart non vérifié, on envoie un lien de confirmation.
       await c.env.DB.prepare("UPDATE users SET email = ?, email_verified = 0 WHERE id = ?").bind(cleanEmail, u.id).run();
-      const loginUrl = `${appBaseUrl(c)}/login/${u.id}`;
-      const mail = buildWelcomeEmail({ isEn: u.locale === 'en', name: u.name, teamName: u.team_name, loginUrl });
+      const { token } = await c.env.DB.prepare("SELECT token FROM users WHERE id = ?").bind(u.id).first<{ token: string }>() ?? { token: '' };
+      const mail = buildWelcomeEmail({ isEn: u.locale === 'en', name: u.name, teamName: u.team_name, loginUrl: magicLinkUrl(c, token) });
       c.executionCtx.waitUntil(sendEmail(c.env, cleanEmail, mail.subject, mail.html));
     } else if (cleanEmail === null) {
       await c.env.DB.prepare("UPDATE users SET email = NULL, email_verified = 0 WHERE id = ?").bind(u.id).run();
