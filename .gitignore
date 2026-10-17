@@ -23,3 +23,7 @@ dist/
 
 # Claude Code
 CLAUDE.md
+# Tests de bout en bout
+.e2e-db/
+test-results/
+playwright-report/

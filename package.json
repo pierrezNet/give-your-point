@@ -5,7 +5,7 @@
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p e2e",
     "check": "npm run typecheck && npm test",
     "dev": "npm run build && wrangler pages dev public --persist-to=./db_data",
     "db:init": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=init_db.sql",
@@ -38,7 +38,8 @@
     "db:migrate:split-token": "wrangler d1 execute give-your-point-eu --remote --file=migrations/2026-14-split-token.sql",
     "db:migrate:split-token:local": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=migrations/2026-14-split-token.sql",
     "db:migrate:indexes": "wrangler d1 execute give-your-point-eu --remote --file=migrations/2026-15-indexes.sql",
-    "db:migrate:indexes:local": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=migrations/2026-15-indexes.sql"
+    "db:migrate:indexes:local": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=migrations/2026-15-indexes.sql",
+    "test:e2e": "playwright test"
   },
   "keywords": [],
   "author": "",
@@ -49,7 +50,9 @@
   "devDependencies": {
     "@cloudflare/vitest-plugin": "^1.4.4",
     "@cloudflare/workers-types": "^4.20260128.0",
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/cli": "^4.2.1",
+    "@types/node": "^26.6.5",
     "tailwindcss": "^4.2.1",
     "typescript": "^7.0.2",
     "vitest": "^4.1.12",
