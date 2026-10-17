@@ -16,15 +16,15 @@ function dareLogEntryHtml(entry) {
         </span>
       </div>
       <div class="flex items-center gap-3 shrink-0 ml-4">
-        <span class="text-[10px] font-bold text-slate-500">${escapeHtml(formatSmartDate(entry.cleared_at))}</span>
-        <button type="button" data-action="delete-dare-log" data-entry-id="${escapeHtml(entry.id)}" title="${t('common.delete')}" aria-label="${t('common.delete')}" class="text-slate-400 hover:text-red-600 transition-colors">${trashIcon('h-4 w-4')}</button>
+        <span class="text-xs font-bold text-slate-600">${escapeHtml(formatSmartDate(entry.cleared_at))}</span>
+        <button type="button" data-action="delete-dare-log" data-entry-id="${escapeHtml(entry.id)}" title="${t('common.delete')}" aria-label="${t('common.delete')}" class="text-slate-600 hover:text-red-600 transition-colors">${trashIcon('h-4 w-4')}</button>
       </div>
     </div>`;
 }
 
 export const dareLogHtml = (entries) => entries.length
   ? entries.map(dareLogEntryHtml).join('')
-  : `<p class="text-xs italic text-slate-500 text-center py-4">${t('admin.dare_log_empty')}</p>`;
+  : `<p class="text-xs italic text-slate-600 text-center py-4">${t('admin.dare_log_empty')}</p>`;
 
 const pointLogEntryHtml = (point) => `
     <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-white transition-all group">
@@ -33,9 +33,9 @@ const pointLogEntryHtml = (point) => `
         <span class="text-slate-700"><b class="text-slate-800">${escapeHtml(point.from_name)}</b> ${t('admin.global_log_gave')} <b class="text-slate-800">${escapeHtml(point.to_name)}</b></span>
       </div>
       <div class="flex items-center gap-4">
-        <span class="text-[10px] font-bold text-slate-500">${escapeHtml(formatSmartDate(point.created_at))}</span>
+        <span class="text-xs font-bold text-slate-600">${escapeHtml(formatSmartDate(point.created_at))}</span>
         <button type="button" data-action="delete-point" data-point-id="${escapeHtml(point.id)}" aria-label="${t('common.delete')}"
-                class="text-red-400 hover:text-red-600 transition-colors p-1 opacity-0 group-hover:opacity-100 focus:opacity-100">${trashIcon('h-5 w-5')}</button>
+                class="text-red-600 hover:text-red-600 transition-colors p-1 opacity-0 group-hover:opacity-100 focus:opacity-100">${trashIcon('h-5 w-5')}</button>
       </div>
     </div>`;
 

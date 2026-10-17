@@ -5,7 +5,7 @@ const FADE_MS = 200;
 
 const TOAST_STYLES = {
   info: 'bg-slate-800 text-white',
-  success: 'bg-emerald-600 text-white',
+  success: 'bg-emerald-700 text-white',
   error: 'bg-red-600 text-white',
 };
 
@@ -37,7 +37,7 @@ export function uiToast(message, type = 'info') {
 export const isModalOpen = () => document.querySelector('[data-modal]') !== null;
 
 export const closeButtonHtml = () =>
-  `<button type="button" data-close-modal aria-label="${tText('common.close')}" class="text-slate-400 hover:text-slate-600 text-3xl leading-none">&times;</button>`;
+  `<button type="button" data-close-modal aria-label="${tText('common.close')}" class="text-slate-600 hover:text-slate-600 text-3xl leading-none">&times;</button>`;
 
 export function openModal({ id, content, panelClass = 'bg-white rounded-3xl p-6 max-w-sm w-full shadow-2xl', onClose }) {
   document.getElementById(id)?.remove();
@@ -81,7 +81,7 @@ function askInDialog({ message, withInput, defaultValue = '', placeholder = '' }
           <p class="ui-msg text-slate-700 text-sm leading-relaxed mb-3 whitespace-pre-line"></p>
           ${withInput ? '<input class="ui-input w-full p-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 mb-5" type="text" autofocus />' : ''}
           <div class="flex justify-end gap-2 mt-2">
-            <button type="button" data-close-modal class="px-4 py-2 rounded-xl font-bold text-sm text-slate-500 hover:bg-slate-100 transition-colors"></button>
+            <button type="button" data-close-modal class="px-4 py-2 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-100 transition-colors"></button>
             <button type="submit" class="ui-ok px-4 py-2 rounded-xl font-bold text-sm text-white bg-blue-600 hover:bg-blue-700 transition-colors" ${withInput ? '' : 'autofocus'}></button>
           </div>
         </form>`,

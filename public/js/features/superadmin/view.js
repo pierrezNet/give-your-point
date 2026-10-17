@@ -5,12 +5,12 @@ export function teamRowHtml(team) {
   const id = escapeHtml(team.id);
   const isActive = team.active === 1;
   return `
-    <tr class="border-b border-slate-100 ${isActive ? '' : 'opacity-50'}">
+    <tr class="border-b border-slate-100 ${isActive ? '' : 'bg-slate-100'}">
       <td class="p-4">
         <div class="font-bold text-slate-800">${escapeHtml(team.name)}</div>
-        ${isActive ? '' : `<div class="text-[10px] font-bold uppercase text-slate-500">${t('superadmin.team_disabled')}</div>`}
+        ${isActive ? '' : `<div class="text-xs font-bold uppercase text-slate-600">${t('superadmin.team_disabled')}</div>`}
       </td>
-      <td class="p-4 hidden md:table-cell text-sm text-slate-600">${team.admins ? escapeHtml(team.admins) : `<i class="text-slate-500">${t('superadmin.no_admin')}</i>`}</td>
+      <td class="p-4 hidden md:table-cell text-sm text-slate-600">${team.admins ? escapeHtml(team.admins) : `<i class="text-slate-600">${t('superadmin.no_admin')}</i>`}</td>
       <td class="p-4 hidden sm:table-cell text-sm">${escapeHtml(team.member_count)}</td>
       <td class="p-4">
         <div class="flex justify-end items-center gap-2 flex-wrap">
@@ -30,8 +30,8 @@ function adminCardHtml(admin) {
     <div class="flex items-center justify-between gap-2 bg-white rounded-lg p-3 border border-slate-100">
       <div class="text-sm">
         <span class="font-bold text-slate-800">${escapeHtml(admin.name)}</span>
-        <span class="ml-2 inline-block px-2 py-0.5 rounded-full text-[10px] font-black uppercase ${roleColors}">${escapeHtml(admin.role)}</span>
-        ${admin.active === 0 ? `<span class="ml-2 text-[10px] text-slate-500">${t('superadmin.user_disabled')}</span>` : ''}
+        <span class="ml-2 inline-block px-2 py-0.5 rounded-full text-xs font-black uppercase ${roleColors}">${escapeHtml(admin.role)}</span>
+        ${admin.active === 0 ? `<span class="ml-2 text-xs text-slate-600">${t('superadmin.user_disabled')}</span>` : ''}
       </div>
       <div class="flex gap-3 items-center shrink-0">
         <button type="button" data-action="copy-link" data-user-id="${escapeHtml(admin.id)}" class="text-xs font-black text-blue-700 hover:underline uppercase">${t('common.copy_link')}</button>
@@ -41,7 +41,7 @@ function adminCardHtml(admin) {
 }
 
 export function adminsByTeamHtml(admins) {
-  if (!admins.length) return `<p class="text-sm italic text-slate-500 py-4">${t('superadmin.no_admins_yet')}</p>`;
+  if (!admins.length) return `<p class="text-sm italic text-slate-600 py-4">${t('superadmin.no_admins_yet')}</p>`;
   const byTeam = admins.reduce((groups, admin) => groups.set(admin.team_name, [...(groups.get(admin.team_name) ?? []), admin]), new Map());
   return [...byTeam].map(([teamName, members]) => `
     <div class="bg-slate-50 rounded-xl border border-slate-100 p-4">

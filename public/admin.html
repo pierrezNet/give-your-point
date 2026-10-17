@@ -13,24 +13,24 @@
         <header class="flex justify-between items-center mb-8">
             <div>
                 <h1 class="text-xl md:text-3xl font-black text-slate-800" data-i18n="admin.title">Console Admin 🛠️</h1>
-                <p class="text-xs md:text-sm font-bold text-slate-500 mt-1" id="admin-scope"><span data-i18n="admin.scope">Équipe :</span> <span id="admin-team-name">…</span></p>
+                <p class="text-xs md:text-sm font-bold text-slate-600 mt-1" id="admin-scope"><span data-i18n="admin.scope">Équipe :</span> <span id="admin-team-name">…</span></p>
             </div>
             <div class="flex flex-wrap justify-end gap-x-3 gap-y-2 items-center text-sm">
                 <a href="/owner" data-requires-role="owner" class="hidden text-emerald-700 font-bold hover:underline whitespace-nowrap" data-i18n="nav.owner">Owner 🌐</a>
                 <a href="/superadmin" data-requires-role="superadmin" class="hidden text-purple-700 font-bold hover:underline whitespace-nowrap" data-i18n="nav.superadmin">Société 🏛️</a>
                 <a href="/" class="text-blue-600 font-bold hover:underline whitespace-nowrap" data-i18n="common.back_to_app">← App</a>
-                <span class="text-slate-300 hidden sm:inline">|</span>
+                <span class="text-slate-600 hidden sm:inline">|</span>
                 <span class="whitespace-nowrap">
-                    <button type="button" data-lang-toggle="fr" lang="fr" class="text-xs font-bold text-slate-500 px-1">FR</button>
-                    <span class="text-slate-300">/</span>
-                    <button type="button" data-lang-toggle="en" lang="en" class="text-xs font-bold text-slate-500 px-1">EN</button>
+                    <button type="button" data-lang-toggle="fr" lang="fr" class="text-xs font-bold text-slate-600 px-1">FR</button>
+                    <span class="text-slate-600">/</span>
+                    <button type="button" data-lang-toggle="en" lang="en" class="text-xs font-bold text-slate-600 px-1">EN</button>
                 </span>
             </div>
         </header>
 
         <div class="bg-white p-2 md:p-6 rounded-2xl shadow-sm border border-blue-200 mt-8">
             <h2 class="text-xl font-bold mb-1 flex items-center gap-2"><span>🔗</span> <span data-i18n="admin.invite_title">Inviter des membres</span></h2>
-            <p class="text-sm text-slate-500 mb-4" data-i18n="admin.invite_desc">Partage ce lien : chacun s'inscrit tout seul, sans que tu aies à créer les comptes un par un.</p>
+            <p class="text-sm text-slate-600 mb-4" data-i18n="admin.invite_desc">Partage ce lien : chacun s'inscrit tout seul, sans que tu aies à créer les comptes un par un.</p>
             <div class="flex flex-col md:flex-row gap-3 mb-3">
                 <input id="invite-link" type="text" readonly value="…" data-i18n-aria-label="admin.invite_title"
                        class="flex-1 p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 text-sm outline-none">
@@ -72,14 +72,14 @@
             <form id="add-badge-form" class="flex flex-col md:flex-row gap-4 mb-8 p-4 bg-slate-50 rounded-2xl border border-slate-100">
                 <input type="text" id="new-cat-emoji" name="emoji" required maxlength="16" data-i18n-aria-label="admin.badge_emoji_placeholder" data-i18n-placeholder="admin.badge_emoji_placeholder" placeholder="Emoji" class="w-full md:w-20 p-3 rounded-xl border border-slate-200 text-center text-xl shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none">
                 <input type="text" id="new-cat-name" name="name" required maxlength="40" data-i18n-aria-label="admin.badge_name_placeholder" data-i18n-placeholder="admin.badge_name_placeholder" placeholder="Nom du badge (ex: Humour)" class="flex-1 p-3 rounded-xl border border-slate-200 shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none">
-                <button type="submit" class="bg-emerald-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-emerald-700 hover:shadow-lg transition-all" data-i18n="admin.create_badge">Créer le badge</button>
+                <button type="submit" class="bg-emerald-700 text-white px-8 py-3 rounded-xl font-bold hover:bg-emerald-700 hover:shadow-lg transition-all" data-i18n="admin.create_badge">Créer le badge</button>
             </form>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6" id="admin-categories-list"></div>
         </div>
 
         <div class="bg-white p-2 md:p-6 rounded-2xl shadow-sm border border-slate-200 mt-8">
-            <h2 class="text-xl font-bold mb-4 text-orange-600" data-i18n="admin.rules_title">⚖️ Paramétrage des Gages</h2>
+            <h2 class="text-xl font-bold mb-4 text-orange-700" data-i18n="admin.rules_title">⚖️ Paramétrage des Gages</h2>
 
             <form id="add-rule-form" class="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 rounded-xl mb-6">
                 <div>
@@ -94,7 +94,7 @@
                     <label for="rule-text" class="block text-xs font-bold mb-1" data-i18n="admin.rule_dare_text">Gage à accomplir</label>
                     <div class="flex gap-2">
                         <input type="text" id="rule-text" name="dare_text" required maxlength="140" data-i18n-placeholder="admin.rule_dare_placeholder" placeholder="Ex: Amener des croissants" class="flex-1 p-2 rounded-lg border">
-                        <button type="submit" class="bg-orange-600 text-white px-4 rounded-lg font-bold">OK</button>
+                        <button type="submit" class="bg-orange-700 text-white px-4 rounded-lg font-bold">OK</button>
                     </div>
                 </div>
             </form>
@@ -114,7 +114,7 @@
 
         <div class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 mt-8">
             <h2 class="text-xl font-black text-slate-800 mb-6 flex items-center gap-2">
-                <span class="w-2 h-6 bg-blue-500 rounded-full"></span>
+                <span class="w-2 h-6 bg-blue-600 rounded-full"></span>
                 <span data-i18n="admin.global_log_title">Historique global des points</span>
             </h2>
             <div id="admin-global-log" class="space-y-2 max-h-125 overflow-y-auto">

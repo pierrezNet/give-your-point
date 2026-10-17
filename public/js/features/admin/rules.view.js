@@ -15,8 +15,8 @@ export function ruleHtml(rule) {
       <form class="rule-edit hidden mt-2 flex gap-2 items-center" data-rule-id="${id}">
         <input type="number" name="threshold" min="1" max="1000" class="w-20 p-2 rounded-lg border text-sm" value="${escapeHtml(rule.threshold)}" aria-label="${t('admin.rule_threshold')}">
         <input type="text" name="dare_text" maxlength="140" class="flex-1 p-2 rounded-lg border text-sm" value="${escapeHtml(rule.dare_text)}" aria-label="${t('admin.rule_dare_text')}">
-        <button type="submit" class="bg-orange-600 text-white px-3 py-2 rounded-lg text-xs font-bold">${t('common.save')}</button>
-        <button type="button" data-action="cancel-rule-edit" data-rule-id="${id}" class="text-slate-500 text-xs font-bold">${t('common.cancel')}</button>
+        <button type="submit" class="bg-orange-700 text-white px-3 py-2 rounded-lg text-xs font-bold">${t('common.save')}</button>
+        <button type="button" data-action="cancel-rule-edit" data-rule-id="${id}" class="text-slate-600 text-xs font-bold">${t('common.cancel')}</button>
       </form>
     </div>`;
 }

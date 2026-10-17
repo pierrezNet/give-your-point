@@ -8,8 +8,8 @@ export function badgeCardHtml(category) {
       <div class="flex items-center gap-4 mb-4">
         <span class="text-4xl ${isActive ? '' : 'grayscale opacity-30'}" aria-hidden="true">${escapeHtml(category.emoji)}</span>
         <div class="flex flex-col">
-          <span class="font-bold text-lg ${isActive ? 'text-slate-800' : 'text-slate-500 italic'}">${escapeHtml(category.name)}</span>
-          <span class="text-[10px] font-black uppercase tracking-widest ${isActive ? 'text-emerald-700' : 'text-slate-500'}">${t(isActive ? 'admin.badge_active' : 'admin.badge_inactive')}</span>
+          <span class="font-bold text-lg ${isActive ? 'text-slate-800' : 'text-slate-600 italic'}">${escapeHtml(category.name)}</span>
+          <span class="text-xs font-black uppercase tracking-widest ${isActive ? 'text-emerald-700' : 'text-slate-600'}">${t(isActive ? 'admin.badge_active' : 'admin.badge_inactive')}</span>
         </div>
       </div>
       <div class="flex justify-end mt-auto">

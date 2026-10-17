@@ -10,5 +10,5 @@ export const helpHtml = () => `
   </div>
   <ol class="text-sm text-slate-600 space-y-3 list-none">
     ${HELP_STEPS.map((key, index) => `<li class="flex gap-3"><span class="font-black text-blue-600 shrink-0">${index + 1}.</span> ${t(key)}</li>`).join('')}
-    <li class="flex gap-3"><span class="font-black text-orange-600 shrink-0" aria-hidden="true">⚠️</span> ${t('help.step5')}</li>
+    <li class="flex gap-3"><span class="font-black text-orange-700 shrink-0" aria-hidden="true">⚠️</span> ${t('help.step5')}</li>
   </ol>`;

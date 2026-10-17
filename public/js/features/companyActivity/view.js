@@ -11,7 +11,7 @@ export const activityPillHtml = (leader) => `
     <span class="font-black text-slate-700">${escapeHtml(leader.name)}</span>
     <span class="font-black text-blue-600">${escapeHtml(leader.points_7d || 0)}</span>
   </span>
-  <span class="text-slate-400" aria-hidden="true">→</span>`;
+  <span class="text-slate-600" aria-hidden="true">→</span>`;
 
 const teamRowHtml = (team, position) => `
   <div class="bg-slate-50 rounded-xl px-4 py-3 border border-slate-100">
@@ -20,7 +20,7 @@ const teamRowHtml = (team, position) => `
         <span class="text-xl shrink-0" aria-hidden="true">${teamMood(team, position)}</span>
         <span class="font-black text-slate-800 truncate">${escapeHtml(team.name)}</span>
       </span>
-      <span class="text-blue-600 font-black shrink-0">${escapeHtml(team.points_7d || 0)} <span class="text-[10px] text-slate-500 uppercase">${t('index.pts_short')}</span></span>
+      <span class="text-blue-600 font-black shrink-0">${escapeHtml(team.points_7d || 0)} <span class="text-xs text-slate-600 uppercase">${t('index.pts_short')}</span></span>
     </div>
     ${isCalm(team) ? '' : `<p class="text-xs text-slate-600 mt-1">${escapeHtml(statLine(team, getLang()))}</p>`}
     <p class="text-sm text-slate-600 italic mt-1">${t(flavorKey(team), { team: team.name, cat: (team.top_category || '').toLowerCase() })}</p>
@@ -32,4 +32,4 @@ export const companyActivityHtml = (companyName, teams) => `
     ${closeButtonHtml()}
   </div>
   <div class="space-y-2 max-h-[60vh] overflow-y-auto">${teams.map(teamRowHtml).join('')}</div>
-  <p class="text-xs text-slate-500 mt-4">${t('company.activity_hint')}</p>`;
+  <p class="text-xs text-slate-600 mt-4">${t('company.activity_hint')}</p>`;

@@ -28,7 +28,7 @@ const periodBarHtml = (total, currentPeriod) => `
 function youCardHtml(me) {
   if (!me || me.given + me.received + me.gages === 0) return '';
   const rank = (position) => (position ? t('stats.you_rank', { n: position }) : t('stats.you_norank'));
-  const cell = (value, label) => `<div><div class="text-3xl font-black">${escapeHtml(value)}</div><div class="text-[11px] opacity-90 mt-0.5">${label}</div></div>`;
+  const cell = (value, label) => `<div><div class="text-3xl font-black">${escapeHtml(value)}</div><div class="text-xs mt-0.5">${label}</div></div>`;
   return `
     <section class="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl p-5 shadow text-white">
       <h2 class="font-black mb-3">${t('stats.you_title')}</h2>
@@ -44,9 +44,9 @@ const awardCardHtml = ({ emoji, titleKey, winner, descriptionKey, value }) => `
   <div class="award-card bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex items-center gap-3">
     <span class="text-3xl shrink-0" aria-hidden="true">${emoji}</span>
     <div class="min-w-0 flex-1">
-      <div class="text-[10px] font-black uppercase tracking-wider text-slate-500">${t(titleKey)}</div>
+      <div class="text-xs font-black uppercase tracking-wider text-slate-600">${t(titleKey)}</div>
       <div class="text-sm font-black text-slate-800 truncate">${escapeHtml(winner)}</div>
-      <div class="text-[11px] text-slate-500 truncate">${t(descriptionKey)} · ${escapeHtml(value)}</div>
+      <div class="text-xs text-slate-600 truncate">${t(descriptionKey)} · ${escapeHtml(value)}</div>
     </div>
   </div>`;
 
@@ -70,7 +70,7 @@ function awardsHtml({ givers, receivers, matrix, gages }) {
 }
 
 function podiumHtml(ranking, color) {
-  if (!ranking.length) return `<p class="text-sm text-slate-500 py-4">${t('stats.empty')}</p>`;
+  if (!ranking.length) return `<p class="text-sm text-slate-600 py-4">${t('stats.empty')}</p>`;
   const top = ranking.slice(0, 3);
   const columns = PODIUM_ORDER.map((position) => {
     const entry = top[position];
@@ -86,7 +86,7 @@ function podiumHtml(ranking, color) {
   }).join('');
   const rest = ranking.slice(3).map((entry, index) => `
     <div class="flex items-center gap-3">
-      <span class="text-xs font-black text-slate-500 w-5">#${index + 4}</span>
+      <span class="text-xs font-black text-slate-600 w-5">#${index + 4}</span>
       <span class="text-sm font-bold text-slate-700 flex-1 truncate">${escapeHtml(entry.name)}</span>
       <span class="text-sm font-black text-slate-600">${escapeHtml(entry.total)}</span>
     </div>`).join('');
@@ -106,7 +106,7 @@ const dareLogHtml = (entries) => entries.map((entry) => `
       <span class="text-sm font-bold text-slate-700">${escapeHtml(entry.name)}</span>
       <span class="text-sm text-slate-600"> — ${escapeHtml(entry.dare_text)}</span>
     </div>
-    <span class="text-[11px] text-slate-500 whitespace-nowrap shrink-0">${escapeHtml(entry.category)} · ${escapeHtml(formatShortDate(entry.cleared_at))}</span>
+    <span class="text-xs text-slate-600 whitespace-nowrap shrink-0">${escapeHtml(entry.category)} · ${escapeHtml(formatShortDate(entry.cleared_at))}</span>
   </div>`).join('');
 
 function categoriesHtml(categories) {
@@ -126,11 +126,11 @@ function evolutionHtml(weeks) {
     const weekNumber = week.week.split('-')[1];
     return `
       <div class="flex-1 flex flex-col items-center gap-1">
-        <span class="text-[10px] font-black text-indigo-700">${escapeHtml(week.total)}</span>
+        <span class="text-xs font-black text-indigo-700">${escapeHtml(week.total)}</span>
         <div class="w-full bg-slate-100 rounded-t-md flex items-end" style="height:100px">
           <div class="week-bar w-full bg-indigo-400 rounded-t-md" style="height:0%" data-pct="${Math.round((week.total / max) * 100)}"></div>
         </div>
-        <span class="text-[10px] text-slate-500 font-bold">${escapeHtml(weekNumber ? `S${weekNumber}` : week.week)}</span>
+        <span class="text-xs text-slate-600 font-bold">${escapeHtml(weekNumber ? `S${weekNumber}` : week.week)}</span>
       </div>`;
   }).join('')}</div>`;
 }
@@ -140,14 +140,14 @@ function heatmapHtml(matrix) {
   if (names.length < 2) return '';
   const cellHtml = (from, to) => {
     const value = valueOf(from, to);
-    if (value === null) return '<td class="p-1"><div class="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-400" aria-hidden="true">—</div></td>';
+    if (value === null) return '<td class="p-1"><div class="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-600" aria-hidden="true">—</div></td>';
     const alpha = value > 0 ? 0.15 + (value / maxCell) * 0.75 : 0;
     return `<td class="p-1"><div class="heatmap-cell w-8 h-8 rounded flex items-center justify-center font-black ${alpha > 0.5 ? 'text-white' : 'text-rose-800'} cursor-default"
                 style="background:rgba(244,63,94,${alpha})" title="${escapeHtml(from)} → ${escapeHtml(to)} : ${value} ${t('stats.u_points_n')}">${value > 0 ? value : ''}</div></td>`;
   };
   return cardHtml('stats.heatmap_title', 'bg-rose-500', `
-    <p class="text-xs text-slate-500 mb-4">${t('stats.heatmap_hint')}</p>
-    <table class="text-[11px] border-collapse">
+    <p class="text-xs text-slate-600 mb-4">${t('stats.heatmap_hint')}</p>
+    <table class="text-xs border-collapse">
       <thead><tr><th class="p-1 w-20"></th>${names.map((name) => `<th scope="col" class="p-1 text-center font-bold text-slate-600 max-w-12"><div class="rotate-[-45deg] origin-left translate-x-3 whitespace-nowrap">${escapeHtml(firstName(name))}</div></th>`).join('')}</tr></thead>
       <tbody>${names.map((from) => `<tr><th scope="row" class="p-1 font-bold text-slate-600 pr-3 whitespace-nowrap text-left">${escapeHtml(firstName(from))}</th>${names.map((to) => cellHtml(from, to)).join('')}</tr>`).join('')}</tbody>
     </table>`, 'overflow-x-auto');
@@ -159,14 +159,14 @@ export function statsHtml(stats, currentPeriod) {
   const matrix = stats.matrix ?? [];
   const gages = stats.gages ?? [];
   const periodCard = `<div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100">${periodBarHtml(stats.totalPoints || 0, currentPeriod)}</div>`;
-  if (!stats.totalPoints) return `${periodCard}<div class="text-center py-16 text-slate-500 font-bold">${t('stats.empty')}</div>`;
+  if (!stats.totalPoints) return `${periodCard}<div class="text-center py-16 text-slate-600 font-bold">${t('stats.empty')}</div>`;
   return `
     ${periodCard}
     ${youCardHtml(stats.me)}
     ${awardsHtml({ givers, receivers, matrix, gages })}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
       ${cardHtml('stats.givers', 'bg-emerald-500', podiumHtml(givers, 'bg-emerald-500'))}
-      ${cardHtml('stats.receivers', 'bg-blue-500', podiumHtml(receivers, 'bg-blue-500'))}
+      ${cardHtml('stats.receivers', 'bg-blue-600', podiumHtml(receivers, 'bg-blue-600'))}
     </div>
     ${stats.gageLog?.length ? cardHtml('stats.gages_title', 'bg-orange-500', `<div class="space-y-2">${dareLogHtml(stats.gageLog)}</div>`) : ''}
     ${cardHtml('stats.categories', 'bg-purple-500', `<div class="space-y-3">${categoriesHtml(stats.categories ?? [])}</div>`)}

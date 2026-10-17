@@ -2,14 +2,14 @@ import { escapeHtml } from '../../core/html.js';
 import { t, tText } from '../../core/i18n.js';
 
 export const REASON_MAX_LENGTH = 140;
-const RANK_COLORS = { 1: 'bg-yellow-400', 2: 'bg-slate-300', 3: 'bg-amber-600' };
-const DEFAULT_RANK_COLOR = 'bg-blue-500';
+const RANK_COLORS = { 1: 'bg-yellow-400 text-slate-900', 2: 'bg-slate-500 text-white', 3: 'bg-amber-700 text-white' };
+const DEFAULT_RANK_COLOR = 'bg-blue-600 text-white';
 
 export const POINT_TOAST_STYLES = {
   success: { background: 'bg-slate-800', durationMs: 5000, undoable: true },
-  warning: { background: 'bg-amber-500', durationMs: 6000, undoable: true },
+  warning: { background: 'bg-amber-700', durationMs: 6000, undoable: true },
   danger: { background: 'bg-rose-600', durationMs: 8000, undoable: true },
-  error: { background: 'bg-orange-600', durationMs: 5000, undoable: false },
+  error: { background: 'bg-orange-700', durationMs: 5000, undoable: false },
 };
 
 export const categoryButtonsHtml = (categories) => categories.map((category) => `
@@ -22,11 +22,11 @@ export const categoryButtonsHtml = (categories) => categories.map((category) => 
 const badgesHtml = (topCategories = []) => topCategories.map((category) => `
   <div class="flex items-center bg-gray-50 px-2 py-1 rounded-md border border-gray-100">
     <span class="text-sm">${escapeHtml(category.emoji)}</span>
-    <span class="text-[10px] font-bold ml-1 text-gray-500">${escapeHtml(category.count)}</span>
-  </div>`).join('') || `<span class="text-[10px] text-gray-400 italic">${t('index.no_badge')}</span>`;
+    <span class="text-xs font-bold ml-1 text-gray-600">${escapeHtml(category.count)}</span>
+  </div>`).join('') || `<span class="text-xs text-gray-600 italic">${t('index.no_badge')}</span>`;
 
 const bannerHtml = (className, placement, text) => text
-  ? `<div class="${className} absolute ${placement} left-1/2 -translate-x-1/2 text-white px-3 py-1 rounded-full text-[10px] font-black shadow-lg z-10 whitespace-nowrap">${escapeHtml(text)}</div>`
+  ? `<div class="${className} absolute ${placement} left-1/2 -translate-x-1/2 text-white px-3 py-1 rounded-full text-xs font-black shadow-lg z-10 whitespace-nowrap">${escapeHtml(text)}</div>`
   : '';
 
 export function userCardHtml(user, { isMe }) {
@@ -35,20 +35,20 @@ export function userCardHtml(user, { isMe }) {
     <article data-user-id="${escapeHtml(user.id)}" data-is-me="${isMe}" style="view-transition-name: card-${escapeHtml(user.id)}"
              class="user-card relative bg-white p-2 lg:p-3 rounded-2xl shadow-sm border-2 transition-all flex flex-col items-center text-center ${
                isMe ? 'cursor-not-allowed border-slate-200' : 'cursor-pointer hover:shadow-md border-transparent'} ${highlighted ? 'gage-active border-orange-500' : ''}">
-      <button type="button" class="history-button absolute top-3 left-3 text-slate-300 hover:text-blue-500 hover:scale-110 transition-all z-30 p-1"
+      <button type="button" class="history-button absolute top-3 left-3 text-slate-600 hover:text-blue-500 hover:scale-110 transition-all z-30 p-1"
               aria-label="${escapeHtml(tText('history.title', { name: user.name }))}">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
       </button>
-      <div class="rank-badge absolute top-3 right-3 ${RANK_COLORS[user.rank] ?? DEFAULT_RANK_COLOR} text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-sm">#${escapeHtml(user.rank)}</div>
+      <div class="rank-badge absolute top-3 right-3 ${RANK_COLORS[user.rank] ?? DEFAULT_RANK_COLOR} text-xs font-black px-2 py-1 rounded-lg shadow-sm">#${escapeHtml(user.rank)}</div>
       <div class="collapse lg:visible w-16 h-16 bg-linear-to-br from-blue-100 to-blue-50 rounded-full mb-3 flex items-center justify-center text-blue-600 text-2xl font-bold border border-blue-100 shadow-inner" aria-hidden="true">
         ${escapeHtml((user.name || 'U')[0].toUpperCase())}
       </div>
       <h3 class="font-bold text-gray-800 text-lg">${escapeHtml(user.name)} ${isMe ? t('index.you_label') : ''}</h3>
       <p class="user-points-total text-blue-600 font-black text-sm mb-3">${escapeHtml(user.total_points || 0)} ${t('index.pts_short')}</p>
       <div class="top-categories-container flex flex-wrap justify-center gap-2 mt-2 w-full">${badgesHtml(user.topCategories)}</div>
-      ${bannerHtml('gage-banner', '-top-3 bg-orange-600', user.gage ? tText('index.gage_label', { dare: user.gage.toUpperCase() }) : null)}
+      ${bannerHtml('gage-banner', '-top-3 bg-orange-700', user.gage ? tText('index.gage_label', { dare: user.gage.toUpperCase() }) : null)}
       ${bannerHtml('spammer-banner', '-bottom-3 bg-purple-600', user.spammer ? tText('index.spammer_label') : null)}
     </article>`;
 }
@@ -64,10 +64,10 @@ export const recipientSelectorHtml = (emoji, recipients) => `
         <span class="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 font-bold text-xl group-active:bg-blue-600 group-active:text-white transition-all shadow-sm" aria-hidden="true">
           ${escapeHtml(user.name[0].toUpperCase())}
         </span>
-        <span class="text-[11px] font-bold text-slate-600 truncate w-full">${escapeHtml(user.name)}</span>
+        <span class="text-xs font-bold text-slate-600 truncate w-full">${escapeHtml(user.name)}</span>
       </button>`).join('')}
   </div>
-  <button type="button" data-close-modal class="text-slate-500 font-bold text-xs uppercase tracking-widest py-2">${t('common.cancel')}</button>`;
+  <button type="button" data-close-modal class="text-slate-600 font-bold text-xs uppercase tracking-widest py-2">${t('common.cancel')}</button>`;
 
 export const reasonDialogHtml = (recipientName) => `
   <div class="text-4xl mb-2" aria-hidden="true">🎯</div>

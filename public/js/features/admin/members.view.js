@@ -11,19 +11,19 @@ export const maskEmail = (email) => {
 function memberStatusHtml(user, isPending) {
   if (user.active === 1) return '';
   return isPending
-    ? `<span class="text-[10px] font-black uppercase text-blue-700 not-italic">⏳ ${t('admin.pending_flag')}</span>`
+    ? `<span class="text-xs font-black uppercase text-blue-700 not-italic">⏳ ${t('admin.pending_flag')}</span>`
     : t('admin.user_deactivated');
 }
 
 function emailCellHtml(user) {
-  if (user.active !== 1) return '<span class="text-slate-500">—</span>';
-  if (!user.email) return '<span class="text-slate-500">—</span>';
+  if (user.active !== 1) return '<span class="text-slate-600">—</span>';
+  if (!user.email) return '<span class="text-slate-600">—</span>';
   return `
     <div class="flex flex-col gap-0.5">
-      <span class="font-mono text-slate-500">${escapeHtml(maskEmail(user.email))}</span>
+      <span class="font-mono text-slate-600">${escapeHtml(maskEmail(user.email))}</span>
       ${user.email_verified
-        ? `<span class="text-[10px] font-black uppercase text-emerald-700">✓ ${t('admin.email_confirmed')}</span>`
-        : `<span class="text-[10px] font-black uppercase text-amber-700">⏳ ${t('admin.email_pending')}</span>`}
+        ? `<span class="text-xs font-black uppercase text-emerald-700">✓ ${t('admin.email_confirmed')}</span>`
+        : `<span class="text-xs font-black uppercase text-amber-700">⏳ ${t('admin.email_pending')}</span>`}
     </div>`;
 }
 
@@ -43,14 +43,14 @@ function memberActionsHtml(user, isPending) {
   if (user.active !== 1) {
     return `
       <button type="button" data-action="restore-member" data-user-id="${id}" class="text-xs font-black text-emerald-700 uppercase">${t(isPending ? 'admin.validate' : 'common.restore')}</button>
-      ${isPending ? `<button type="button" data-action="reject-member" data-user-id="${id}" title="${t('admin.reject_title')}" class="text-xs font-black text-red-600 hover:text-red-700 uppercase">${t('admin.reject')}</button>` : ''}`;
+      ${isPending ? `<button type="button" data-action="reject-member" data-user-id="${id}" title="${t('admin.reject_title')}" class="text-xs font-black text-red-700 hover:text-red-800 uppercase">${t('admin.reject')}</button>` : ''}`;
   }
   return `
     ${user.email
       ? `<button type="button" data-action="resend-link" data-user-id="${id}" class="text-xs font-black text-blue-700 uppercase hover:underline">${t('admin.resend_link')}</button>
-         <button type="button" data-action="reveal-link" data-user-id="${id}" class="text-sm text-slate-500 hover:text-slate-700" title="${t('admin.reveal_link_title')}" aria-label="${t('admin.reveal_link_title')}">🔗</button>`
+         <button type="button" data-action="reveal-link" data-user-id="${id}" class="text-sm text-slate-600 hover:text-slate-700" title="${t('admin.reveal_link_title')}" aria-label="${t('admin.reveal_link_title')}">🔗</button>`
       : `<button type="button" data-action="copy-link" data-user-id="${id}" class="text-xs font-black text-blue-700 uppercase hover:underline">${t('common.copy_link')}</button>`}
-    <button type="button" data-action="regenerate-link" data-user-id="${id}" title="${t('admin.regen_title')}" aria-label="${t('admin.regen_title')}" class="text-base text-amber-600 hover:text-amber-700 leading-none">↻</button>
+    <button type="button" data-action="regenerate-link" data-user-id="${id}" title="${t('admin.regen_title')}" aria-label="${t('admin.regen_title')}" class="text-base text-amber-700 hover:text-amber-700 leading-none">↻</button>
     <button type="button" data-action="deactivate-member" data-user-id="${id}" class="text-xs font-black text-red-600 hover:text-red-700 uppercase">${t('common.deactivate')}</button>`;
 }
 
@@ -59,10 +59,10 @@ export function memberRowHtml(user, { dares, categories }) {
   const isPending = !isActive && !user.has_activity;
   const activeDares = dares.filter((dare) => dare.userId === user.id);
   return `
-    <tr class="border-b border-slate-100 ${isActive ? 'hover:bg-slate-50' : 'bg-slate-50 opacity-60'} transition-colors">
+    <tr class="border-b border-slate-100 ${isActive ? 'hover:bg-slate-50' : 'bg-slate-100'} transition-colors">
       <td class="p-4">
-        <div class="font-bold ${isActive ? 'text-slate-800' : 'text-slate-500 italic'}">${escapeHtml(user.name)} ${memberStatusHtml(user, isPending)}</div>
-        ${activeDares.map(() => `<div class="text-[10px] text-orange-700 font-black uppercase">${t('admin.has_gage')}</div>`).join('')}
+        <div class="font-bold ${isActive ? 'text-slate-800' : 'text-slate-600 italic'}">${escapeHtml(user.name)} ${memberStatusHtml(user, isPending)}</div>
+        ${activeDares.map(() => `<div class="text-xs text-orange-700 font-black uppercase">${t('admin.has_gage')}</div>`).join('')}
       </td>
       <td class="p-4 text-xs hidden sm:table-cell">${emailCellHtml(user)}</td>
       <td class="p-4">
@@ -89,7 +89,7 @@ const spammerRowHtml = (spammer) => {
         <div class="h-full ${spammer.flagged ? 'bg-purple-500' : 'bg-amber-400'} rounded-full" style="width:${percent}%"></div>
       </div>
       <span class="text-xs font-black ${spammer.flagged ? 'text-purple-700' : 'text-amber-700'} w-9 text-right shrink-0">${percent}%</span>
-      ${spammer.flagged ? `<button type="button" data-action="pardon-spammer" data-user-id="${escapeHtml(spammer.userId)}" class="text-[10px] font-black uppercase text-emerald-700 hover:underline whitespace-nowrap shrink-0">${t('admin.spammer_pardon')}</button>` : ''}
+      ${spammer.flagged ? `<button type="button" data-action="pardon-spammer" data-user-id="${escapeHtml(spammer.userId)}" class="text-xs font-black uppercase text-emerald-700 hover:underline whitespace-nowrap shrink-0">${t('admin.spammer_pardon')}</button>` : ''}
     </div>`;
 };
 

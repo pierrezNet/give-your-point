@@ -50,6 +50,7 @@
     "hono": "^4.11.7"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@cloudflare/vitest-plugin": "^1.4.4",
     "@cloudflare/workers-types": "^4.20260128.0",
     "@playwright/test": "^1.64.1",
