@@ -1,8 +1,10 @@
 import { defineConfig } from 'vitest/config';
+import { readFile } from 'node:fs/promises';
 import { cloudflareTest, readD1Migrations } from '@cloudflare/vitest-plugin';
 
 export default defineConfig(async () => {
   const schema = await readD1Migrations({ migrationsDir: '.', migrationsPattern: 'schema.sql' });
+  const frontendTranslations = await readFile('public/i18n.js', 'utf8');
   const [splitTokenMigration] = await readD1Migrations({ migrationsDir: 'migrations', migrationsPattern: 'migrations/2026-14-split-token.sql' });
 
   return {
@@ -14,6 +16,7 @@ export default defineConfig(async () => {
           bindings: {
             TEST_SCHEMA: schema,
             SPLIT_TOKEN_MIGRATION: splitTokenMigration.queries,
+            FRONTEND_TRANSLATIONS: frontendTranslations,
             TURNSTILE_SECRET_KEY: 'turnstile-test-secret',
             CRON_SECRET: 'cron-test-secret',
           },

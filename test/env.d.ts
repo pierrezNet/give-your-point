@@ -6,6 +6,7 @@ declare global {
     interface Env extends Bindings {
       TEST_SCHEMA: D1Migration[];
       SPLIT_TOKEN_MIGRATION: string[];
+      FRONTEND_TRANSLATIONS: string;
     }
   }
 }

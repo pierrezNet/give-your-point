@@ -238,7 +238,7 @@
                 loadCompanies();
             } else {
                 const e = await res.json().catch(() => ({}));
-                uiToast(e.error || t('owner.delete_error'));
+                uiToast(apiErrorMessage(e, 'owner.delete_error'));
             }
         }
 

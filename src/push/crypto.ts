@@ -29,6 +29,16 @@ async function hkdf(salt: Uint8Array, ikm: Uint8Array, info: Uint8Array, len: nu
   return new Uint8Array(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info }, k, len * 8));
 }
 
+const P256 = { name: 'ECDH', namedCurve: 'P-256' } as const;
+const SALT_LENGTH = 16;
+const RECORD_SIZE = 4096;
+const LAST_RECORD_PADDING_DELIMITER = 2;
+const CONTENT_KEY_LENGTH = 16;
+const NONCE_LENGTH = 12;
+const AUTH_TAG_BITS = 128;
+const VAPID_TOKEN_LIFETIME_SECONDS = 12 * 3600;
+const encoder = new TextEncoder();
+
 export interface EncryptionSeed {
   salt: Uint8Array;
   senderKeys: CryptoKeyPair;
@@ -36,57 +46,55 @@ export interface EncryptionSeed {
 
 async function randomSeed(): Promise<EncryptionSeed> {
   return {
-    salt: crypto.getRandomValues(new Uint8Array(16)),
-    senderKeys: await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']) as CryptoKeyPair,
+    salt: crypto.getRandomValues(new Uint8Array(SALT_LENGTH)),
+    senderKeys: await crypto.subtle.generateKey(P256, true, ['deriveBits']) as CryptoKeyPair,
   };
 }
 
-export async function encryptPushPayload(payload: string, p256dhB64url: string, authB64url: string, seed?: EncryptionSeed): Promise<ArrayBuffer> {
-  const te = new TextEncoder();
-  const { salt, senderKeys: senderPair } = seed ?? await randomSeed();
+async function deriveInputKeyingMaterial(senderKeys: CryptoKeyPair, senderPublicKey: Uint8Array, receiverPublicKey: Uint8Array, authSecret: Uint8Array) {
+  const receiverKey = await crypto.subtle.importKey('raw', receiverPublicKey, P256, false, []);
+  const sharedSecret = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: receiverKey } as unknown as SubtleCryptoDeriveKeyAlgorithm, senderKeys.privateKey, 256));
+  const pseudoRandomKey = await hmacSha256(authSecret, sharedSecret);
+  const keyInfo = concatBytes(encoder.encode('WebPush: info\x00'), receiverPublicKey, senderPublicKey, new Uint8Array([1]));
+  return hmacSha256(pseudoRandomKey, keyInfo);
+}
 
-  const receiverPubRaw = decodeb64url(p256dhB64url);
-  const receiverKey = await crypto.subtle.importKey('raw', receiverPubRaw, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
-
-  const senderPubRaw = new Uint8Array(await crypto.subtle.exportKey('raw', senderPair.publicKey) as ArrayBuffer);
-
-  const ecdhBits = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: receiverKey } as any, senderPair.privateKey, 256));
-
-  // RFC 8291 key derivation
-  const authSecret = decodeb64url(authB64url);
-  const prk = await hmacSha256(authSecret, ecdhBits);
-  const ikm = await hmacSha256(prk, concatBytes(te.encode('WebPush: info\x00'), receiverPubRaw, senderPubRaw, new Uint8Array([1])));
-
-  const cek = await hkdf(salt, ikm, te.encode('Content-Encoding: aes128gcm\x00'), 16);
-  const nonce = await hkdf(salt, ikm, te.encode('Content-Encoding: nonce\x00'), 12);
-
-  const aesKey = await crypto.subtle.importKey('raw', cek, { name: 'AES-GCM' }, false, ['encrypt']);
-  const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv: nonce, tagLength: 128 },
-    aesKey,
-    concatBytes(te.encode(payload), new Uint8Array([2])) // payload + padding delimiter
-  ));
-
-  // RFC 8291 binary body: salt(16) | rs(4) | idlen(1) | sender_pub(65) | ciphertext
-  const header = new Uint8Array(21 + senderPubRaw.length);
+function encodeContentCodingHeader(salt: Uint8Array, senderPublicKey: Uint8Array): Uint8Array {
+  const header = new Uint8Array(SALT_LENGTH + 4 + 1 + senderPublicKey.length);
   header.set(salt, 0);
-  new DataView(header.buffer).setUint32(16, 4096, false);
-  header[20] = senderPubRaw.length;
-  header.set(senderPubRaw, 21);
-  return concatBytes(header, ciphertext).buffer as ArrayBuffer;
+  new DataView(header.buffer).setUint32(SALT_LENGTH, RECORD_SIZE, false);
+  header[SALT_LENGTH + 4] = senderPublicKey.length;
+  header.set(senderPublicKey, SALT_LENGTH + 5);
+  return header;
+}
+
+export async function encryptPushPayload(payload: string, p256dhB64url: string, authB64url: string, seed?: EncryptionSeed): Promise<ArrayBuffer> {
+  const { salt, senderKeys } = seed ?? await randomSeed();
+  const receiverPublicKey = decodeb64url(p256dhB64url);
+  const senderPublicKey = new Uint8Array(await crypto.subtle.exportKey('raw', senderKeys.publicKey) as ArrayBuffer);
+
+  const inputKeyingMaterial = await deriveInputKeyingMaterial(senderKeys, senderPublicKey, receiverPublicKey, decodeb64url(authB64url));
+  const contentKey = await hkdf(salt, inputKeyingMaterial, encoder.encode('Content-Encoding: aes128gcm\x00'), CONTENT_KEY_LENGTH);
+  const nonce = await hkdf(salt, inputKeyingMaterial, encoder.encode('Content-Encoding: nonce\x00'), NONCE_LENGTH);
+
+  const aesKey = await crypto.subtle.importKey('raw', contentKey, { name: 'AES-GCM' }, false, ['encrypt']);
+  const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: nonce, tagLength: AUTH_TAG_BITS },
+    aesKey,
+    concatBytes(encoder.encode(payload), new Uint8Array([LAST_RECORD_PADDING_DELIMITER])),
+  ));
+  return concatBytes(encodeContentCodingHeader(salt, senderPublicKey), ciphertext).buffer as ArrayBuffer;
 }
 
 export async function vapidJwt(endpoint: string, subject: string, privateKeyJwk: JsonWebKey): Promise<string> {
-  const te = new TextEncoder();
-  const url = new URL(endpoint);
-  const aud = `${url.protocol}//${url.host}`;
-  const exp = Math.floor(Date.now() / 1000) + 12 * 3600;
+  const audience = new URL(endpoint).origin;
+  const expiresAt = Math.floor(Date.now() / 1000) + VAPID_TOKEN_LIFETIME_SECONDS;
 
-  const header = b64url(te.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
-  const claims = b64url(te.encode(JSON.stringify({ aud, exp, sub: subject })));
+  const header = b64url(encoder.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
+  const claims = b64url(encoder.encode(JSON.stringify({ aud: audience, exp: expiresAt, sub: subject })));
   const sigInput = `${header}.${claims}`;
 
   const key = await crypto.subtle.importKey('jwk', privateKeyJwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
-  const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, te.encode(sigInput));
+  const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, encoder.encode(sigInput));
   return `${sigInput}.${b64url(sig)}`;
 }

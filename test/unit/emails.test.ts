@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildDigestEmail, buildInviteEmail } from '../../src/email/templates';
+import { buildDigestEmail, buildGageEmail, buildInviteEmail, buildPointEmail, buildWelcomeEmail } from '../../src/email/templates';
 import { escapeHtml } from '../../src/html';
 
 const INJECTION = '<img src=x onerror=alert(1)>';
@@ -31,5 +31,43 @@ describe('e-mail de digest hebdomadaire', () => {
       total: 3, topUser: null, topCat: { name: 'Entraide', emoji: INJECTION, count: 2 }, gages: 0, myReceived: 1,
     });
     expect(html).not.toContain('<img');
+  });
+});
+
+describe('tous les e-mails', () => {
+  const build = {
+    invitation: (isEn: boolean) => buildInviteEmail({ isEn, inviterName: 'Ann & Co', teamName: 'R&D', joinUrl: 'https://donnetonpoint.fr/join/abc' }),
+    point: (isEn: boolean) => buildPointEmail({ isEn, name: 'Bob', fromName: 'Ann & Co', catLabel: '🤝 Aide', baseUrl: 'https://donnetonpoint.fr' }),
+    gage: (isEn: boolean) => buildGageEmail({ isEn, name: 'Bob', fromName: 'Ann & Co', catLabel: '🤝 Aide', dare: 'croissants', baseUrl: 'https://donnetonpoint.fr' }),
+    bienvenue: (isEn: boolean) => buildWelcomeEmail({ isEn, name: 'Bob', teamName: 'R&D', loginUrl: 'https://donnetonpoint.fr/login/jeton' }),
+    digest: (isEn: boolean) => buildDigestEmail({ baseUrl: 'https://donnetonpoint.fr', isEn, memberName: 'Bob', teamName: 'R&D', total: 3, topUser: null, topCat: null, gages: 1, myReceived: 1 }),
+  };
+
+  it.each(Object.entries(build))('%s : objet en texte brut (pas d’entités HTML)', (_, make) => {
+    expect(make(false).subject).not.toContain('&amp;');
+  });
+
+  it("garde le nom de l'expéditeur tel quel dans l'objet", () => {
+    expect(build.point(false).subject).toBe("🎯 Ann & Co t'a donné un point !");
+  });
+
+  it.each(Object.entries(build))('%s : contient un bouton vers donnetonpoint.fr et la mention « boîte non surveillée »', (_, make) => {
+    const { html } = make(false);
+    expect(html).toMatch(/<a href="https:\/\/donnetonpoint\.fr[^"]*"/);
+    expect(html).toContain("n'est pas surveillée");
+  });
+
+  it.each(Object.entries(build))('%s : existe en anglais', (_, make) => {
+    expect(make(true).html).toContain('not monitored');
+  });
+
+  it('le gage met en avant le texte du gage', () => {
+    expect(build.gage(false).html).toContain('🚨 GAGE : croissants');
+  });
+
+  it("le digest n'affiche la ligne des gages que s'il y en a", () => {
+    expect(build.digest(false).html).toContain('gage(s) déclenché(s)');
+    expect(buildDigestEmail({ baseUrl: 'u', isEn: false, memberName: 'Bob', teamName: 'Dev', total: 3, topUser: null, topCat: null, gages: 0, myReceived: 0 }).html)
+      .not.toContain('gage(s)');
   });
 });

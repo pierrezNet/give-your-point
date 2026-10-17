@@ -113,7 +113,7 @@ async function saveProfileEmail(email) {
     });
     if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        errEl.textContent = err.error || t('profile.error_save');
+        errEl.textContent = apiErrorMessage(err, 'profile.error_save');
         errEl.classList.remove('hidden');
         return;
     }
@@ -280,7 +280,7 @@ async function renderEmptyTeamState(container) {
 
     if (canInvite) {
         try {
-            const res = await authFetch('/api/team-invite');
+            const res = await authFetch('/api/admin/invite-link');
             if (res.ok) {
                 const data = await res.json();
                 const input = document.getElementById('empty-invite-link');
@@ -516,7 +516,7 @@ async function addPoint(userId, cardEl, catId, reason) {
             }, 500);
         } else {
             const errorData = await res.json();
-            showToast(errorData.error || t('toast.generic_error'), "bg-orange-500");
+            showToast(apiErrorMessage(errorData, 'toast.generic_error'), "bg-orange-500");
             selectedCategoryId = null;
             clearSelection();
         }
@@ -996,7 +996,7 @@ async function renderLanding() {
                 return;
             }
             const err = await res.json().catch(() => ({}));
-            errEl.textContent = err.error || t('onboarding.error_generic');
+            errEl.textContent = apiErrorMessage(err, 'onboarding.error_generic');
             errEl.classList.remove('hidden');
         } catch {
             errEl.textContent = t('onboarding.error_server');
@@ -1182,7 +1182,7 @@ async function renderJoin(code) {
                 return;
             }
             const err = await res.json().catch(() => ({}));
-            errEl.textContent = err.error || t('join.error_generic');
+            errEl.textContent = apiErrorMessage(err, 'join.error_generic');
             errEl.classList.remove('hidden');
         } catch {
             errEl.textContent = t('join.error_generic');

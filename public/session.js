@@ -73,3 +73,9 @@ function escapeHtml(value) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
 }
+
+function apiErrorMessage(body, fallbackKey) {
+  const key = body && body.code ? `errors.${body.code}` : null;
+  if (key && typeof t === 'function' && t(key, body.params || {}) !== key) return t(key, body.params || {});
+  return (body && body.error) || (typeof t === 'function' ? t(fallbackKey) : fallbackKey);
+}

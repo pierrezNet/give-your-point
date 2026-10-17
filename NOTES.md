@@ -8,11 +8,52 @@ module ; chaque entrée cite le symbole concerné pour être retrouvée par rech
 
 - `functions/[[path]].ts` ne fait que monter l'app Hono (`src/app.ts`) pour Cloudflare Pages.
   Le code vit dans `src/` car tout fichier de `functions/` devient une route Pages.
+- Couches, de l'extérieur vers l'intérieur :
+  - `routes/*` : une app Hono par domaine fonctionnel. Lit la requête, appelle services et domaine,
+    formule la réponse. Les routeurs admin/superadmin/owner sont montés sous leur préfixe avec le
+    middleware de rôle appliqué à tout le routeur (`.use('*', requireAdmin)`) : impossible
+    d'oublier le contrôle sur une nouvelle route.
+  - `services/*` : accès D1 et effets externes (e-mail Resend, push, Turnstile).
+  - `domain/*`, `email/templates.ts`, `og.ts`, `push/crypto.ts` : pur, sans I/O, testé unitairement.
 - Les tests (`test/`) appellent `app.request()` directement, avec une vraie D1 locale fournie par
   `@cloudflare/vitest-plugin` (Miniflare). Le schéma appliqué est `schema.sql`.
 - Le plugin n'isole pas le stockage D1 entre deux tests : `seedDatabase()` vide toutes les tables
   avant de réinsérer le jeu de données.
+- Validation : pas de zod. Les corps de requête sont lus par `readJsonObject` (toujours un objet)
+  puis chaque champ passe par un normaliseur de `domain/validation.ts` qui renvoie la valeur propre
+  ou `null`. Une quinzaine de corps simples ne justifiait pas une dépendance.
 
+## API — erreurs (`src/http/errors.ts`)
+
+- Toute erreur métier passe par `apiError(c, CODE, params?)` → `{ error, code, params? }`.
+  `error` reste le message français (compatibilité, logs) ; le frontend affiche
+  `t('errors.<CODE>', params)` via `apiErrorMessage` (`public/session.js`) et retombe sur `error`
+  pour un code inconnu. Un test vérifie que chaque code a sa traduction FR et EN dans `i18n.js`.
+- `handleError` (global) : `SyntaxError` de `c.req.json()` → 400 `INVALID_REQUEST`, tout le reste →
+  500 `INTERNAL` sans détail (le détail part dans `console.error`).
+- Le format des réponses de succès (clés `gageTriggered`, `topCategories`, `totalPoints`…) est
+  volontairement inchangé : le passer en snake_case impose de réécrire le frontend, ce sera fait
+  avec la refonte frontend (phase 4).
+
+## Routes — choix non évidents
+
+- `/api/recover` répond toujours `{ ok: true }` après Turnstile, que l'e-mail existe ou non
+  (anti-énumération) ; les erreurs d'envoi sont journalisées, jamais renvoyées.
+- `/api/track` est best-effort : un échec d'écriture est journalisé mais ne fait jamais échouer la
+  page qui envoie la mesure.
+- `/api/admin/clear-category` : l'entrée `dare_log` et l'effacement des points partent dans un même
+  `batch` (transactionnel) — avant, un échec entre les deux perdait la trace du gage.
+- `/api/stats` période « tout » : filtre `(?1 IS NULL OR created_at >= …)` pour conserver d'éventuelles
+  lignes sans date, comme l'ancien code sans filtre.
+- Flux SSE `/api/events` : à chaque tick (10 s), une seule requête d'empreinte
+  (`teamActivityFingerprint` : nombre + id max de `points_log` et `dare_log` de l'équipe). Le
+  classement complet (≈ 9 requêtes) n'est recalculé que si l'empreinte change, et au moins une fois
+  par minute pour refléter les changements que l'empreinte ne voit pas (règles, membres, décroissance
+  de la fenêtre spam). Rien n'est envoyé si le classement est identique au précédent.
+- Index `2026-15-indexes.sql` : les quotas de dons, l'annulation et l'historique filtrent par
+  `from_user_id` / `to_user_id` sans `team_id` ; sans index, chaque don balayait `points_log`.
+
+## Migrations
 ## Migrations
 
 - `migrations/2026-05`, `-06` et `-07` sont des migrations ponctuelles déjà appliquées en prod.

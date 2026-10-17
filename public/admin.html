@@ -296,7 +296,7 @@
             if (!await uiConfirm(t('admin.reject_confirm', { name }))) return;
             const res = await adminFetch(`/api/admin/users/${id}/reject`, { method: 'DELETE' });
             if (res && res.ok) loadAdminUsers();
-            else { const e = res ? await res.json().catch(() => ({})) : {}; uiToast(e.error || t('admin.reject_error')); }
+            else { const e = res ? await res.json().catch(() => ({})) : {}; uiToast(apiErrorMessage(e, 'admin.reject_error')); }
         }
 
         async function toggleUser(id, shouldActivate) {
@@ -307,7 +307,7 @@
             const res = await adminFetch(url, { method });
             if (res && !res.ok) {
                 const e = await res.json().catch(() => ({}));
-                uiToast(e.error || t('common.error'));
+                uiToast(apiErrorMessage(e, 'common.error'));
             }
             loadAdminUsers();
         }
@@ -316,7 +316,7 @@
             const res = await adminFetch(`/api/admin/users/${userId}/magic-link`, { method: 'POST' });
             if (!res || !res.ok) {
                 const e = res ? await res.json().catch(() => ({})) : {};
-                return uiToast(e.error || t('common.error'));
+                return uiToast(apiErrorMessage(e, 'common.error'));
             }
             const { url } = await res.json();
             try { await navigator.clipboard.writeText(url); } catch {}
@@ -334,7 +334,7 @@
         async function resendLink(id) {
             const res = await adminFetch(`/api/admin/users/${id}/resend-link`, { method: 'POST' });
             if (res && res.ok) { uiToast(t('admin.resend_ok')); }
-            else { const e = res ? await res.json().catch(() => ({})) : {}; uiToast(e.error || t('admin.resend_error')); }
+            else { const e = res ? await res.json().catch(() => ({})) : {}; uiToast(apiErrorMessage(e, 'admin.resend_error')); }
         }
 
         // Filet de secours : afficher/copier le lien malgré l'e-mail (dépannage), derrière confirmation
@@ -355,14 +355,14 @@
                 loadAdminUsers();
             } else {
                 const e = res ? await res.json().catch(() => ({})) : {};
-                uiToast(e.error || t('admin.regen_error'));
+                uiToast(apiErrorMessage(e, 'admin.regen_error'));
             }
         }
 
         // --- Invitation d'équipe (lien d'auto-inscription) ---
         async function loadInviteLink() {
             try {
-                const res = await adminFetch('/api/team-invite');
+                const res = await adminFetch('/api/admin/invite-link');
                 if (!res || !res.ok) return;
                 const data = await res.json();
                 const input = document.getElementById('invite-link');
@@ -406,7 +406,7 @@
                 uiToast(t('admin.invite_sent'));
             } else {
                 const err = res ? await res.json().catch(() => ({})) : {};
-                uiToast(err.error || t('admin.invite_email_invalid'));
+                uiToast(apiErrorMessage(err, 'admin.invite_email_invalid'));
             }
         }
 
@@ -422,7 +422,7 @@
             });
             if (!res || !res.ok) {
                 const e = res ? await res.json().catch(() => ({})) : {};
-                uiToast(e.error || t('admin.add_user_error'));
+                uiToast(apiErrorMessage(e, 'admin.add_user_error'));
                 return;
             }
 

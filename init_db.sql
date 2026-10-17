@@ -69,6 +69,8 @@ CREATE TABLE points_log (
 
 CREATE INDEX idx_points_team_created ON points_log(team_id, created_at DESC);
 CREATE INDEX idx_points_team_to_cat ON points_log(team_id, to_user_id, category_id);
+CREATE INDEX idx_points_from_created ON points_log(from_user_id, created_at);
+CREATE INDEX idx_points_to ON points_log(to_user_id);
 
 CREATE TABLE dare_rules (
     id TEXT PRIMARY KEY,
@@ -90,6 +92,7 @@ CREATE TABLE dare_log (
 );
 
 CREATE INDEX idx_dare_log_team ON dare_log(team_id, cleared_at DESC);
+CREATE INDEX idx_dare_log_user ON dare_log(user_id);
 
 CREATE TABLE push_subscriptions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

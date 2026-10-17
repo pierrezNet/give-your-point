@@ -36,7 +36,9 @@
     "deploy": "npm run build && wrangler pages deploy public",
     "build": "npx @tailwindcss/cli -i public/input.css -o public/styles.css --minify",
     "db:migrate:split-token": "wrangler d1 execute give-your-point-eu --remote --file=migrations/2026-14-split-token.sql",
-    "db:migrate:split-token:local": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=migrations/2026-14-split-token.sql"
+    "db:migrate:split-token:local": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=migrations/2026-14-split-token.sql",
+    "db:migrate:indexes": "wrangler d1 execute give-your-point-eu --remote --file=migrations/2026-15-indexes.sql",
+    "db:migrate:indexes:local": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=migrations/2026-15-indexes.sql"
   },
   "keywords": [],
   "author": "",

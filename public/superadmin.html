@@ -206,7 +206,7 @@
                 if (makeAdmin) await loadAdmins();
             } else if (res) {
                 const err = await res.json().catch(() => ({}));
-                uiToast(err.error || t('common.error'));
+                uiToast(apiErrorMessage(err, 'common.error'));
             }
         }
 
@@ -231,7 +231,7 @@
             if (res && res.ok) loadTeams();
             else if (res) {
                 const err = await res.json().catch(() => ({}));
-                uiToast(err.error || t('common.error'));
+                uiToast(apiErrorMessage(err, 'common.error'));
             }
         }
 
@@ -239,7 +239,7 @@
             const res = await saFetch(`/api/superadmin/users/${userId}/magic-link`, { method: 'POST' });
             if (!res || !res.ok) {
                 const err = res ? await res.json().catch(() => ({})) : {};
-                return uiToast(err.error || t('common.error'));
+                return uiToast(apiErrorMessage(err, 'common.error'));
             }
             const { url } = await res.json();
             try { await navigator.clipboard.writeText(url); } catch {}
@@ -255,7 +255,7 @@
                 await loadTeams();
             } else if (res) {
                 const err = await res.json().catch(() => ({}));
-                uiToast(err.error || t('common.error'));
+                uiToast(apiErrorMessage(err, 'common.error'));
             }
         }
 

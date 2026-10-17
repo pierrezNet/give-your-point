@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isValidEmail, normalizeName, normalizeOptionalEmail } from '../../src/domain/validation';
+import { isValidEmail, normalizeDareText, normalizeEmoji, normalizeName, normalizeOptionalEmail, normalizeThreshold } from '../../src/domain/validation';
 
 describe('isValidEmail', () => {
   it.each(['ann@example.com', 'a.b+c@sub.example.fr'])('accepte %s', (email) => {
@@ -38,5 +38,27 @@ describe('normalizeName', () => {
 
   it.each([undefined, null, 42, {}, '', '   '])('renvoie null pour %p', (raw) => {
     expect(normalizeName(raw)).toBeNull();
+  });
+});
+
+describe('normalizeThreshold', () => {
+  it.each([[3, 3], ['12', 12], [' 7 ', 7], [1000, 1000]])('%p → %p', (raw, expected) => {
+    expect(normalizeThreshold(raw)).toBe(expected);
+  });
+
+  it.each([0, -1, 1001, 2.5, 'abc', '', null, undefined])('refuse %p', (raw) => {
+    expect(normalizeThreshold(raw)).toBeNull();
+  });
+});
+
+describe('normalizeEmoji et normalizeDareText', () => {
+  it('acceptent des valeurs raisonnables', () => {
+    expect(normalizeEmoji(' 👩‍💻 ')).toBe('👩‍💻');
+    expect(normalizeDareText('Apporter des croissants')).toBe('Apporter des croissants');
+  });
+
+  it('bornent la longueur', () => {
+    expect(normalizeEmoji('x'.repeat(17))).toBeNull();
+    expect(normalizeDareText('x'.repeat(141))).toBeNull();
   });
 });
