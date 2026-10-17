@@ -85,8 +85,11 @@ public/
   manifest.json    # PWA installable (+ icon.svg, icon-192.png, icon-512.png)
   robots.txt, sitemap.xml   # SEO
 functions/
-  [[path]].ts      # Routes API (Hono)
-migrations/        # Migrations SQL versionnées (non suivies par git, jouées via Wrangler)
+  [[path]].ts      # Point d'entrée Pages (monte src/app.ts)
+src/
+  app.ts           # Routes API (Hono)
+test/              # Tests vitest (D1 locale)
+migrations/        # Migrations SQL versionnées, jouées via Wrangler (npm run db:migrate:<nom>)
 schema.sql         # Schéma de référence
 init_db.sql        # Idem (utilisé par db:init)
 seed.sql           # Données initiales locales
@@ -111,6 +114,8 @@ wrangler.toml      # Config Cloudflare D1
 ```bash
 npm run dev      # Build + serveur local (port 8788)
 npm run deploy   # Build + déploiement Cloudflare Pages
+npm test         # Tests (vitest + D1 locale)
+npm run check    # Typecheck + tests (lancé par la CI)
 
 npm run db:reset # Recrée la base locale (init + seed)
 npm run db:pull  # Synchronise la prod vers le local
@@ -118,7 +123,7 @@ npm run db:pull  # Synchronise la prod vers le local
 
 ## 🌍 Déploiement
 
-Cloudflare Pages est **connecté au dépôt GitHub** : tout `git push` sur `main` déclenche un build + déploiement automatique en production (`give-your-point.pages.dev`, `donnetonpoint.fr`, `donnetonpoint.fr` — le domaine principal).
+Cloudflare Pages est **connecté au dépôt GitHub** : tout `git push` sur `main` déclenche un build + déploiement automatique en production (`donnetonpoint.fr` — le domaine principal —, `give-your-point.pages.dev`, `compteur.pierrez.net`).
 
 ```bash
 # Si une migration DB est nécessaire, l'appliquer AVANT le push (sinon le code peut planter) :

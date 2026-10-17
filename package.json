@@ -3,12 +3,15 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "check": "npm run typecheck && npm test",
     "dev": "npm run build && wrangler pages dev public --persist-to=./db_data",
     "db:init": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=init_db.sql",
     "db:seed": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=seed.sql",
     "db:reset": "npm run db:init && npm run db:seed",
-    "db:pull": "wrangler d1 export give-your-point-eu --remote --output=prod_backup.sql && rm -rf db_data && wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=prod_backup.sql && wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --command=\"CREATE TABLE IF NOT EXISTS dare_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, category_id TEXT, dare_text TEXT, cleared_at DATETIME DEFAULT CURRENT_TIMESTAMP); CREATE TABLE IF NOT EXISTS push_subscriptions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, endpoint TEXT NOT NULL, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, endpoint));\"",
-    "db:migrate:prod": "wrangler d1 execute give-your-point-eu --remote --command=\"CREATE TABLE IF NOT EXISTS dare_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, category_id TEXT, dare_text TEXT, cleared_at DATETIME DEFAULT CURRENT_TIMESTAMP); CREATE TABLE IF NOT EXISTS push_subscriptions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, endpoint TEXT NOT NULL, p256dh TEXT NOT NULL, auth TEXT NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE(user_id, endpoint));\"",
+    "db:pull": "wrangler d1 export give-your-point-eu --remote --output=prod_backup.sql && rm -rf db_data && wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=prod_backup.sql",
     "db:migrate:multitenant": "wrangler d1 execute give-your-point-eu --remote --file=migrations/2026-05-multitenant.sql",
     "db:migrate:multitenant:local": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=migrations/2026-05-multitenant.sql",
     "db:migrate:superadmin": "wrangler d1 execute give-your-point-eu --remote --file=migrations/2026-06-superadmin.sql",
@@ -40,9 +43,15 @@
     "hono": "^4.11.7"
   },
   "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.4.4",
     "@cloudflare/workers-types": "^4.20260128.0",
     "@tailwindcss/cli": "^4.2.1",
     "tailwindcss": "^4.2.1",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.12",
     "wrangler": "^4.62.0"
+  },
+  "engines": {
+    "node": ">=24"
   }
 }
