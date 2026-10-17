@@ -1,22 +1,12 @@
-// Génère des clés VAPID pour les push notifications
-// Usage : node generate-vapid.mjs
-// Requiert Node.js 18+
+const VAPID_KEY_ALGORITHM = { name: 'ECDSA', namedCurve: 'P-256' };
 
-const pair = await crypto.subtle.generateKey(
-    { name: 'ECDSA', namedCurve: 'P-256' },
-    true,
-    ['sign', 'verify']
-);
+const toBase64Url = (bytes) => Buffer.from(bytes).toString('base64url');
 
-const publicKeyRaw = new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey));
-const privateKeyJwk = await crypto.subtle.exportKey('jwk', pair.privateKey);
+const keyPair = await crypto.subtle.generateKey(VAPID_KEY_ALGORITHM, true, ['sign', 'verify']);
+const publicKey = toBase64Url(new Uint8Array(await crypto.subtle.exportKey('raw', keyPair.publicKey)));
+const privateKeyJwk = toBase64Url(JSON.stringify(await crypto.subtle.exportKey('jwk', keyPair.privateKey)));
 
-const b64url = (buf) => Buffer.from(buf).toString('base64url');
-const pubKey = b64url(publicKeyRaw);
-const privKey = b64url(Buffer.from(JSON.stringify(privateKeyJwk)));
-
-console.log('Ajoute ces lignes dans .dev.vars (local) et dans les variables d\'environnement Cloudflare Pages (prod) :');
-console.log('');
-console.log(`VAPID_PUBLIC_KEY=${pubKey}`);
-console.log(`VAPID_PRIVATE_KEY_JWK=${privKey}`);
-console.log(`VAPID_SUBJECT=mailto:admin@example.com`);
+console.log("Ajoute ces lignes dans .dev.vars (local) et dans les variables d'environnement Cloudflare Pages (prod) :\n");
+console.log(`VAPID_PUBLIC_KEY=${publicKey}`);
+console.log(`VAPID_PRIVATE_KEY_JWK=${privateKeyJwk}`);
+console.log('VAPID_SUBJECT=mailto:admin@example.com');

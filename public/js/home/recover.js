@@ -8,6 +8,30 @@ const showResult = (line, key, tone) => {
   line.className = `text-sm text-center ${tone}`;
 };
 
+async function submitRecovery(event, modal) {
+  event.preventDefault();
+  const message = modal.querySelector('#recover-msg');
+  const token = turnstileToken(modal);
+  if (!token) {
+    showResult(message, 'onboarding.error_turnstile_pending', 'text-red-600');
+    return;
+  }
+  const submit = modal.querySelector('#recover-submit');
+  submit.disabled = true;
+  const response = await fetch('/api/recover', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: modal.querySelector('#recover-email').value.trim(), turnstile_token: token }),
+  }).catch(() => null);
+  submit.disabled = false;
+  if (response?.status === 403) {
+    showResult(message, 'recover.captcha_error', 'text-red-600');
+    resetTurnstile('#recover-turnstile');
+  } else {
+    showResult(message, 'recover.sent', 'text-emerald-700 font-bold');
+  }
+}
+
 export async function showRecoverModal() {
   if (document.getElementById('recover-modal')) return;
   const siteKey = await turnstileSiteKey();
@@ -30,29 +54,7 @@ export async function showRecoverModal() {
   });
   renderTurnstile('#recover-turnstile', siteKey);
 
-  element.querySelector('#recover-form').addEventListener('submit', async (event) => {
-    event.preventDefault();
-    const message = element.querySelector('#recover-msg');
-    const token = turnstileToken(element);
-    if (!token) {
-      showResult(message, 'onboarding.error_turnstile_pending', 'text-red-600');
-      return;
-    }
-    const submit = element.querySelector('#recover-submit');
-    submit.disabled = true;
-    const response = await fetch('/api/recover', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: element.querySelector('#recover-email').value.trim(), turnstile_token: token }),
-    }).catch(() => null);
-    submit.disabled = false;
-    if (response?.status === 403) {
-      showResult(message, 'recover.captcha_error', 'text-red-600');
-      resetTurnstile('#recover-turnstile');
-    } else {
-      showResult(message, 'recover.sent', 'text-emerald-700 font-bold');
-    }
-  });
+  element.querySelector('#recover-form').addEventListener('submit', (event) => submitRecovery(event, element));
 }
 
 registerActions({ 'show-recover': showRecoverModal });

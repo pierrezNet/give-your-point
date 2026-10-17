@@ -179,3 +179,11 @@ traduisent le résultat en réponse HTTP. C'est ce qui les rend testables sans b
 - `push/crypto.ts` — `encryptPushPayload` accepte un `seed` (sel + clés émetteur) uniquement pour
   rejouer le vecteur officiel de la RFC 8291 (annexe A) dans les tests ; en production le sel et la
   paire ECDH sont aléatoires à chaque message.
+
+## Service worker (`public/sw.js`)
+
+- Le gestionnaire `fetch` ne fait rien (`letNetworkHandleRequest`) : sa simple présence est exigée
+  par certains navigateurs pour proposer l'installation PWA. Aucun cache d'assets volontairement :
+  l'app est temps réel, un cache servirait du contenu périmé (cf. l'incident de cache du 2026-10-17).
+- `generate-vapid.mjs` : `node generate-vapid.mjs` (Node ≥ 18) génère la paire VAPID des
+  notifications push.

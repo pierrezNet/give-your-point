@@ -1,36 +1,39 @@
-// Handler fetch minimal : requis pour l'installabilité PWA sur certains navigateurs.
-// Pass-through volontaire (pas de cache d'assets) — l'app est temps réel, on évite tout risque de contenu périmé.
-self.addEventListener('fetch', () => { /* le réseau gère normalement */ });
+const APP_NAME = 'Donne Ton Point 🎯';
+const DEFAULT_BODY = 'Vous avez reçu un point !';
+const NOTIFICATION_ICON = '/icon-192.png';
+
+const letNetworkHandleRequest = () => {};
+
+function readPushMessage(event) {
+  try {
+    return event.data.json();
+  } catch {
+    return { title: APP_NAME, body: event.data.text() };
+  }
+}
+
+async function focusOrOpen(targetUrl) {
+  const windows = await clients.matchAll({ type: 'window', includeUncontrolled: true });
+  const existing = windows.find((client) => new URL(client.url).pathname === targetUrl && 'focus' in client);
+  if (existing) return existing.focus();
+  return clients.openWindow?.(targetUrl);
+}
+
+self.addEventListener('fetch', letNetworkHandleRequest);
 
 self.addEventListener('push', (event) => {
-    if (!event.data) return;
-
-    let data;
-    try { data = event.data.json(); }
-    catch { data = { title: 'Donne Ton Point 🎯', body: event.data.text() }; }
-
-    event.waitUntil(
-        self.registration.showNotification(data.title || 'Donne Ton Point 🎯', {
-            body: data.body || 'Vous avez reçu un point !',
-            icon: '/icon-192.png',
-            badge: '/icon-192.png',
-            tag: 'dtp-point',
-            data: { url: data.url || '/' },
-        })
-    );
+  if (!event.data) return;
+  const message = readPushMessage(event);
+  event.waitUntil(self.registration.showNotification(message.title || APP_NAME, {
+    body: message.body || DEFAULT_BODY,
+    icon: NOTIFICATION_ICON,
+    badge: NOTIFICATION_ICON,
+    tag: 'dtp-point',
+    data: { url: message.url || '/' },
+  }));
 });
 
 self.addEventListener('notificationclick', (event) => {
-    event.notification.close();
-    event.waitUntil(
-        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-            const targetUrl = event.notification.data?.url || '/';
-            for (const client of windowClients) {
-                if (new URL(client.url).pathname === targetUrl && 'focus' in client) {
-                    return client.focus();
-                }
-            }
-            if (clients.openWindow) return clients.openWindow(targetUrl);
-        })
-    );
+  event.notification.close();
+  event.waitUntil(focusOrOpen(event.notification.data?.url || '/'));
 });

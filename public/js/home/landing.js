@@ -14,12 +14,8 @@ const AUDIENCES = [['team', 'bg-blue-50 border-blue-100'], ['class', 'bg-emerald
 
 const inputClass = 'w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500';
 
-function landingHtml(siteKey) {
-  return `
-    <div class="min-h-screen bg-gray-100">
-      ${publicHeaderHtml({ withAboutLink: true })}
-      <main>
-        <section class="max-w-5xl mx-auto px-4 pt-12 pb-8 grid md:grid-cols-2 gap-10 items-center">
+const heroHtml = () => `
+  <section class="max-w-5xl mx-auto px-4 pt-12 pb-8 grid md:grid-cols-2 gap-10 items-center">
           <div>
             <h1 class="text-4xl md:text-5xl font-black text-slate-800 leading-tight">${t('app.title')} 🎯</h1>
             <p class="text-lg text-slate-600 mt-4">${t('landing.hero_pitch')}</p>
@@ -29,9 +25,10 @@ function landingHtml(siteKey) {
             </div>
           </div>
           <div class="flex justify-center md:justify-end">${mockupSvg()}</div>
-        </section>
+        </section>`;
 
-        <section class="max-w-5xl mx-auto px-4 py-12">
+const howItWorksHtml = () => `
+  <section class="max-w-5xl mx-auto px-4 py-12">
           <h2 class="text-2xl font-black text-slate-800 mb-8 text-center">${t('landing.how_title')}</h2>
           <div class="grid md:grid-cols-3 gap-6">
             ${HOW_STEPS.map(([emoji, step]) => `
@@ -41,9 +38,10 @@ function landingHtml(siteKey) {
                 <p class="text-sm text-slate-600">${t(`landing.how_step${step}_desc`)}</p>
               </div>`).join('')}
           </div>
-        </section>
+        </section>`;
 
-        <section class="max-w-5xl mx-auto px-4 py-12">
+const audiencesHtml = () => `
+  <section class="max-w-5xl mx-auto px-4 py-12">
           <h2 class="text-2xl font-black text-slate-800 mb-8 text-center">${t('landing.who_title')}</h2>
           <div class="grid md:grid-cols-3 gap-6">
             ${AUDIENCES.map(([audience, colors]) => `
@@ -52,9 +50,10 @@ function landingHtml(siteKey) {
                 <p class="text-sm text-slate-600">${t(`landing.who_${audience}_desc`)}</p>
               </div>`).join('')}
           </div>
-        </section>
+        </section>`;
 
-        <section id="create" class="max-w-md mx-auto px-4 py-12">
+const onboardingFormHtml = (siteKey) => `
+  <section id="create" class="max-w-md mx-auto px-4 py-12">
           <div class="bg-white rounded-3xl shadow-xl p-8 space-y-5 border border-slate-200">
             <div class="text-center">
               <h2 class="text-2xl font-black text-slate-800">${t('landing.create_title')}</h2>
@@ -73,17 +72,19 @@ function landingHtml(siteKey) {
             </form>
             <p class="text-[11px] text-slate-500 text-center">${t('landing.legal_note')}</p>
           </div>
-        </section>
+        </section>`;
 
-        <section id="have-link" class="max-w-md mx-auto px-4 pb-12">
+const haveLinkHtml = () => `
+  <section id="have-link" class="max-w-md mx-auto px-4 pb-12">
           <div class="bg-slate-50 rounded-xl p-4 text-sm text-slate-700 border border-slate-200">
             <h3 class="font-bold text-slate-800 mb-1">${t('onboarding.have_link_title')}</h3>
             <p class="text-xs text-slate-600">${t('onboarding.have_link_desc')}</p>
             <button type="button" data-action="show-recover" class="mt-2 text-xs font-bold text-blue-700 hover:underline">${t('recover.link')}</button>
           </div>
-        </section>
+        </section>`;
 
-        <section class="max-w-3xl mx-auto px-4 py-12">
+const faqHtml = () => `
+  <section class="max-w-3xl mx-auto px-4 py-12">
           <h2 class="text-2xl font-black text-slate-800 mb-6 text-center">${t('landing.faq_title')}</h2>
           <div class="space-y-3">
             ${FAQ_ENTRIES.map((entry) => `
@@ -92,15 +93,27 @@ function landingHtml(siteKey) {
                 <p class="text-sm text-slate-600 mt-3">${t(`landing.faq_${entry}_a`)}</p>
               </details>`).join('')}
           </div>
-        </section>
-      </main>
+        </section>`;
 
-      <footer class="max-w-5xl mx-auto px-4 py-8 text-center text-xs text-slate-500 border-t border-slate-200">
+const footerHtml = () => `
+  <footer class="max-w-5xl mx-auto px-4 py-8 text-center text-xs text-slate-500 border-t border-slate-200">
         <a href="/about" class="block mb-2 font-bold text-slate-600 hover:text-slate-800 underline">${t('landing.about_link')}</a>
         Made with ❤️ — ${t('app.title')}
-      </footer>
-    </div>`;
-}
+      </footer>`;
+
+const landingHtml = (siteKey) => `
+  <div class="min-h-screen bg-gray-100">
+    ${publicHeaderHtml({ withAboutLink: true })}
+    <main>
+      ${heroHtml()}
+      ${howItWorksHtml()}
+      ${audiencesHtml()}
+      ${onboardingFormHtml(siteKey)}
+      ${haveLinkHtml()}
+      ${faqHtml()}
+    </main>
+    ${footerHtml()}
+  </div>`;
 
 function showError(errorLine, message) {
   errorLine.textContent = message;
