@@ -86,3 +86,27 @@ module ; chaque entrée cite le symbole concerné pour être retrouvée par rech
 - Correctif : la route catch-all pose `Cache-Control: no-cache` sur `.js`/`.css` (revalidation par
   ETag, réponse 304 si inchangé). Les `?v=20261017` dans les pages ne servent qu'à purger les copies
   déjà en cache au moment du correctif ; inutile de les incrémenter ensuite.
+
+## Domaine — règles métier (`src/domain/`)
+
+Ces modules sont purs (aucun accès D1) : les routes lisent la base, passent des compteurs, et
+traduisent le résultat en réponse HTTP. C'est ce qui les rend testables sans base.
+
+- `spam.ts` — seuils : 8 dons / 7 j est le plancher (rythme normal ≈ 2-3 / semaine). Le flag exige
+  *en plus* un déséquilibre (donné ≥ 3 × (reçu + 1), le +1 amortit les petits volumes et évite la
+  division par zéro) *et* d'être ≥ 2 × la moyenne de l'équipe — pour ne pas punir un donneur
+  populaire et équilibré. La jauge affichée (`progress`) est volontairement simple : donné / 8.
+  La moyenne divise les dons de *tous* les donneurs (anciens membres compris) par les membres
+  *actifs* : comportement historique conservé, figé par un test.
+- Pardon spammeur = ligne `dare_log` **sans** `category_id` : elle suspend le flag 7 jours et garde
+  une trace dans l'historique.
+- `dares.ts` — `dareProgressAfterPoint` compare en **égalité stricte** : un gage ne se déclenche
+  qu'au point qui atteint pile le seuil. Si un admin baisse un seuil sous le compteur actuel, rien ne
+  se déclenche (critique fonctionnelle n° 2, à arbitrer en phase 7) ; un test fige ce comportement.
+  `findActiveDare` (affichage) utilise au contraire `>=`.
+- `pointRules.ts` — ordre des refus : doublon 5 min → quota 10/jour → quota 3/collègue/jour → gel
+  spammeur. Le « jour » est le jour **UTC** de SQLite (`date('now')`), cf. critique n° 7. Les
+  compteurs sont lus en parallèle, puis `findPointRefusal` tranche.
+- `push/crypto.ts` — `encryptPushPayload` accepte un `seed` (sel + clés émetteur) uniquement pour
+  rejouer le vecteur officiel de la RFC 8291 (annexe A) dans les tests ; en production le sel et la
+  paire ECDH sont aléatoires à chaque message.

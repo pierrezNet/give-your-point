@@ -1,6 +1,15 @@
 import { Hono, type Context } from 'hono'
 import { createMiddleware } from 'hono/factory'
 import { streamSSE } from 'hono/streaming'
+import { decodeb64url, encryptPushPayload, vapidJwt } from './push/crypto'
+import { fillOgPlaceholders, languageFromAcceptLanguage, ogDataFor, type OgPage } from './og'
+import { buildDigestEmail, buildGageEmail, buildInviteEmail, buildPointEmail, buildWelcomeEmail } from './email/templates'
+import { ADMIN_ROLES, ROLE_RANK, SUPERADMIN_ROLES, canManageLink, outranks, type Role } from './domain/roles'
+import { detectSpammers, spamWatchlist, SPAM_WINDOW_DAYS, type SpamStatus } from './domain/spam'
+import { dareProgressAfterPoint, listActiveDares, type DareRule, type PointTotal } from './domain/dares'
+import { buildLeaderboard } from './domain/leaderboard'
+import { DUPLICATE_WINDOW_MINUTES, MAX_POINTS_PER_DAY, MAX_POINTS_PER_RECIPIENT_PER_DAY, UNDO_WINDOW_SECONDS, findPointRefusal, normalizeReason, type PointRefusal } from './domain/pointRules'
+import { ORGANIZATION_NAME_MAX_LENGTH, isValidEmail, normalizeName, normalizeOptionalEmail } from './domain/validation'
 
 export type Bindings = {
   DB: D1Database
@@ -38,10 +47,6 @@ const DEFAULT_CATEGORIES_EN = [
 
 function defaultCategoriesFor(locale: string | null | undefined) {
   return locale === 'en' ? DEFAULT_CATEGORIES_EN : DEFAULT_CATEGORIES_FR;
-}
-
-function isValidEmail(s: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
 }
 
 // Unicité : vrai si cet e-mail est déjà associé à un autre compte.
@@ -87,178 +92,6 @@ async function sendEmail(env: Bindings, to: string, subject: string, html: strin
   }
 }
 
-export function buildInviteEmail(o: { isEn: boolean; inviterName: string; teamName: string; joinUrl: string }): { subject: string; html: string } {
-  const inviter = escapeHtml(o.inviterName);
-  const team = escapeHtml(o.teamName);
-  const joinUrl = escapeHtml(o.joinUrl);
-  const copy = o.isEn
-    ? { subject: `${o.inviterName} invites you to ${o.teamName} on Give Your Point`, title: "You're invited! 🎯",
-        body: `<b>${inviter}</b> invites you to join the team <b>${team}</b> on Give Your Point.`,
-        cta: 'Join the team', footer: "📭 This mailbox is not monitored — please don't reply." }
-    : { subject: `${o.inviterName} t'invite à rejoindre ${o.teamName} sur Donne Ton Point`, title: 'Tu es invité·e ! 🎯',
-        body: `<b>${inviter}</b> t'invite à rejoindre l'équipe <b>${team}</b> sur Donne Ton Point.`,
-        cta: "Rejoindre l'équipe", footer: "📭 Cette boîte mail n'est pas surveillée — ne réponds pas à ce message." };
-  return {
-    subject: copy.subject,
-    html: `
-    <div style="font-family:sans-serif;max-width:480px;margin:auto">
-      <h2 style="color:#1e293b">${copy.title}</h2>
-      <p style="color:#334155;font-size:15px">${copy.body}</p>
-      <p style="margin-top:24px">
-        <a href="${joinUrl}"
-           style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">
-          ${copy.cta}
-        </a>
-      </p>
-      <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">${copy.footer}</p>
-    </div>`,
-  };
-}
-
-// Mail « tu as reçu un point » (fr/en). Valeurs dynamiques échappées.
-function buildPointEmail(o: { isEn: boolean; name: string; fromName: string; catLabel: string; baseUrl: string }): { subject: string; html: string } {
-  const name = escapeHtml(o.name), fromName = escapeHtml(o.fromName), catLabel = escapeHtml(o.catLabel);
-  if (o.isEn) {
-    return {
-      subject: `🎯 ${fromName} gave you a point!`,
-      html: `
-        <div style="font-family:sans-serif;max-width:480px;margin:auto">
-          <h2 style="color:#1e293b">Hi ${name},</h2>
-          <p style="color:#334155;font-size:15px"><b>${fromName}</b> just gave you a point for <b>${catLabel}</b>.</p>
-          <p style="margin-top:24px"><a href="${o.baseUrl}/" style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">See on Give Your Point</a></p>
-          <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">📭 This mailbox is not monitored — please don't reply.<br>You receive this because your email is linked to your account. To unsubscribe, ask an admin to remove your email.</p>
-        </div>`,
-    };
-  }
-  return {
-    subject: `🎯 ${fromName} t'a donné un point !`,
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:auto">
-        <h2 style="color:#1e293b">Bonjour ${name},</h2>
-        <p style="color:#334155;font-size:15px"><b>${fromName}</b> vient de t'offrir un point pour <b>${catLabel}</b>.</p>
-        <p style="margin-top:24px"><a href="${o.baseUrl}/" style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">Voir sur Donne Ton Point</a></p>
-        <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">📭 Cette boîte mail n'est pas surveillée — ne réponds pas à ce message.<br>Tu reçois ce mail parce que ton email est associé à ton compte. Pour ne plus en recevoir, demande à un admin de retirer ton email.</p>
-      </div>`,
-  };
-}
-
-// Mail « tu écopes d'un gage » : le point vient de faire franchir le seuil.
-function buildGageEmail(o: { isEn: boolean; name: string; fromName: string; catLabel: string; dare: string; baseUrl: string }): { subject: string; html: string } {
-  const name = escapeHtml(o.name), fromName = escapeHtml(o.fromName), catLabel = escapeHtml(o.catLabel), dare = escapeHtml(o.dare);
-  if (o.isEn) {
-    return {
-      subject: `🚨 You owe a forfeit on Give Your Point!`,
-      html: `
-        <div style="font-family:sans-serif;max-width:480px;margin:auto">
-          <h2 style="color:#1e293b">Uh oh, ${name}… 🚨</h2>
-          <p style="color:#334155;font-size:15px"><b>${fromName}</b> gave you a point for <b>${catLabel}</b> — and you just hit the threshold!</p>
-          <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:14px 16px;margin:16px 0"><span style="color:#ea580c;font-weight:800">🚨 FORFEIT: ${dare}</span></div>
-          <p style="margin-top:16px"><a href="${o.baseUrl}/" style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">See on Give Your Point</a></p>
-          <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">📭 This mailbox is not monitored — please don't reply.</p>
-        </div>`,
-    };
-  }
-  return {
-    subject: `🚨 Tu écopes d'un gage sur Donne Ton Point !`,
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:auto">
-        <h2 style="color:#1e293b">Aïe, ${name}… 🚨</h2>
-        <p style="color:#334155;font-size:15px"><b>${fromName}</b> t'a donné un point pour <b>${catLabel}</b> — et tu viens d'atteindre le seuil !</p>
-        <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:12px;padding:14px 16px;margin:16px 0"><span style="color:#ea580c;font-weight:800">🚨 GAGE : ${dare}</span></div>
-        <p style="margin-top:16px"><a href="${o.baseUrl}/" style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">Voir sur Donne Ton Point</a></p>
-        <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">📭 Cette boîte mail n'est pas surveillée — ne réponds pas à ce message.</p>
-      </div>`,
-  };
-}
-
-// Mail de bienvenue avec lien magique, envoyé à la création d'un compte (si email fourni).
-function buildWelcomeEmail(o: { isEn: boolean; name: string; teamName: string; loginUrl: string }): { subject: string; html: string } {
-  const name = escapeHtml(o.name), teamName = escapeHtml(o.teamName);
-  if (o.isEn) {
-    return {
-      subject: `🎯 Your access to ${teamName} on Give Your Point`,
-      html: `
-        <div style="font-family:sans-serif;max-width:480px;margin:auto">
-          <h2 style="color:#1e293b">Welcome ${name}! 🎯</h2>
-          <p style="color:#334155;font-size:15px">You've been added to the team <b>${teamName}</b> on Give Your Point. Here's your personal access link:</p>
-          <p style="margin-top:24px"><a href="${o.loginUrl}" style="background:#2563eb;color:white;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold">Open my space</a></p>
-          <p style="color:#64748b;font-size:12px;margin-top:16px">Keep this email: this link is your key to log in — no password.</p>
-          <p style="color:#94a3b8;font-size:11px;margin-top:24px;line-height:1.6">📭 This mailbox is not monitored — please don't reply.</p>
-        </div>`,
-    };
-  }
-  return {
-    subject: `🎯 Ton accès à ${teamName} sur Donne Ton Point`,
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:auto">
-        <h2 style="color:#1e293b">Bienvenue ${name} ! 🎯</h2>
-        <p style="color:#334155;font-size:15px">Tu as été ajouté·e à l'équipe <b>${teamName}</b> sur Donne Ton Point. Voici ton lien d'accès personnel :</p>
-        <p style="margin-top:24px"><a href="${o.loginUrl}" style="background:#2563eb;color:white;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:bold">Ouvrir mon espace</a></p>
-        <p style="color:#64748b;font-size:12px;margin-top:16px">Garde cet email : ce lien est ta clé de connexion — pas de mot de passe.</p>
-        <p style="color:#94a3b8;font-size:11px;margin-top:24px;line-height:1.6">📭 Cette boîte mail n'est pas surveillée — ne réponds pas à ce message.</p>
-      </div>`,
-  };
-}
-
-// Construit le mail de digest hebdomadaire (fr/en). Les valeurs dynamiques sont échappées.
-export function buildDigestEmail(opts: {
-  baseUrl: string; isEn: boolean; memberName: string; teamName: string;
-  total: number; topUser: { name: string; count: number } | null;
-  topCat: { name: string; emoji: string; count: number } | null;
-  gages: number; myReceived: number;
-}): { subject: string; html: string } {
-  const { baseUrl, isEn, total, gages, myReceived } = opts;
-  const memberName = escapeHtml(opts.memberName);
-  const teamName = escapeHtml(opts.teamName);
-  const topUser = opts.topUser ? { name: escapeHtml(opts.topUser.name), count: opts.topUser.count } : null;
-  const topCat = opts.topCat ? { name: escapeHtml(opts.topCat.name), emoji: escapeHtml(opts.topCat.emoji ?? ''), count: opts.topCat.count } : null;
-
-  if (isEn) {
-    return {
-      subject: `📊 Your week on Give Your Point — ${teamName}`,
-      html: `
-        <div style="font-family:sans-serif;max-width:480px;margin:auto">
-          <h2 style="color:#1e293b">Hi ${memberName}, here's ${teamName}'s week 📊</h2>
-          <ul style="color:#334155;font-size:15px;line-height:1.9;list-style:none;padding:0">
-            <li>🎯 <b>${total}</b> point(s) given this week</li>
-            ${topUser ? `<li>🏆 In the lead: <b>${topUser.name}</b> (${topUser.count})</li>` : ''}
-            ${topCat ? `<li>${topCat.emoji} Favourite badge: <b>${topCat.name}</b> (${topCat.count})</li>` : ''}
-            ${gages > 0 ? `<li>🚨 <b>${gages}</b> dare(s) triggered</li>` : ''}
-            <li>👉 You received <b>${myReceived}</b> point(s) this week</li>
-          </ul>
-          <p style="margin-top:24px">
-            <a href="${baseUrl}" style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">Open Give Your Point</a>
-          </p>
-          <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">
-            📭 This mailbox is not monitored — please don't reply.<br>
-            You receive this weekly summary because your email is linked to your account. To stop, ask an admin to remove your email.
-          </p>
-        </div>`,
-    };
-  }
-  return {
-    subject: `📊 Ta semaine sur Donne Ton Point — ${teamName}`,
-    html: `
-      <div style="font-family:sans-serif;max-width:480px;margin:auto">
-        <h2 style="color:#1e293b">Salut ${memberName}, voici la semaine de ${teamName} 📊</h2>
-        <ul style="color:#334155;font-size:15px;line-height:1.9;list-style:none;padding:0">
-          <li>🎯 <b>${total}</b> point(s) distribué(s) cette semaine</li>
-          ${topUser ? `<li>🏆 En tête : <b>${topUser.name}</b> (${topUser.count})</li>` : ''}
-          ${topCat ? `<li>${topCat.emoji} Badge favori : <b>${topCat.name}</b> (${topCat.count})</li>` : ''}
-          ${gages > 0 ? `<li>🚨 <b>${gages}</b> gage(s) déclenché(s)</li>` : ''}
-          <li>👉 Toi : tu as reçu <b>${myReceived}</b> point(s) cette semaine</li>
-        </ul>
-        <p style="margin-top:24px">
-          <a href="${baseUrl}" style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">Ouvrir Donne Ton Point</a>
-        </p>
-        <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">
-          📭 Cette boîte mail n'est pas surveillée — ne réponds pas à ce message.<br>
-          Tu reçois ce résumé hebdo car ton email est associé à ton compte. Pour ne plus le recevoir, demande à un admin de retirer ton email.
-        </p>
-      </div>`,
-  };
-}
-
 async function verifyTurnstile(token: string, secret: string, ip?: string): Promise<boolean> {
   if (!token || !secret) {
     console.log('[turnstile] missing input', { hasToken: !!token, hasSecret: !!secret });
@@ -286,18 +119,6 @@ async function verifyTurnstile(token: string, secret: string, ip?: string): Prom
 
 type Variables = {
   user: AuthUser
-}
-
-type Role = 'member' | 'admin' | 'superadmin' | 'owner'
-
-const ROLE_RANK: Record<Role, number> = { member: 0, admin: 1, superadmin: 2, owner: 3 }
-
-function outranks(actorRole: string, targetRole: string): boolean {
-  return (ROLE_RANK[actorRole as Role] ?? 0) > (ROLE_RANK[targetRole as Role] ?? 0)
-}
-
-function canManageLink(actor: { id: string; role: string }, target: { id: string; role: string }): boolean {
-  return actor.id === target.id || outranks(actor.role, target.role)
 }
 
 interface AuthUser {
@@ -349,17 +170,44 @@ app.use('*', async (c, next) => {
   return next();
 });
 
-interface DareRule {
-  id: string;
-  category_id: string;
-  threshold: number;
-  dare_text: string;
+async function computeSpammers(db: D1Database, teamId: string): Promise<Map<string, SpamStatus>> {
+  const window = `-${SPAM_WINDOW_DAYS} days`;
+  const [givenRes, receivedRes, usersRes, pardonRes] = await Promise.all([
+    db.prepare("SELECT from_user_id AS uid, COUNT(*) as n FROM points_log WHERE team_id = ? AND created_at >= datetime('now', ?) GROUP BY from_user_id").bind(teamId, window).all<{ uid: string; n: number }>(),
+    db.prepare("SELECT to_user_id AS uid, COUNT(*) as n FROM points_log WHERE team_id = ? AND created_at >= datetime('now', ?) GROUP BY to_user_id").bind(teamId, window).all<{ uid: string; n: number }>(),
+    db.prepare("SELECT id, name FROM users WHERE active = 1 AND team_id = ?").bind(teamId).all<{ id: string; name: string }>(),
+    db.prepare("SELECT DISTINCT user_id FROM dare_log WHERE team_id = ? AND category_id IS NULL AND cleared_at >= datetime('now', ?)").bind(teamId, window).all<{ user_id: string }>(),
+  ]);
+  return detectSpammers({
+    activeUsers: usersRes.results ?? [],
+    givenByUser: new Map((givenRes.results ?? []).map((row) => [row.uid, row.n])),
+    receivedByUser: new Map((receivedRes.results ?? []).map((row) => [row.uid, row.n])),
+    pardonedUserIds: new Set((pardonRes.results ?? []).map((row) => row.user_id)),
+  });
 }
 
-interface PointStat {
-  to_user_id: string;
-  category_id: string;
-  total: number;
+async function fetchPointTotals(db: D1Database, teamId: string): Promise<PointTotal[]> {
+  const { results } = await db.prepare(
+    "SELECT to_user_id, category_id, COUNT(*) as total FROM points_log WHERE team_id = ? GROUP BY to_user_id, category_id"
+  ).bind(teamId).all<PointTotal>();
+  return results ?? [];
+}
+
+async function fetchDareRules(db: D1Database, teamId: string): Promise<DareRule[]> {
+  const { results } = await db.prepare("SELECT * FROM dare_rules WHERE team_id = ?").bind(teamId).all<DareRule>();
+  return results ?? [];
+}
+
+async function getUsersStats(db: D1Database, teamId: string) {
+  const [categoriesRes, pointTotals, rules, usersRes, spamStatuses] = await Promise.all([
+    db.prepare("SELECT id, name, emoji FROM categories WHERE team_id = ?").bind(teamId).all<{ id: string; name: string; emoji: string }>(),
+    fetchPointTotals(db, teamId),
+    fetchDareRules(db, teamId),
+    db.prepare("SELECT id, name FROM users WHERE active = 1 AND team_id = ?").bind(teamId).all<{ id: string; name: string }>(),
+    computeSpammers(db, teamId),
+  ]);
+  const spammerIds = new Set([...spamStatuses].filter(([, status]) => status.flagged).map(([userId]) => userId));
+  return buildLeaderboard({ users: usersRes.results ?? [], categories: categoriesRes.results ?? [], pointTotals, rules, spammerIds });
 }
 
 async function getUserByToken(db: D1Database, token: string): Promise<AuthUser | null> {
@@ -405,182 +253,12 @@ const requireAdmin = requireRole('admin');
 const requireSuperadmin = requireRole('superadmin');
 const requireOwner = requireRole('owner');
 
-const ADMIN_ROLES: Role[] = ['admin', 'superadmin', 'owner'];
-const SUPERADMIN_ROLES: Role[] = ['superadmin', 'owner'];
-
 function newUserCredentials(): { id: string; token: string } {
   return { id: crypto.randomUUID(), token: crypto.randomUUID() };
 }
 
 function magicLinkUrl(c: AppContext, token: string): string {
   return `${appBaseUrl(c)}/login/${token}`;
-}
-
-// Gage "spammeur" (automatique, calculé sur 7 jours glissants). Seuils réglables.
-// La jauge de proximité affichée = dons_7j / SPAM_MIN_GIVEN (100 % = pleine zone spam).
-const SPAM_MIN_GIVEN = 8;      // volume plancher : 8 dons/7j = zone spam (rythme normal ~2-3/sem)
-const SPAM_RATIO = 3;          // donner >= 3× ce que l'on reçoit (buffer inclus)
-const SPAM_RATIO_BUFFER = 1;   // amortit les petits volumes / division par zéro
-const SPAM_TEAM_MULT = 2;      // donner >= 2× la moyenne de l'équipe
-
-// Calcule qui est "spammeur" (7 j glissants). Exclut ceux ayant fait amende honorable :
-// une entrée dare_log SANS catégorie = "spammeur régalé", valable 7 jours (il retrouve une virginité).
-async function computeSpammers(db: D1Database, teamId: string): Promise<Map<string, { flagged: boolean; name: string; given: number; received: number; progress: number; pardoned: boolean }>> {
-  const [givenRes, receivedRes, usersRes, pardonRes] = await Promise.all([
-    db.prepare("SELECT from_user_id AS uid, COUNT(*) as n FROM points_log WHERE team_id = ? AND created_at >= datetime('now','-7 days') GROUP BY from_user_id").bind(teamId).all<{ uid: string; n: number }>(),
-    db.prepare("SELECT to_user_id AS uid, COUNT(*) as n FROM points_log WHERE team_id = ? AND created_at >= datetime('now','-7 days') GROUP BY to_user_id").bind(teamId).all<{ uid: string; n: number }>(),
-    db.prepare("SELECT id, name FROM users WHERE active = 1 AND team_id = ?").bind(teamId).all<{ id: string; name: string }>(),
-    db.prepare("SELECT DISTINCT user_id FROM dare_log WHERE team_id = ? AND category_id IS NULL AND cleared_at >= datetime('now','-7 days')").bind(teamId).all<{ user_id: string }>(),
-  ]);
-
-  const given = new Map((givenRes.results || []).map(r => [r.uid, r.n]));
-  const received = new Map((receivedRes.results || []).map(r => [r.uid, r.n]));
-  const pardoned = new Set((pardonRes.results || []).map(r => r.user_id));
-  const users = usersRes.results || [];
-  const totalGiven = (givenRes.results || []).reduce((s, r) => s + r.n, 0);
-  const avgGiven = users.length ? totalGiven / users.length : 0;
-
-  const flags = new Map<string, { flagged: boolean; name: string; given: number; received: number; progress: number; pardoned: boolean }>();
-  for (const u of users) {
-    const G = given.get(u.id) || 0;
-    const R = received.get(u.id) || 0;
-    const isPardoned = pardoned.has(u.id);
-    // Jauge de proximité INTUITIVE = volume donné rapporté au seuil (100 % = pleine zone spam).
-    const progress = G / SPAM_MIN_GIVEN;
-    // Le gage ne se déclenche que si le volume EST atteint ET c'est déséquilibré (donne >> reçoit)
-    // ET au-dessus de la moyenne équipe — pour ne pas punir un donneur populaire mais équilibré.
-    const flagged =
-      !isPardoned &&
-      G >= SPAM_MIN_GIVEN &&
-      G / (R + SPAM_RATIO_BUFFER) >= SPAM_RATIO &&
-      G >= SPAM_TEAM_MULT * avgGiven;
-    flags.set(u.id, { flagged, name: u.name, given: G, received: R, progress, pardoned: isPardoned });
-  }
-  return flags;
-}
-
-async function getUsersStats(db: D1Database, teamId: string) {
-  const [catRes, statsRes, rulesRes, usersRes, spamFlags] = await Promise.all([
-    db.prepare("SELECT id, name, emoji FROM categories WHERE team_id = ?").bind(teamId).all(),
-    db.prepare("SELECT to_user_id, category_id, COUNT(*) as total FROM points_log WHERE team_id = ? GROUP BY to_user_id, category_id").bind(teamId).all<PointStat>(),
-    db.prepare("SELECT * FROM dare_rules WHERE team_id = ?").bind(teamId).all<DareRule>(),
-    db.prepare("SELECT id, name FROM users WHERE active = 1 AND team_id = ?").bind(teamId).all(),
-    computeSpammers(db, teamId),
-  ]);
-
-  const catMap = new Map((catRes.results || []).map((cat: any) => [cat.id, cat]));
-  const stats = statsRes.results || [];
-  const rules = rulesRes.results || [];
-  const users = usersRes.results || [];
-
-  const data = users.map((user: any) => {
-    const userPoints = stats.filter(p => p.to_user_id === user.id);
-    const total_points = userPoints.reduce((sum, p) => sum + p.total, 0);
-
-    const topCategories = userPoints
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 10)
-      .map(p => {
-        const category: any = catMap.get(p.category_id);
-        return { count: p.total, emoji: category?.emoji || '✨', cat_name: category?.name || 'Inconnu' };
-      });
-
-    let activeDare = null;
-    for (const rule of rules) {
-      const score = userPoints.find(p => p.category_id === rule.category_id);
-      if (score && score.total >= rule.threshold) { activeDare = rule.dare_text; break; }
-    }
-
-    const spammer = spamFlags.get(user.id)?.flagged || false;
-    return { ...user, total_points, topCategories, gage: activeDare, spammer };
-  });
-
-  return data.sort((a: any, b: any) => b.total_points - a.total_points)
-             .map((u: any, index: number) => ({ ...u, rank: index + 1 }));
-}
-
-// === Push Notification Helpers (Web Crypto API, no npm needed) ===
-
-function b64url(buf: ArrayBuffer | Uint8Array): string {
-  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-  let binary = '';
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
-}
-
-function decodeb64url(s: string): Uint8Array {
-  const b64 = s.replace(/-/g, '+').replace(/_/g, '/').padEnd(s.length + (4 - s.length % 4) % 4, '=');
-  const binary = atob(b64);
-  return Uint8Array.from(binary, (c) => c.charCodeAt(0));
-}
-
-function concatBytes(...arrays: Uint8Array[]): Uint8Array {
-  const len = arrays.reduce((n, a) => n + a.length, 0);
-  const out = new Uint8Array(len);
-  let offset = 0;
-  for (const a of arrays) { out.set(a, offset); offset += a.length; }
-  return out;
-}
-
-async function hmacSha256(key: Uint8Array, data: Uint8Array): Promise<Uint8Array> {
-  const k = await crypto.subtle.importKey('raw', key, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
-  return new Uint8Array(await crypto.subtle.sign('HMAC', k, data));
-}
-
-async function hkdf(salt: Uint8Array, ikm: Uint8Array, info: Uint8Array, len: number): Promise<Uint8Array> {
-  const k = await crypto.subtle.importKey('raw', ikm, { name: 'HKDF' }, false, ['deriveBits']);
-  return new Uint8Array(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt, info }, k, len * 8));
-}
-
-async function encryptPushPayload(payload: string, p256dhB64url: string, authB64url: string): Promise<ArrayBuffer> {
-  const te = new TextEncoder();
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-
-  const receiverPubRaw = decodeb64url(p256dhB64url);
-  const receiverKey = await crypto.subtle.importKey('raw', receiverPubRaw, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
-
-  const senderPair = await crypto.subtle.generateKey({ name: 'ECDH', namedCurve: 'P-256' }, true, ['deriveBits']) as CryptoKeyPair;
-  const senderPubRaw = new Uint8Array(await crypto.subtle.exportKey('raw', senderPair.publicKey) as ArrayBuffer);
-
-  const ecdhBits = new Uint8Array(await crypto.subtle.deriveBits({ name: 'ECDH', public: receiverKey } as any, senderPair.privateKey, 256));
-
-  // RFC 8291 key derivation
-  const authSecret = decodeb64url(authB64url);
-  const prk = await hmacSha256(authSecret, ecdhBits);
-  const ikm = await hmacSha256(prk, concatBytes(te.encode('WebPush: info\x00'), receiverPubRaw, senderPubRaw, new Uint8Array([1])));
-
-  const cek = await hkdf(salt, ikm, te.encode('Content-Encoding: aes128gcm\x00'), 16);
-  const nonce = await hkdf(salt, ikm, te.encode('Content-Encoding: nonce\x00'), 12);
-
-  const aesKey = await crypto.subtle.importKey('raw', cek, { name: 'AES-GCM' }, false, ['encrypt']);
-  const ciphertext = new Uint8Array(await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv: nonce, tagLength: 128 },
-    aesKey,
-    concatBytes(te.encode(payload), new Uint8Array([2])) // payload + padding delimiter
-  ));
-
-  // RFC 8291 binary body: salt(16) | rs(4) | idlen(1) | sender_pub(65) | ciphertext
-  const header = new Uint8Array(21 + senderPubRaw.length);
-  header.set(salt, 0);
-  new DataView(header.buffer).setUint32(16, 4096, false);
-  header[20] = senderPubRaw.length;
-  header.set(senderPubRaw, 21);
-  return concatBytes(header, ciphertext).buffer as ArrayBuffer;
-}
-
-async function vapidJwt(endpoint: string, subject: string, privateKeyJwk: JsonWebKey): Promise<string> {
-  const te = new TextEncoder();
-  const url = new URL(endpoint);
-  const aud = `${url.protocol}//${url.host}`;
-  const exp = Math.floor(Date.now() / 1000) + 12 * 3600;
-
-  const header = b64url(te.encode(JSON.stringify({ typ: 'JWT', alg: 'ES256' })));
-  const claims = b64url(te.encode(JSON.stringify({ aud, exp, sub: subject })));
-  const sigInput = `${header}.${claims}`;
-
-  const key = await crypto.subtle.importKey('jwk', privateKeyJwk, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign']);
-  const sig = await crypto.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' }, key, te.encode(sigInput));
-  return `${sigInput}.${b64url(sig)}`;
 }
 
 async function sendPushToUser(env: Bindings, toUserId: string, fromUserName: string, categoryId: string): Promise<void> {
@@ -705,12 +383,22 @@ app.get('/api/categories', requireUser, async (c) => {
   return c.json(results);
 });
 
-// Enregistrer un point
+const POINT_REFUSAL_MESSAGE: Record<PointRefusal, (recipientName: string) => string> = {
+  DUPLICATE: () => "Tu viens déjà d'offrir ce badge à cette personne ! 😄",
+  DAILY_LIMIT: () => `Tu as distribué tes ${MAX_POINTS_PER_DAY} points du jour ! Reviens demain 🌙`,
+  RECIPIENT_DAILY_LIMIT: (recipientName) => `Tu as déjà bien félicité ${recipientName} aujourd'hui (${MAX_POINTS_PER_RECIPIENT_PER_DAY} max) 😄`,
+  SPAMMER_FROZEN: () => "🚨 Tu es signalé comme spammeur. Un admin doit valider ton gage (régaler l'équipe) avant que tu puisses redonner des points.",
+};
+
+function pointRefusalMessage(refusal: PointRefusal, recipientName: string): string {
+  return POINT_REFUSAL_MESSAGE[refusal](recipientName);
+}
+
 app.post('/api/points', requireUser, async (c) => {
   try {
     const body = await c.req.json();
     const { to_user_id, category_id } = body;
-    const reason = typeof body.reason === 'string' ? body.reason.trim().slice(0, 140) || null : null;
+    const reason = normalizeReason(body.reason);
     const fromUser = c.get('user');
 
     if (fromUser.id === to_user_id) {
@@ -735,41 +423,28 @@ app.post('/api/points', requireUser, async (c) => {
       return c.json({ error: "Catégorie invalide pour ton équipe." }, 400);
     }
 
-    // Anti-doublon : même badge au même collègue dans les 5 dernières minutes
-    const recentDupe = await c.env.DB.prepare(`
-      SELECT 1 FROM points_log
-      WHERE from_user_id = ? AND to_user_id = ? AND category_id = ?
-      AND created_at >= datetime('now', '-5 minutes')
-    `).bind(fromUser.id, to_user_id, category_id).first();
+    const [recentDuplicate, givenToday, givenToRecipientToday, spamStatuses] = await Promise.all([
+      c.env.DB.prepare(`
+        SELECT 1 FROM points_log
+        WHERE from_user_id = ? AND to_user_id = ? AND category_id = ?
+        AND created_at >= datetime('now', ?)
+      `).bind(fromUser.id, to_user_id, category_id, `-${DUPLICATE_WINDOW_MINUTES} minutes`).first(),
+      c.env.DB.prepare(
+        "SELECT COUNT(*) as count FROM points_log WHERE from_user_id = ? AND created_at >= date('now')"
+      ).bind(fromUser.id).first<{ count: number }>(),
+      c.env.DB.prepare(
+        "SELECT COUNT(*) as count FROM points_log WHERE from_user_id = ? AND to_user_id = ? AND created_at >= date('now')"
+      ).bind(fromUser.id, to_user_id).first<{ count: number }>(),
+      computeSpammers(c.env.DB, fromUser.team_id),
+    ]);
 
-    if (recentDupe) {
-      return c.json({ error: "Tu viens déjà d'offrir ce badge à cette personne ! 😄" }, 429);
-    }
-
-    // Limite : 10 points donnés par jour
-    const todayCount = await c.env.DB.prepare(
-      "SELECT COUNT(*) as count FROM points_log WHERE from_user_id = ? AND created_at >= date('now')"
-    ).bind(fromUser.id).first<{ count: number }>();
-
-    if ((todayCount?.count ?? 0) >= 10) {
-      return c.json({ error: "Tu as distribué tes 10 points du jour ! Reviens demain 🌙" }, 429);
-    }
-
-    // Plafond anti-concentration : max 3 points au même collègue par jour.
-    const pairToday = await c.env.DB.prepare(
-      "SELECT COUNT(*) as count FROM points_log WHERE from_user_id = ? AND to_user_id = ? AND created_at >= date('now')"
-    ).bind(fromUser.id, to_user_id).first<{ count: number }>();
-
-    if ((pairToday?.count ?? 0) >= 3) {
-      return c.json({ error: `Tu as déjà bien félicité ${toUser.name} aujourd'hui (3 max) 😄` }, 429);
-    }
-
-    // Gel du spammeur : tant qu'il est signalé (gage spam non acquitté), il ne peut plus distribuer.
-    // Le gel se lève quand un admin valide son gage (« il a régalé ») ou quand la fenêtre 7 j le déclasse.
-    const spamFlags = await computeSpammers(c.env.DB, fromUser.team_id);
-    if (spamFlags.get(fromUser.id)?.flagged) {
-      return c.json({ error: "🚨 Tu es signalé comme spammeur. Un admin doit valider ton gage (régaler l'équipe) avant que tu puisses redonner des points." }, 429);
-    }
+    const refusal = findPointRefusal({
+      sameBadgeToRecipientRecently: !!recentDuplicate,
+      givenToday: givenToday?.count ?? 0,
+      givenToRecipientToday: givenToRecipientToday?.count ?? 0,
+      isFlaggedSpammer: spamStatuses.get(fromUser.id)?.flagged ?? false,
+    });
+    if (refusal) return c.json({ error: pointRefusalMessage(refusal, toUser.name) }, 429);
 
     await c.env.DB.prepare(
       'INSERT INTO points_log (team_id, from_user_id, to_user_id, category_id, reason, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)'
@@ -787,21 +462,9 @@ app.post('/api/points', requireUser, async (c) => {
       ).bind(fromUser.team_id, category_id).all<{ dare_text: string; threshold: number }>(),
     ]);
 
-    const newCount = newCountRes?.count ?? 0;
-    const toName = toUser.name;
-    let gageTriggered = null;
-    let gageWarning = null;
-
-    for (const rule of (rulesRes.results ?? [])) {
-      if (newCount === rule.threshold) {
-        gageTriggered = { name: toName, dare: rule.dare_text };
-        break;
-      }
-      if (newCount === rule.threshold - 1) {
-        gageWarning = { name: toName };
-        break;
-      }
-    }
+    const progress = dareProgressAfterPoint(newCountRes?.count ?? 0, rulesRes.results ?? []);
+    const gageTriggered = progress?.kind === 'triggered' ? { name: toUser.name, dare: progress.dare } : null;
+    const gageWarning = progress?.kind === 'warning' ? { name: toUser.name } : null;
 
     // Notification push non-bloquante
     c.executionCtx.waitUntil(
@@ -1112,16 +775,15 @@ app.post('/api/onboarding', async (c) => {
   try {
     const { company_name, admin_name, admin_email, locale, turnstile_token } = await c.req.json();
 
-    const company = (company_name || '').trim();
-    const admin = (admin_name || '').trim();
-    const emailRaw = (admin_email || '').trim();
-    const email = emailRaw && isValidEmail(emailRaw) ? emailRaw : null;
+    const company = normalizeName(company_name, { min: 2, max: ORGANIZATION_NAME_MAX_LENGTH });
+    const admin = normalizeName(admin_name);
+    const email = normalizeOptionalEmail(admin_email);
     const userLocale = locale === 'en' ? 'en' : 'fr';
 
-    if (!company || company.length < 2 || company.length > 60) {
+    if (!company) {
       return c.json({ error: "Nom de société requis (2 à 60 caractères)" }, 400);
     }
-    if (!admin || admin.length < 1 || admin.length > 40) {
+    if (!admin) {
       return c.json({ error: "Prénom requis (1 à 40 caractères)" }, 400);
     }
 
@@ -1236,8 +898,8 @@ app.get('/api/join/:code', async (c) => {
 app.post('/api/join', async (c) => {
   try {
     const { code, name, turnstile_token } = await c.req.json();
-    const cleanName = (name || '').trim();
-    if (!cleanName || cleanName.length < 1 || cleanName.length > 40) {
+    const cleanName = normalizeName(name);
+    if (!cleanName) {
       return c.json({ error: "Prénom requis (1 à 40 caractères)" }, 400);
     }
     // Anti-bot : le lien d'auto-inscription est public → on protège la création de compte.
@@ -1319,10 +981,9 @@ app.post('/api/admin/users/:id/magic-link', requireAdmin, async (c) => {
 app.post('/api/admin/users', requireAdmin, async (c) => {
   const admin = c.get('user');
   const { name, email } = await c.req.json();
-  const cleanName = typeof name === 'string' ? name.trim() : '';
-  if (!cleanName || cleanName.length > 40) return c.json({ error: "Prénom requis (1 à 40 caractères)" }, 400);
-  const emailRaw = typeof email === 'string' ? email.trim() : '';
-  const cleanEmail = emailRaw && isValidEmail(emailRaw) ? emailRaw : null;
+  const cleanName = normalizeName(name);
+  if (!cleanName) return c.json({ error: "Prénom requis (1 à 40 caractères)" }, 400);
+  const cleanEmail = normalizeOptionalEmail(email);
   if (cleanEmail && await emailTaken(c.env.DB, cleanEmail)) {
     return c.json({ error: "Cet e-mail est déjà utilisé par un autre compte." }, 409);
   }
@@ -1394,8 +1055,8 @@ app.delete('/api/admin/users/:id/reject', requireAdmin, async (c) => {
 app.post('/api/admin/invite', requireAdmin, async (c) => {
   const admin = c.get('user');
   const { email } = await c.req.json();
-  const clean = (email || '').trim();
-  if (!clean || !isValidEmail(clean)) return c.json({ error: "Email invalide" }, 400);
+  const clean = normalizeOptionalEmail(email);
+  if (!clean) return c.json({ error: "Email invalide" }, 400);
 
   const code = await getOrCreateInviteCode(c.env.DB, admin.team_id);
   const joinUrl = `${appBaseUrl(c)}/join/${code}`;
@@ -1444,17 +1105,7 @@ app.patch('/api/admin/categories/:id/restore', requireAdmin, async (c) => {
 
 // Spammeurs actifs de l'équipe (gage automatique non encore "régalé").
 app.get('/api/admin/spammers', requireAdmin, async (c) => {
-  const admin = c.get('user');
-  const flags = await computeSpammers(c.env.DB, admin.team_id);
-  // On renvoie les spammeurs avérés ET ceux qui s'en approchent (≥ 50 %), pour l'indicateur admin.
-  const rows = [...flags.entries()]
-    .map(([userId, f]) => ({
-      userId, name: f.name, given: f.given, received: f.received,
-      progress: Math.round(f.progress * 100) / 100, flagged: f.flagged, pardoned: f.pardoned,
-    }))
-    .filter(r => r.flagged || (!r.pardoned && r.progress >= 0.5 && r.given > r.received))
-    .sort((a, b) => b.progress - a.progress);
-  return c.json(rows);
+  return c.json(spamWatchlist(await computeSpammers(c.env.DB, c.get('user').team_id)));
 });
 
 // "Amende honorable" : le spammeur a régalé l'équipe → on logue (historique) et on le blanchit 7 j.
@@ -1484,33 +1135,9 @@ app.post('/api/admin/users/:id/regenerate-link', requireAdmin, async (c) => {
 });
 
 app.get('/api/admin/dares', requireAdmin, async (c) => {
-  const admin = c.get('user');
-  const teamId = admin.team_id;
-  const [rulesRes, statsRes] = await Promise.all([
-    c.env.DB.prepare("SELECT * FROM dare_rules WHERE team_id = ?").bind(teamId).all<DareRule>(),
-    c.env.DB.prepare(
-      "SELECT to_user_id, category_id, COUNT(*) as total FROM points_log WHERE team_id = ? GROUP BY to_user_id, category_id"
-    ).bind(teamId).all<PointStat>(),
-  ]);
-
-  const rules = rulesRes.results || [];
-  const stats = statsRes.results || [];
-
-  const activeDares: { userId: string; categoryId: string; count: number; dare: string }[] = [];
-  for (const rule of rules) {
-    for (const stat of stats) {
-      if (stat.category_id === rule.category_id && stat.total >= rule.threshold) {
-        activeDares.push({
-          userId: stat.to_user_id,
-          categoryId: stat.category_id,
-          count: stat.total,
-          dare: rule.dare_text,
-        });
-      }
-    }
-  }
-
-  return c.json(activeDares);
+  const teamId = c.get('user').team_id;
+  const [rules, pointTotals] = await Promise.all([fetchDareRules(c.env.DB, teamId), fetchPointTotals(c.env.DB, teamId)]);
+  return c.json(listActiveDares(rules, pointTotals));
 });
 
 app.get('/api/admin/rules', requireAdmin, async (c) => {
@@ -1650,10 +1277,10 @@ app.post('/api/points/undo', requireUser, async (c) => {
     WHERE id = (
         SELECT id FROM points_log
         WHERE from_user_id = ?
-        AND created_at >= datetime('now', '-15 seconds')
+        AND created_at >= datetime('now', ?)
         ORDER BY created_at DESC LIMIT 1
     )
-  `).bind(me.id).run();
+  `).bind(me.id, `-${UNDO_WINDOW_SECONDS} seconds`).run();
 
   if (result.meta.changes === 0) {
     return c.json({ error: "Délai d'annulation dépassé" }, 403);
@@ -1751,15 +1378,13 @@ app.get('/api/superadmin/teams', requireSuperadmin, async (c) => {
 // Créer une équipe dans la société du superadmin
 app.post('/api/superadmin/teams', requireSuperadmin, async (c) => {
   const sa = c.get('user');
-  const { name } = await c.req.json();
-  if (!name || typeof name !== 'string' || !name.trim()) {
-    return c.json({ error: 'Nom requis' }, 400);
-  }
+  const teamName = normalizeName((await c.req.json()).name, { max: ORGANIZATION_NAME_MAX_LENGTH });
+  if (!teamName) return c.json({ error: 'Nom requis (1 à 60 caractères)' }, 400);
   const id = crypto.randomUUID();
   const inviteCode = generateInviteCode();
   await c.env.DB.prepare(
     "INSERT INTO teams (id, company_id, name, active, invite_code) VALUES (?, ?, ?, 1, ?)"
-  ).bind(id, sa.company_id, name.trim(), inviteCode).run();
+  ).bind(id, sa.company_id, teamName, inviteCode).run();
   return c.json({ success: true, id });
 });
 
@@ -1767,11 +1392,11 @@ app.post('/api/superadmin/teams', requireSuperadmin, async (c) => {
 app.patch('/api/superadmin/teams/:id', requireSuperadmin, async (c) => {
   const sa = c.get('user');
   const id = c.req.param('id');
-  const { name } = await c.req.json();
-  if (!name || !name.trim()) return c.json({ error: 'Nom requis' }, 400);
+  const teamName = normalizeName((await c.req.json()).name, { max: ORGANIZATION_NAME_MAX_LENGTH });
+  if (!teamName) return c.json({ error: 'Nom requis (1 à 60 caractères)' }, 400);
   const result = await c.env.DB.prepare(
     "UPDATE teams SET name = ? WHERE id = ? AND company_id = ?"
-  ).bind(name.trim(), id, sa.company_id).run();
+  ).bind(teamName, id, sa.company_id).run();
   if (result.meta.changes === 0) return c.json({ error: "Équipe introuvable" }, 404);
   return c.json({ success: true });
 });
@@ -1807,11 +1432,10 @@ app.post('/api/superadmin/teams/:id/users', requireSuperadmin, async (c) => {
   const sa = c.get('user');
   const teamId = c.req.param('id');
   const { name, role, email } = await c.req.json();
-  const cleanName = typeof name === 'string' ? name.trim() : '';
-  if (!cleanName || cleanName.length > 40) return c.json({ error: 'Nom requis (1 à 40 caractères)' }, 400);
+  const cleanName = normalizeName(name);
+  if (!cleanName) return c.json({ error: 'Nom requis (1 à 40 caractères)' }, 400);
   const userRole = (role === 'admin' || role === 'superadmin') ? role : 'member';
-  const emailRaw = typeof email === 'string' ? email.trim() : '';
-  const cleanEmail = emailRaw && isValidEmail(emailRaw) ? emailRaw : null;
+  const cleanEmail = normalizeOptionalEmail(email);
 
   // Vérifier que la team appartient à la société du superadmin
   const team = await c.env.DB.prepare(
@@ -2053,61 +1677,18 @@ app.post('/api/cron/weekly-digest', async (c) => {
 
 // === Open Graph : injection des meta selon Accept-Language ===
 
-const OG_DATA: Record<string, Record<'fr' | 'en', { title: string; desc: string; locale: string }>> = {
-  '/': {
-    fr: {
-      title: "Donne Ton Point — Le rituel d'équipe",
-      desc: "Récompense les bons coups (et les bourdes) de ton équipe avec des badges. Quand un seuil est atteint, c'est gage !",
-      locale: 'fr_FR',
-    },
-    en: {
-      title: 'Give Your Point — The team ritual',
-      desc: 'Reward the wins (and the goofs) of your team with badges. When a threshold is reached, time for a dare!',
-      locale: 'en_US',
-    },
-  },
-  '/about': {
-    fr: {
-      title: "À propos — Donne Ton Point",
-      desc: "Présentation, modèle de rôles, politique RGPD et contact.",
-      locale: 'fr_FR',
-    },
-    en: {
-      title: 'About — Give Your Point',
-      desc: 'Presentation, roles model, GDPR policy and contact.',
-      locale: 'en_US',
-    },
-  },
-};
-
-export function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-async function serveHtmlWithOg(c: any, key: string, assetPath?: string): Promise<Response> {
-  // assetPath permet de servir un autre asset que l'URL demandée (ex : /join/:code → index).
-  const req = assetPath
+async function serveHtmlWithOg(c: AppContext, page: OgPage, assetPath?: string): Promise<Response> {
+  const request = assetPath
     ? new Request(new URL(assetPath, c.req.url).toString(), { method: 'GET', headers: c.req.raw.headers })
     : c.req.raw;
-  const resp = await c.env.ASSETS.fetch(req);
-  const ct = resp.headers.get('Content-Type') || '';
-  if (!ct.toLowerCase().includes('text/html')) {
-    return resp;
-  }
-  const acceptLang = (c.req.header('Accept-Language') || '').toLowerCase();
-  const lang: 'fr' | 'en' = acceptLang.startsWith('en') ? 'en' : 'fr';
-  const data = OG_DATA[key]?.[lang] || OG_DATA[key]?.fr || OG_DATA['/'].fr;
-  const url = new URL(c.req.url);
-  const html = await resp.text();
-  const replaced = html
-    .replace(/\{\{OG_TITLE\}\}/g, escapeHtml(data.title))
-    .replace(/\{\{OG_DESC\}\}/g, escapeHtml(data.desc))
-    .replace(/\{\{OG_URL\}\}/g, escapeHtml(url.origin))
-    .replace(/\{\{OG_LOCALE\}\}/g, data.locale);
-  return new Response(replaced, {
+  const asset = await c.env.ASSETS.fetch(request);
+  if (!(asset.headers.get('Content-Type') || '').toLowerCase().includes('text/html')) return asset;
+
+  const og = ogDataFor(page, languageFromAcceptLanguage(c.req.header('Accept-Language')));
+  return new Response(fillOgPlaceholders(await asset.text(), og, new URL(c.req.url).origin), {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': resp.headers.get('Cache-Control') || 'public, max-age=0, must-revalidate',
+      'Cache-Control': asset.headers.get('Cache-Control') || 'public, max-age=0, must-revalidate',
     },
   });
 }
@@ -2128,3 +1709,4 @@ app.get('/*', async (c) => {
 });
 
 export default app;
+

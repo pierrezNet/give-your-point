@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { buildDigestEmail, buildInviteEmail, escapeHtml } from '../src/app';
+import { buildDigestEmail, buildInviteEmail } from '../../src/email/templates';
+import { escapeHtml } from '../../src/html';
 
 const INJECTION = '<img src=x onerror=alert(1)>';
 
