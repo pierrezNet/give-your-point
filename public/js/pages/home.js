@@ -1,6 +1,6 @@
 import { t } from '../core/i18n.js';
 import { startPage } from '../core/page.js';
-import { ADMIN_ROLES, SUPERADMIN_ROLES, captureLoginFromUrl, clearSession, fetchCurrentUser, getSessionToken } from '../core/session.js';
+import { ADMIN_ROLES, SUPERADMIN_ROLES, clearSession, fetchCurrentUser, getSessionToken } from '../core/session.js';
 import { registerActions } from '../core/actions.js';
 import { startLanding } from '../features/landing/controller.js';
 import { startJoin } from '../features/join/controller.js';
@@ -67,10 +67,9 @@ async function startSignedInApp() {
 }
 
 function route() {
-  startPage();
+  if (!startPage()) return null;
   const invitation = location.pathname.match(JOIN_PATH);
   if (invitation) return startJoin(decodeURIComponent(invitation[1]));
-  captureLoginFromUrl();
   if (!getSessionToken()) return startLanding();
   return startSignedInApp();
 }

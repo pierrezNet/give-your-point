@@ -13,10 +13,27 @@ test.describe('landing (non connecté)', () => {
     expect(errors).toEqual([]);
   });
 
-  test("bascule en anglais", async ({ page }) => {
+  test("bascule en anglais vers l'adresse /en/, et retour", async ({ page }) => {
     await page.goto('/');
-    await page.locator('[data-lang-toggle="en"]').first().click();
+    await expect(page.locator('#landing [data-lang-toggle="fr"].active')).toBeVisible();
+    await page.locator('#landing [data-lang-toggle="en"]').click();
+    await expect(page).toHaveURL(/\/en\/$/);
     await expect(page.getByRole('heading', { level: 1, name: /Give Your Point/ })).toBeVisible();
+    await expect(page.locator('#landing [data-lang-toggle="en"].active')).toBeVisible();
+    await page.locator('#landing [data-lang-toggle="fr"]').click();
+    await expect(page).toHaveURL(/:\d+\/$/);
+    await expect(page.getByRole('heading', { level: 1, name: /Donne Ton Point/ })).toBeVisible();
+  });
+
+  test("sert la version anglaise directement à /en/, sans JavaScript", async ({ browser }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false, locale: 'fr-FR' });
+    const page = await context.newPage();
+    await page.goto('/en/');
+    await expect(page.locator('html')).toHaveAttribute('lang', 'en');
+    await expect(page.getByRole('heading', { level: 1 })).toContainText('Give Your Point');
+    await expect(page.locator('link[hreflang="fr"]')).toHaveAttribute('href', 'https://donnetonpoint.fr/');
+    await expect(page.locator('#landing a[href="/en/about"]').first()).toBeVisible();
+    await context.close();
   });
 
   test("ouvre la récupération de lien depuis un lien magique invalide", async ({ page }) => {

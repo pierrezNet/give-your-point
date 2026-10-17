@@ -3,8 +3,7 @@ import { SUPERADMIN_ROLES } from '../core/session.js';
 import { requirePageRole, revealRoleLinks } from '../core/guard.js';
 import { startSuperadminConsole } from '../features/superadmin/controller.js';
 
-startPage();
-const me = await requirePageRole(SUPERADMIN_ROLES, 'superadmin.not_superadmin');
+const me = startPage() && await requirePageRole(SUPERADMIN_ROLES, 'superadmin.not_superadmin');
 if (me) {
   revealRoleLinks(me);
   await startSuperadminConsole(me);

@@ -3,301 +3,31 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{OG_TITLE}}</title>
-    <meta name="description" content="{{OG_DESC}}">
-    <!-- PWA : installable sur l'écran d'accueil -->
+    <title>Donne Ton Point — Le rituel d'équipe</title>
+    <meta name="description" content="Récompense les bons coups (et les bourdes) de ton équipe avec des badges. Quand un seuil est atteint, c'est gage !">
+    <link rel="canonical" href="https://donnetonpoint.fr/">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#2563eb">
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/icon-192.png">
-    <link rel="canonical" href="https://donnetonpoint.fr/">
-    <!-- Open Graph -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="{{OG_TITLE}}">
-    <meta property="og:description" content="{{OG_DESC}}">
-    <meta property="og:image" content="{{OG_URL}}/og.svg">
-    <meta property="og:url" content="{{OG_URL}}/">
-    <meta property="og:locale" content="{{OG_LOCALE}}">
-    <!-- Twitter Card -->
+    <meta property="og:site_name" content="Donne Ton Point">
+    <meta property="og:title" content="Donne Ton Point — Le rituel d'équipe">
+    <meta property="og:description" content="Récompense les bons coups (et les bourdes) de ton équipe avec des badges. Quand un seuil est atteint, c'est gage !">
+    <meta property="og:url" content="https://donnetonpoint.fr/">
+    <meta property="og:locale" content="fr_FR">
+    <meta property="og:image" content="https://donnetonpoint.fr/og-fr.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Donne Ton Point : classement d’équipe avec badges et gage déclenché">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="{{OG_TITLE}}">
-    <meta name="twitter:description" content="{{OG_DESC}}">
-    <meta name="twitter:image" content="{{OG_URL}}/og.svg">
+    <meta name="twitter:title" content="Donne Ton Point — Le rituel d'équipe">
+    <meta name="twitter:description" content="Récompense les bons coups (et les bourdes) de ton équipe avec des badges. Quand un seuil est atteint, c'est gage !">
+    <meta name="twitter:image" content="https://donnetonpoint.fr/og-fr.png">
+    <meta name="twitter:image:alt" content="Donne Ton Point : classement d’équipe avec badges et gage déclenché">
+    <link rel="preconnect" href="https://challenges.cloudflare.com">
     <link rel="stylesheet" href="/styles.css?v=20261017">
     <script type="module" src="/js/pages/home.js"></script>
-    <style>
-        /* --- 1. CARTES UTILISATEURS & INTERACTIONS --- */
-        .user-card { 
-            transition: transform 0.2s; 
-            cursor: grab; 
-        }
-        .user-card:active { cursor: grabbing; }
-        
-        /* Zone de drop lors du drag & drop */
-        .category-drop { border: 2px dashed transparent; }
-        .category-drop.drag-over { 
-            border-color: #3b82f6; 
-            background-color: #eff6ff; 
-        }
-
-        /* --- 2. BADGES / CATÉGORIES --- */
-        .category-card {
-            -webkit-tap-highlight-color: transparent;
-            outline: none;
-        }
-        /* Effet spécifique mobile au toucher */
-        @media (max-width: 767px) {
-            .category-card:active {
-                transform: scale(0.95);
-                background-color: #f3f4f6;
-            }
-        }
-
-        /* --- 3. SYSTÈME DE GAGES (PULSE) --- */
-        .gage-active {
-            animation: pulse-orange 2s infinite;
-            background-color: #fffaf8;
-        }
-        /* En mode sombre : fond chaud mais sombre (sinon le texte clair devient illisible sur #fffaf8) */
-        @media (prefers-color-scheme: dark) {
-            .gage-active { background-color: #3a2416; }
-        }
-        @keyframes pulse-orange {
-            0% { box-shadow: 0 0 0 0px rgba(234, 88, 12, 0.4); }
-            70% { box-shadow: 0 0 0 15px rgba(234, 88, 12, 0); }
-            100% { box-shadow: 0 0 0 0px rgba(234, 88, 12, 0); }
-        }
-
-        /* --- 4. MODALES (HISTORIQUE & ROUE) --- */
-        #history-modal {
-            backdrop-filter: blur(4px);
-            animation: fadeIn 0.2s ease-out;
-        }
-
-        /* Animation d'entrée générale (Modales) */
-        @keyframes fadeIn {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
-        }
-
-        /* Animations spécifique à la Roue Mobile */
-        .animate-pop { animation: pop-in 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        .animate-out-pop { animation: pop-out 0.2s ease-in forwards; }
-
-        @keyframes pop-in {
-            0% { transform: scale(0.9); opacity: 0; }
-            100% { transform: scale(1); opacity: 1; }
-        }
-        @keyframes pop-out {
-            0% { transform: scale(1); opacity: 1; }
-            100% { transform: scale(0.9); opacity: 0; }
-        }
-
-        /* --- 5. TRANSITIONS DE VUE (LE GLISSEMENT DES CARTES) --- */
-        ::view-transition-group(*) {
-            animation-duration: 0.5s;
-            animation-timing-function: cubic-bezier(0.2, 0, 0.1, 1);
-        }
-
-        /* Évite le flash blanc pendant la transition */
-        ::view-transition-old(root),
-        ::view-transition-new(root) {
-            animation: none;
-            mix-blend-mode: normal;
-        }
-
-        /* --- 6. HEADER ANIMÉ --- */
-        #app-shell > header {
-            background: linear-gradient(135deg, #1e3a8a, #2563eb, #4f46e5, #7c3aed, #2563eb);
-            background-size: 300% 300%;
-            animation: gradient-shift 8s ease infinite;
-        }
-        @keyframes gradient-shift {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-        }
-        .header-emoji {
-            display: inline-block;
-            animation: emoji-bounce 3s ease-in-out infinite;
-        }
-        @keyframes emoji-bounce {
-            0%, 100% { transform: translateY(0) rotate(0deg); }
-            30% { transform: translateY(-5px) rotate(-12deg); }
-            60% { transform: translateY(-2px) rotate(6deg); }
-        }
-        .header-title {
-            background: linear-gradient(90deg, #fff 0%, #bfdbfe 40%, #e0e7ff 60%, #fff 100%);
-            background-size: 200% auto;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            animation: shimmer 4s linear infinite;
-        }
-        .header-username {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.4rem;
-            background: rgba(255,255,255,0.15);
-            border: 1px solid rgba(255,255,255,0.25);
-            color: #fff;
-            font-size: 0.8rem;
-            font-weight: 700;
-            padding: 0.25rem 0.75rem 0.25rem 0.3rem;
-            border-radius: 9999px;
-        }
-        .header-username-avatar {
-            width: 1.4rem;
-            height: 1.4rem;
-            background: rgba(255,255,255,0.25);
-            border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.65rem;
-            font-weight: 900;
-            color: #fff;
-            flex-shrink: 0;
-        }
-        @keyframes shimmer {
-            0% { background-position: 200% center; }
-            100% { background-position: -200% center; }
-        }
-
-        /* --- MENU NAVIGATION --- */
-        .nav-btn {
-            color: rgba(255,255,255,0.8);
-            font-size: 0.8rem;
-            font-weight: 700;
-            padding: 0.4rem 0.9rem;
-            border-radius: 9999px;
-            border: 1px solid rgba(255,255,255,0.25);
-            background: rgba(255,255,255,0.1);
-            cursor: pointer;
-            transition: background 0.2s, color 0.2s;
-        }
-        .nav-btn:hover { background: rgba(255,255,255,0.2); color: #fff; }
-        .nav-btn-admin {
-            color: #fde68a;
-            font-size: 0.8rem;
-            font-weight: 800;
-            padding: 0.4rem 0.9rem;
-            border-radius: 9999px;
-            border: 1px solid rgba(253,230,138,0.4);
-            background: rgba(253,230,138,0.1);
-            cursor: pointer;
-            text-decoration: none;
-            transition: background 0.2s;
-        }
-        .nav-btn-admin:hover { background: rgba(253,230,138,0.2); }
-        .nav-btn-superadmin {
-            color: #e9d5ff;
-            font-size: 0.8rem;
-            font-weight: 800;
-            padding: 0.4rem 0.9rem;
-            border-radius: 9999px;
-            border: 1px solid rgba(233,213,255,0.4);
-            background: rgba(192,132,252,0.15);
-            cursor: pointer;
-            text-decoration: none;
-            transition: background 0.2s;
-        }
-        .nav-btn-superadmin:hover { background: rgba(192,132,252,0.3); }
-        .nav-btn-owner {
-            color: #a7f3d0;
-            font-size: 0.8rem;
-            font-weight: 800;
-            padding: 0.4rem 0.9rem;
-            border-radius: 9999px;
-            border: 1px solid rgba(167,243,208,0.4);
-            background: rgba(16,185,129,0.15);
-            cursor: pointer;
-            text-decoration: none;
-            transition: background 0.2s;
-        }
-        .nav-btn-owner:hover { background: rgba(16,185,129,0.3); }
-        .lang-toggle {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.25rem;
-            margin-left: 0.5rem;
-            color: rgba(255,255,255,0.6);
-            font-size: 0.75rem;
-            font-weight: 700;
-        }
-        .lang-toggle button {
-            color: rgba(255,255,255,0.6);
-            cursor: pointer;
-            padding: 0.2rem 0.3rem;
-            background: transparent;
-            border: none;
-            font-weight: 700;
-            font-size: 0.75rem;
-        }
-        .lang-toggle button.active {
-            color: #fff;
-            text-decoration: underline;
-        }
-        .lang-toggle .lang-sep { color: rgba(255,255,255,0.3); }
-        [data-lang-toggle].active { color: #2563eb; text-decoration: underline; }
-        #mobile-menu {
-            transform-origin: top right;
-            transition: opacity 0.15s ease, transform 0.15s ease;
-        }
-        #mobile-menu.hidden { opacity: 0; pointer-events: none; transform: scale(0.95); }
-        #mobile-menu.open { opacity: 1; pointer-events: auto; transform: scale(1); }
-
-        /* Reset uniforme pour tous les éléments cliquables du menu mobile (a + button) */
-        #mobile-menu > a,
-        #mobile-menu > button {
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            font-weight: 700;
-            display: block;
-            width: 100%;
-            text-align: left;
-            text-decoration: none;
-            border-radius: 0.75rem;
-            padding: 0.75rem 1rem;
-            font-size: 0.875rem;
-            line-height: 1.25;
-        }
-        #mobile-menu > .hidden { display: none; }
-        .header-username { cursor: pointer; }
-        /* Couleur du texte — accessible en mode clair */
-        #mobile-menu .nav-btn-admin       { color: #b45309; }  /* yellow-700 */
-        #mobile-menu .nav-btn-superadmin  { color: #7e22ce; }  /* purple-700 */
-        #mobile-menu .nav-btn-owner       { color: #047857; }  /* emerald-700 */
-
-        /* Mode sombre : couleurs claires pour rester accessibles */
-        @media (prefers-color-scheme: dark) {
-            #mobile-menu .nav-btn-admin       { color: #fde047; }  /* yellow-300 */
-            #mobile-menu .nav-btn-superadmin  { color: #d8b4fe; }  /* purple-300 */
-            #mobile-menu .nav-btn-owner       { color: #6ee7b7; }  /* emerald-300 */
-        }
-
-        /* Hover : fond translucide qui marche dans les deux modes */
-        #mobile-menu .nav-btn-admin:hover { background: rgba(202, 138, 4, 0.15); }
-        #mobile-menu .nav-btn-superadmin:hover { background: rgba(147, 51, 234, 0.15); }
-        #mobile-menu .nav-btn-owner:hover { background: rgba(5, 150, 105, 0.15); }
-
-        /* --- 7. TOASTS & NOTIFICATIONS --- */
-        #undo-toast {
-            animation: slideInUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-        @keyframes slideInUp {
-            from { transform: translate(-50%, 100%); opacity: 0; }
-            to { transform: translate(-50%, 0); opacity: 1; }
-        }
-
-        /* Utile pour les items de la roue */
-        .wheel-item {
-            transition: transform 0.2s ease-out;
-        }
-        .wheel-item:active {
-            transform: scale(0.9);
-        }
-    </style>
 </head>
 <body class="bg-gray-100 min-h-screen p-2 sm:p-4 lg:p-8">
     <div id="landing" class="min-h-screen bg-gray-100">
@@ -483,7 +213,7 @@
 
 
     <div id="app-shell" class="hidden">
-    <header class="relative flex justify-between items-center mb-2 lg:mb-8 rounded-xl shadow-lg p-3 lg:p-4">
+    <header class="gradient-banner relative flex justify-between items-center mb-2 lg:mb-8 rounded-xl shadow-lg p-3 lg:p-4">
         <div class="text-md lg:text-2xl font-black flex items-center gap-2">
             <span class="header-emoji" aria-hidden="true">🎯</span>
             <span class="header-title" data-i18n="app.title">Donne Ton Point</span>

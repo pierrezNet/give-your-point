@@ -27,7 +27,7 @@ describe('fichiers statiques', () => {
   });
 
   it('relaient les redirections de Cloudflare (en-têtes immuables) sans erreur', async () => {
-    const response = await getAsset('/about.html');
+    const response = await getAsset('/admin.html');
     expect(response.status).toBe(308);
     expect(response.headers.get('Location')).toBe('https://donnetonpoint.test/about');
     expect(response.headers.get('X-Frame-Options')).toBe('DENY');

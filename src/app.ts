@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { AppEnv } from './env';
 import { canonicalHost, handleError, securityHeaders } from './middleware/security';
+import { searchIndexing } from './middleware/indexing';
 import { accountRoutes } from './routes/account';
 import { pointRoutes } from './routes/points';
 import { statsRoutes } from './routes/stats';
@@ -15,6 +16,7 @@ export type { Bindings } from './env';
 
 const app = new Hono<AppEnv>()
   .use('*', securityHeaders)
+  .use('*', searchIndexing)
   .use('*', canonicalHost)
   .onError(handleError)
   .route('/', publicRoutes)

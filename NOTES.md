@@ -204,3 +204,24 @@ traduisent le résultat en réponse HTTP. C'est ce qui les rend testables sans b
   l'app est temps réel, un cache servirait du contenu périmé (cf. l'incident de cache du 2026-10-17).
 - `generate-vapid.mjs` : `node generate-vapid.mjs` (Node ≥ 18) génère la paire VAPID des
   notifications push.
+
+## SEO (`src/seo/`, `src/routes/pages.ts`)
+
+- Langue dans l'URL (`/en/…`) plutôt que selon `Accept-Language` : les robots n'envoient
+  généralement pas cet en-tête et ne voyaient donc que le français. Côté client, l'ordre est
+  chemin `/en/` > choix enregistré > langue du navigateur ; le sélecteur FR/EN d'une page publique
+  navigue vers l'URL de l'autre langue (`localizedPathFor`).
+- La traduction serveur réutilise le dictionnaire du frontend (`public/js/core/translations.js`,
+  importé par le Worker grâce à `allowJs`) : une seule source de vérité pour les textes.
+- `setInnerContent` d'`HTMLRewriter` échappe le texte ; seules les clés `data-i18n-html` (texte du
+  dictionnaire, réputé sûr) sont insérées en HTML.
+- JSON-LD : bloc `<script type="application/ld+json">` injecté par le serveur. La CSP ne s'applique
+  pas aux blocs de données non exécutables. `serializeJsonLd` échappe `<` pour qu'aucun texte ne
+  puisse refermer la balise.
+- Domaines secondaires : pas de 301 serveur, car la session est stockée par origine
+  (`localStorage`) — une redirection HTTP déconnecterait les utilisateurs. Le serveur pose
+  `X-Robots-Tag: noindex` (les moteurs suivent le `canonical`) et le navigateur migre en transmettant
+  le jeton dans le fragment.
+- CSP : `style-src 'self'` (tout le CSS est dans `input.css`) ; seuls les attributs `style` restent
+  permis (`style-src-attr 'unsafe-inline'`), pour les largeurs de barres, couleurs de heatmap et
+  `view-transition-name` calculées par les vues.

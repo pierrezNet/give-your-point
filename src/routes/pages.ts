@@ -1,32 +1,30 @@
 import { Hono } from 'hono';
 import type { AppContext, AppEnv } from '../env';
-import { fillOgPlaceholders, languageFromAcceptLanguage, ogDataFor, type OgPage } from '../og';
+import { renderPublicPage } from '../seo/rewrite';
+import type { Language, PublicPage } from '../seo/metadata';
 
 const ALWAYS_REVALIDATED_ASSET = /\.(js|css)$/;
-const DEFAULT_HTML_CACHE_CONTROL = 'public, max-age=0, must-revalidate';
+const PAGE_ASSETS: Record<PublicPage, string> = { home: '/', about: '/about' };
 
-async function serveHtmlWithOg(c: AppContext, page: OgPage, assetPath?: string): Promise<Response> {
-  const request = assetPath
-    ? new Request(new URL(assetPath, c.req.url).toString(), { method: 'GET', headers: c.req.raw.headers })
-    : c.req.raw;
-  const asset = await c.env.ASSETS.fetch(request);
+async function fetchAsset(c: AppContext, path: string): Promise<Response> {
+  return c.env.ASSETS.fetch(new Request(new URL(path, c.req.url).toString(), { method: 'GET', headers: c.req.raw.headers }));
+}
+
+async function servePublicPage(c: AppContext, page: PublicPage, language: Language): Promise<Response> {
+  const asset = await fetchAsset(c, PAGE_ASSETS[page]);
   if (!(asset.headers.get('Content-Type') ?? '').toLowerCase().includes('text/html')) return asset;
-
-  const og = ogDataFor(page, languageFromAcceptLanguage(c.req.header('Accept-Language')));
-  return new Response(fillOgPlaceholders(await asset.text(), og, new URL(c.req.url).origin), {
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': asset.headers.get('Cache-Control') ?? DEFAULT_HTML_CACHE_CONTROL,
-    },
-  });
+  return renderPublicPage(asset, page, language);
 }
 
 export const pageRoutes = new Hono<AppEnv>();
 
-pageRoutes.get('/', (c) => serveHtmlWithOg(c, '/'));
-pageRoutes.get('/about', (c) => serveHtmlWithOg(c, '/about'));
-pageRoutes.get('/about.html', (c) => serveHtmlWithOg(c, '/about'));
-pageRoutes.get('/join/:code', (c) => serveHtmlWithOg(c, '/', '/'));
+pageRoutes.get('/', (c) => servePublicPage(c, 'home', 'fr'));
+pageRoutes.get('/about', (c) => servePublicPage(c, 'about', 'fr'));
+pageRoutes.get('/about.html', (c) => c.redirect('/about', 301));
+pageRoutes.get('/en', (c) => c.redirect('/en/', 301));
+pageRoutes.get('/en/', (c) => servePublicPage(c, 'home', 'en'));
+pageRoutes.get('/en/about', (c) => servePublicPage(c, 'about', 'en'));
+pageRoutes.get('/join/:code', (c) => fetchAsset(c, '/'));
 
 pageRoutes.get('/*', async (c) => {
   const asset = await c.env.ASSETS.fetch(c.req.raw);

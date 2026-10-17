@@ -4,32 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stats — Donne Ton Point</title>
+    <meta name="robots" content="noindex, nofollow">
     <link rel="stylesheet" href="/styles.css?v=20261017">
-    <style>
-        header {
-            background: linear-gradient(135deg, #1e3a8a, #2563eb, #4f46e5, #7c3aed, #2563eb);
-            background-size: 300% 300%;
-            animation: gradient-shift 8s ease infinite;
-        }
-        @keyframes gradient-shift {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-        }
-        .bar-fill { transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
-        .week-bar { transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
-        .podium-bar { transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
-        .heatmap-cell {
-            transition: transform 0.15s;
-        }
-        .heatmap-cell:hover { transform: scale(1.15); z-index: 10; position: relative; }
-        .award-card { transition: transform 0.15s; }
-        .award-card:hover { transform: translateY(-2px); }
-    </style>
     <script type="module" src="/js/pages/stats.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen p-2 sm:p-4 lg:p-8">
 
-    <header class="relative flex justify-between items-center mb-6 rounded-xl shadow-lg p-3 lg:p-4">
+    <header class="gradient-banner relative flex justify-between items-center mb-6 rounded-xl shadow-lg p-3 lg:p-4">
         <h1 class="text-xl lg:text-2xl font-black text-white flex items-center gap-2">
             <span data-i18n="stats.title">Statistiques</span>
         </h1>

@@ -5,15 +5,28 @@ import { authFetch, getSessionToken } from './session.js';
 const LANGUAGE_KEY = 'lang';
 const DEFAULT_LANGUAGE = 'fr';
 
-export function getLang() {
-  if (typeof localStorage === 'undefined') return DEFAULT_LANGUAGE;
+const ENGLISH_PATH = /^\/en(\/|$)/;
+const LOCALIZED_PAGES = { '/': '/en/', '/about': '/en/about' };
+
+const languageFromPath = () => (ENGLISH_PATH.test(globalThis.location?.pathname ?? '') ? 'en' : null);
+
+function storedLanguage() {
   try {
-    const stored = localStorage.getItem(LANGUAGE_KEY);
-    if (stored && translations[stored]) return stored;
+    const stored = globalThis.localStorage?.getItem(LANGUAGE_KEY);
+    return stored && translations[stored] ? stored : null;
   } catch {
-    return DEFAULT_LANGUAGE;
+    return null;
   }
-  return (globalThis.navigator?.language || DEFAULT_LANGUAGE).toLowerCase().startsWith('en') ? 'en' : DEFAULT_LANGUAGE;
+}
+
+const browserLanguage = () => ((globalThis.navigator?.language || DEFAULT_LANGUAGE).toLowerCase().startsWith('en') ? 'en' : DEFAULT_LANGUAGE);
+
+export const getLang = () => languageFromPath() ?? storedLanguage() ?? browserLanguage();
+
+export function localizedPathFor(language, pathname) {
+  const frenchPath = Object.entries(LOCALIZED_PAGES).find(([, english]) => english === pathname)?.[0] ?? pathname;
+  if (!(frenchPath in LOCALIZED_PAGES)) return null;
+  return language === 'en' ? LOCALIZED_PAGES[frenchPath] : frenchPath;
 }
 
 const lookup = (key) => translations[getLang()]?.[key] ?? translations[DEFAULT_LANGUAGE][key] ?? key;
@@ -51,7 +64,9 @@ export async function setLang(language) {
       body: JSON.stringify({ locale: language }),
     }).catch(() => null);
   }
-  location.reload();
+  const localizedPath = localizedPathFor(language, location.pathname);
+  if (localizedPath && localizedPath !== location.pathname) location.assign(`${localizedPath}${location.search}${location.hash}`);
+  else location.reload();
 }
 
 export function bindLanguageToggles() {

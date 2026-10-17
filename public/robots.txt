@@ -1,6 +1,7 @@
 User-agent: *
 Allow: /$
 Allow: /about
+Allow: /en/
 Disallow: /admin
 Disallow: /superadmin
 Disallow: /owner

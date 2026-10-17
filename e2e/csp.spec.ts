@@ -4,6 +4,8 @@ import { TOKENS, collectPageErrors, openAs } from './helpers';
 const PAGES: { path: string; token?: string; ready: string }[] = [
   { path: '/', ready: '#onboarding-form' },
   { path: '/about', ready: 'h1' },
+  { path: '/en/', ready: '#onboarding-form' },
+  { path: '/en/about', ready: 'h1' },
   { path: '/join/e2e-dev', ready: '#join-form' },
   { path: '/', token: TOKENS.alice, ready: '.user-card' },
   { path: '/stats', token: TOKENS.alice, ready: '#stats-content section' },

@@ -1,32 +1,34 @@
-<!-- version 1779476985 -->
 <!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{OG_TITLE}}</title>
-    <meta name="description" content="{{OG_DESC}}">
+    <title>À propos — Donne Ton Point</title>
+    <meta name="description" content="Présentation, cloisonnement des sociétés et des équipes, rôles, politique RGPD et contact.">
     <link rel="canonical" href="https://donnetonpoint.fr/about">
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#2563eb">
     <link rel="icon" href="/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/icon-192.png">
-    <!-- Open Graph -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="{{OG_TITLE}}">
-    <meta property="og:description" content="{{OG_DESC}}">
-    <meta property="og:image" content="{{OG_URL}}/og.svg">
-    <meta property="og:url" content="{{OG_URL}}/about">
-    <meta property="og:locale" content="{{OG_LOCALE}}">
+    <meta property="og:site_name" content="Donne Ton Point">
+    <meta property="og:title" content="À propos — Donne Ton Point">
+    <meta property="og:description" content="Présentation, cloisonnement des sociétés et des équipes, rôles, politique RGPD et contact.">
+    <meta property="og:url" content="https://donnetonpoint.fr/about">
+    <meta property="og:locale" content="fr_FR">
+    <meta property="og:image" content="https://donnetonpoint.fr/og-fr.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:image:alt" content="Donne Ton Point : classement d’équipe avec badges et gage déclenché">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="{{OG_TITLE}}">
-    <meta name="twitter:description" content="{{OG_DESC}}">
-    <meta name="twitter:image" content="{{OG_URL}}/og.svg">
+    <meta name="twitter:title" content="À propos — Donne Ton Point">
+    <meta name="twitter:description" content="Présentation, cloisonnement des sociétés et des équipes, rôles, politique RGPD et contact.">
+    <meta name="twitter:image" content="https://donnetonpoint.fr/og-fr.png">
+    <meta name="twitter:image:alt" content="Donne Ton Point : classement d’équipe avec badges et gage déclenché">
     <link rel="stylesheet" href="/styles.css?v=20261017">
     <script type="module" src="/js/pages/about.js"></script>
 </head>
 <body class="bg-gray-100">
-    <!-- Header sticky cohérent avec landing -->
     <header class="sticky top-0 z-40 bg-white/85 backdrop-blur border-b border-slate-200">
         <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
             <a href="/" class="flex items-center gap-2 text-slate-800 no-underline">
@@ -50,7 +52,6 @@
             <a href="#cloisonnement" class="inline-block mt-4 bg-emerald-100 text-emerald-900 font-bold text-sm px-4 py-2 rounded-full hover:bg-emerald-200" data-i18n="about.isolation_badge">🔒 Chaque société est un espace étanche</a>
         </div>
 
-        <!-- Principe -->
         <section>
             <h2 class="text-2xl font-black text-slate-800 mb-4" data-i18n="about.principle_title">Le principe</h2>
             <div class="space-y-3 text-slate-700">
@@ -90,7 +91,6 @@
             <p class="text-xs text-slate-500 mt-3 italic" data-i18n="about.isolation_tested">Ces règles sont vérifiées par des tests automatisés à chaque mise à jour de l'application.</p>
         </section>
 
-        <!-- Rôles -->
         <section>
             <h2 class="text-2xl font-black text-slate-800 mb-4" data-i18n="about.roles_title">Les rôles</h2>
             <p class="text-slate-700 mb-6" data-i18n="about.roles_intro">Quatre niveaux, chacun hérite des droits du niveau inférieur :</p>
@@ -114,26 +114,20 @@
             </div>
         </section>
 
-        <!-- Aperçu console admin (mockup SVG) -->
         <section>
             <h2 class="text-2xl font-black text-slate-800 mb-4" data-i18n="about.admin_preview_title">Aperçu de la console admin</h2>
             <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex justify-center">
                 <svg viewBox="0 0 500 320" xmlns="http://www.w3.org/2000/svg" class="w-full max-w-md" role="img" aria-labelledby="adminPreviewTitle">
                     <title id="adminPreviewTitle">Aperçu console admin</title>
-                    <!-- Conteneur -->
                     <rect x="2" y="2" width="496" height="316" rx="14" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
-                    <!-- Header -->
                     <rect x="2" y="2" width="496" height="42" rx="14" fill="#1e293b"/>
                     <text x="20" y="29" font-family="system-ui" font-size="14" font-weight="800" fill="#ffffff">🛠️ Console Admin</text>
                     <text x="430" y="29" font-family="system-ui" font-size="11" font-weight="700" fill="#94a3b8">BEPN</text>
-                    <!-- Section titre -->
                     <text x="20" y="68" font-family="system-ui" font-size="13" font-weight="800" fill="#0f172a">Membres de l'équipe</text>
-                    <!-- Tableau header -->
                     <rect x="20" y="80" width="460" height="26" rx="6" fill="#e2e8f0"/>
                     <text x="32" y="97" font-family="system-ui" font-size="10" font-weight="800" fill="#475569">NOM</text>
                     <text x="200" y="97" font-family="system-ui" font-size="10" font-weight="800" fill="#475569">LIEN MAGIQUE</text>
                     <text x="430" y="97" font-family="system-ui" font-size="10" font-weight="800" fill="#475569">ACTIONS</text>
-                    <!-- Lignes -->
                     <g font-family="system-ui" font-size="11">
                         <rect x="20" y="112" width="460" height="22" fill="#ffffff" stroke="#e2e8f0"/>
                         <text x="32" y="127" font-weight="700" fill="#0f172a">Alice</text>
@@ -154,7 +148,6 @@
                         <text x="412" y="171" font-weight="800" fill="#2563eb">Lien</text>
                         <text x="446" y="171" font-weight="800" fill="#dc2626">×</text>
                     </g>
-                    <!-- Section badges -->
                     <text x="20" y="208" font-family="system-ui" font-size="13" font-weight="800" fill="#0f172a">Badges</text>
                     <g>
                         <rect x="20" y="222" width="88" height="60" rx="10" fill="#ffffff" stroke="#e2e8f0"/>
@@ -181,7 +174,6 @@
             <p class="text-xs text-slate-500 text-center mt-3 italic" data-i18n="about.admin_preview_caption"></p>
         </section>
 
-        <!-- RGPD -->
         <section>
             <h2 class="text-2xl font-black text-slate-800 mb-6" data-i18n="about.privacy_title">Données personnelles & RGPD</h2>
             <div class="space-y-4">
@@ -212,7 +204,6 @@
             </div>
         </section>
 
-        <!-- Contact -->
         <section class="bg-blue-50 rounded-2xl p-6 border border-blue-100">
             <h2 class="text-2xl font-black text-slate-800 mb-2" data-i18n="about.contact_title">Contact</h2>
             <p class="text-slate-700" data-i18n="about.contact_desc">Pour toute question, demande RGPD ou signalement :</p>

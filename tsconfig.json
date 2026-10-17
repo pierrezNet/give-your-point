@@ -6,6 +6,8 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
+    "allowJs": true,
+    "checkJs": false,
     "lib": ["ESNext"],
     "types": ["@cloudflare/workers-types", "@cloudflare/vitest-plugin/types"]
   },
