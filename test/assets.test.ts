@@ -4,7 +4,9 @@ import { env } from 'cloudflare:workers';
 import app from '../src/app';
 
 const assets = {
-  fetch: async () => new Response('contenu', { headers: { 'Cache-Control': 'public, max-age=14400' } }),
+  fetch: async (request: Request) => new URL(request.url).pathname.endsWith('.html')
+    ? Response.redirect(new URL('/about', request.url).toString(), 308)
+    : new Response('contenu', { headers: { 'Cache-Control': 'public, max-age=14400' } }),
 };
 
 const getAsset = (path: string) =>
@@ -22,5 +24,12 @@ describe('fichiers statiques', () => {
 
   it('reçoivent les en-têtes de sécurité', async () => {
     expect((await getAsset('/app.js')).headers.get('X-Content-Type-Options')).toBe('nosniff');
+  });
+
+  it('relaient les redirections de Cloudflare (en-têtes immuables) sans erreur', async () => {
+    const response = await getAsset('/about.html');
+    expect(response.status).toBe(308);
+    expect(response.headers.get('Location')).toBe('https://donnetonpoint.test/about');
+    expect(response.headers.get('X-Frame-Options')).toBe('DENY');
   });
 });

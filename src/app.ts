@@ -151,7 +151,9 @@ const SECURITY_HEADERS: Record<string, string> = {
 
 app.use('*', async (c, next) => {
   await next();
-  for (const [name, value] of Object.entries(SECURITY_HEADERS)) c.res.headers.set(name, value);
+  const response = new Response(c.res.body, c.res);
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) response.headers.set(name, value);
+  c.res = response;
 });
 
 app.onError((err, c) => {
@@ -1702,10 +1704,11 @@ app.get('/join/:code', (c) => serveHtmlWithOg(c, '/', '/'));
 const ALWAYS_REVALIDATED_ASSET = /\.(js|css)$/;
 
 app.get('/*', async (c) => {
-  const asset = await c.env.ASSETS.fetch(c.req.raw);
-  const response = new Response(asset.body, asset);
-  if (ALWAYS_REVALIDATED_ASSET.test(c.req.path)) response.headers.set('Cache-Control', 'no-cache');
-  return response;
+  const response = await c.env.ASSETS.fetch(c.req.raw);
+  if (!ALWAYS_REVALIDATED_ASSET.test(c.req.path)) return response;
+  const revalidated = new Response(response.body, response);
+  revalidated.headers.set('Cache-Control', 'no-cache');
+  return revalidated;
 });
 
 export default app;

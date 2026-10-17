@@ -829,6 +829,8 @@ async function renderLanding() {
                         <span class="font-black text-slate-800">${t('app.title')}</span>
                     </div>
                     <div class="flex items-center gap-3 text-xs font-bold text-slate-500">
+                        <a href="/about" class="px-1 hover:text-slate-800" data-i18n="nav.about">${t('nav.about')}</a>
+                        <span class="text-slate-300">|</span>
                         <button data-lang-toggle="fr" onclick="setLang('fr')" class="px-1">FR</button>
                         <span class="text-slate-300">|</span>
                         <button data-lang-toggle="en" onclick="setLang('en')" class="px-1">EN</button>
@@ -940,6 +942,7 @@ async function renderLanding() {
             </section>
 
             <footer class="max-w-5xl mx-auto px-4 py-8 text-center text-xs text-slate-400 border-t border-slate-200">
+                <a href="/about" class="block mb-2 font-bold text-slate-500 hover:text-slate-800 underline">${t('landing.about_link')}</a>
                 Made with ❤️ — ${t('app.title')}
             </footer>
         </div>`;
