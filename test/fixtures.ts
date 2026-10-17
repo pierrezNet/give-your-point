@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { createExecutionContext } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import app from '../src/app';
@@ -10,7 +11,7 @@ export const TEAM_GLOBEX = 'team-globex';
 export const CATEGORY_HELP = 'category-help';
 export const CATEGORY_GLOBEX = 'category-globex';
 
-interface FixtureUser {
+export interface FixtureUser {
   id: string;
   token: string;
   teamId: string;
@@ -66,10 +67,11 @@ interface ApiOptions {
   as?: FixtureUser;
   method?: string;
   body?: unknown;
+  headers?: Record<string, string>;
 }
 
-export async function api(path: string, { as, method = 'GET', body }: ApiOptions = {}): Promise<Response> {
-  const headers: Record<string, string> = {};
+export async function api(path: string, { as, method = 'GET', body, headers: extraHeaders = {} }: ApiOptions = {}): Promise<Response> {
+  const headers: Record<string, string> = { ...extraHeaders };
   if (as) headers.Authorization = `Bearer ${as.token}`;
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   return app.request(
@@ -78,4 +80,24 @@ export async function api(path: string, { as, method = 'GET', body }: ApiOptions
     env,
     createExecutionContext(),
   );
+}
+
+export async function findUser(id: string) {
+  return env.DB.prepare('SELECT id, token, role, active FROM users WHERE id = ?')
+    .bind(id).first<{ id: string; token: string; role: string; active: number }>();
+}
+
+export async function findUserByName(name: string) {
+  return env.DB.prepare('SELECT id, token, role, active FROM users WHERE name = ?')
+    .bind(name).first<{ id: string; token: string; role: string; active: number }>();
+}
+
+export function acceptTurnstile() {
+  return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+    if (url.includes('challenges.cloudflare.com/turnstile')) {
+      return Response.json({ success: true, hostname: 'donnetonpoint.test' });
+    }
+    return new Response(null, { status: 204 });
+  });
 }

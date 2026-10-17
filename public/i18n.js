@@ -921,12 +921,11 @@ async function setLang(lang) {
   if (!translations[lang]) return;
   localStorage.setItem('lang', lang);
   // Synchroniser côté serveur si connecté
-  const myId = localStorage.getItem('my_user_id');
-  if (myId) {
+  if (typeof getSessionToken === 'function' && getSessionToken()) {
     try {
-      await fetch('/api/me', {
+      await authFetch('/api/me', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${myId}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ locale: lang }),
       });
     } catch {}

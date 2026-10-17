@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stats — Donne Ton Point</title>
     <link rel="stylesheet" href="/styles.css">
+    <script src="session.js"></script>
     <script src="i18n.js"></script>
     <style>
         header {
@@ -48,12 +49,6 @@
     <script>
         let currentPeriod = '30';
 
-        function esc(s) {
-            return String(s ?? '').replace(/[&<>"']/g, m => (
-                { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]
-            ));
-        }
-
         // Date SQLite (UTC) → « 24 juil. »
         function fmtDate(s) {
             try {
@@ -64,12 +59,11 @@
 
         async function loadStats(period) {
             if (period) currentPeriod = period;
-            const myId = localStorage.getItem('my_user_id');
-            if (!myId) {
+            if (!getSessionToken()) {
                 document.getElementById('stats-content').innerHTML = `<p class="text-center text-slate-500">${t('stats.connect_first')}</p>`;
                 return;
             }
-            const res = await fetch('/api/stats?period=' + currentPeriod, { headers: { 'Authorization': `Bearer ${myId}` }, cache: 'no-store' });
+            const res = await authFetch('/api/stats?period=' + currentPeriod, { cache: 'no-store' });
             if (!res.ok) { document.getElementById('stats-content').innerHTML = `<p class="text-center text-red-500">${t('stats.error')}</p>`; return; }
             const data = await res.json();
             currentPeriod = data.period || currentPeriod;
@@ -143,7 +137,7 @@
                         return `
                             <div class="flex flex-col items-center gap-1 flex-1 min-w-0">
                                 <span class="text-2xl">${medals[i]}</span>
-                                <span class="text-xs font-bold text-slate-700 truncate w-full text-center">${esc(x.name)}</span>
+                                <span class="text-xs font-bold text-slate-700 truncate w-full text-center">${escapeHtml(x.name)}</span>
                                 <div class="podium-bar w-full ${color} rounded-t-lg ${heights[i]} flex items-start justify-center pt-1">
                                     <span class="text-white font-black text-sm">${x.total}</span>
                                 </div>
@@ -153,7 +147,7 @@
             const restHtml = rest.map((x, idx) => `
                 <div class="flex items-center gap-3">
                     <span class="text-xs font-black text-slate-400 w-5">#${idx + 4}</span>
-                    <span class="text-sm font-bold text-slate-700 flex-1 truncate">${esc(x.name)}</span>
+                    <span class="text-sm font-bold text-slate-700 flex-1 truncate">${escapeHtml(x.name)}</span>
                     <span class="text-sm font-black text-slate-500">${x.total}</span>
                 </div>`).join('');
             return podiumHtml + (rest.length ? `<div class="space-y-2 pt-3 mt-2 border-t border-slate-100">${restHtml}</div>` : '');
@@ -200,12 +194,12 @@
             });
 
             const awards = [];
-            if (G[0]) awards.push(awardCard('🎁', t('stats.award_santa_t'), esc(G[0].name), t('stats.award_santa_d'), `${G[0].total} ${t('stats.u_given')}`));
-            if (R[0]) awards.push(awardCard('⭐', t('stats.award_star_t'), esc(R[0].name), t('stats.award_star_d'), `${R[0].total} ${t('stats.u_received')}`));
-            if (obsessed) awards.push(awardCard('👀', t('stats.award_obsessed_t'), esc(obsessed.from_name) + ' → ' + esc(obsessed.to_name), t('stats.award_obsessed_d'), `${obsessed.total}×`));
-            if (GA[0]) awards.push(awardCard('🥐', t('stats.award_gageking_t'), esc(GA[0].name), t('stats.award_gageking_d'), `${GA[0].total} ${t('stats.u_gages_n')}`));
-            if (duo) awards.push(awardCard('🤝', t('stats.award_duo_t'), esc(duo.a) + ' ↔ ' + esc(duo.b), t('stats.award_duo_d'), `${duo.score}`));
-            if (ingrate) awards.push(awardCard('🐀', t('stats.award_ingrate_t'), esc(ingrate.name), t('stats.award_ingrate_d'), `+${ingrate.score}`));
+            if (G[0]) awards.push(awardCard('🎁', t('stats.award_santa_t'), escapeHtml(G[0].name), t('stats.award_santa_d'), `${G[0].total} ${t('stats.u_given')}`));
+            if (R[0]) awards.push(awardCard('⭐', t('stats.award_star_t'), escapeHtml(R[0].name), t('stats.award_star_d'), `${R[0].total} ${t('stats.u_received')}`));
+            if (obsessed) awards.push(awardCard('👀', t('stats.award_obsessed_t'), escapeHtml(obsessed.from_name) + ' → ' + escapeHtml(obsessed.to_name), t('stats.award_obsessed_d'), `${obsessed.total}×`));
+            if (GA[0]) awards.push(awardCard('🥐', t('stats.award_gageking_t'), escapeHtml(GA[0].name), t('stats.award_gageking_d'), `${GA[0].total} ${t('stats.u_gages_n')}`));
+            if (duo) awards.push(awardCard('🤝', t('stats.award_duo_t'), escapeHtml(duo.a) + ' ↔ ' + escapeHtml(duo.b), t('stats.award_duo_d'), `${duo.score}`));
+            if (ingrate) awards.push(awardCard('🐀', t('stats.award_ingrate_t'), escapeHtml(ingrate.name), t('stats.award_ingrate_d'), `+${ingrate.score}`));
 
             // ---- Heatmap : noms uniques ----
             const names = [...new Set([...M.map(m => m.from_name), ...M.map(m => m.to_name)])].sort();
@@ -253,12 +247,12 @@
                     <div class="space-y-2">
                         ${data.gageLog.map(g => `
                             <div class="flex items-center gap-3 py-1">
-                                <span class="text-lg w-7 text-center shrink-0">${g.emoji || '🥐'}</span>
+                                <span class="text-lg w-7 text-center shrink-0">${escapeHtml(g.emoji || '🥐')}</span>
                                 <div class="min-w-0 flex-1">
-                                    <span class="text-sm font-bold text-slate-700">${esc(g.name)}</span>
-                                    <span class="text-sm text-slate-500"> — ${esc(g.dare_text)}</span>
+                                    <span class="text-sm font-bold text-slate-700">${escapeHtml(g.name)}</span>
+                                    <span class="text-sm text-slate-500"> — ${escapeHtml(g.dare_text)}</span>
                                 </div>
-                                <span class="text-[11px] text-slate-400 whitespace-nowrap shrink-0">${esc(g.category)} · ${fmtDate(g.cleared_at)}</span>
+                                <span class="text-[11px] text-slate-400 whitespace-nowrap shrink-0">${escapeHtml(g.category)} · ${fmtDate(g.cleared_at)}</span>
                             </div>`).join('')}
                     </div>
                 </div>` : ''}
@@ -271,8 +265,8 @@
                     <div class="space-y-3">
                         ${data.categories.map(c => `
                             <div class="flex items-center gap-3">
-                                <span class="text-lg w-7 text-center">${c.emoji || ''}</span>
-                                <span class="text-sm font-bold text-slate-700 w-32 truncate">${esc(c.name)}</span>
+                                <span class="text-lg w-7 text-center">${escapeHtml(c.emoji || '')}</span>
+                                <span class="text-sm font-bold text-slate-700 w-32 truncate">${escapeHtml(c.name)}</span>
                                 ${bar(c.total, maxCat, 'bg-purple-400')}
                                 <span class="text-sm font-black text-purple-600 w-8 text-right">${c.total}</span>
                             </div>`).join('')}
@@ -312,13 +306,13 @@
                         <thead>
                             <tr>
                                 <th class="p-1 w-20"></th>
-                                ${names.map(n => `<th class="p-1 text-center font-bold text-slate-500 max-w-12"><div class="rotate-[-45deg] origin-left translate-x-3 whitespace-nowrap">${esc(n.split(' ')[0])}</div></th>`).join('')}
+                                ${names.map(n => `<th class="p-1 text-center font-bold text-slate-500 max-w-12"><div class="rotate-[-45deg] origin-left translate-x-3 whitespace-nowrap">${escapeHtml(n.split(' ')[0])}</div></th>`).join('')}
                             </tr>
                         </thead>
                         <tbody>
                             ${names.map(from => `
                                 <tr>
-                                    <td class="p-1 font-bold text-slate-600 pr-3 whitespace-nowrap">${esc(from.split(' ')[0])}</td>
+                                    <td class="p-1 font-bold text-slate-600 pr-3 whitespace-nowrap">${escapeHtml(from.split(' ')[0])}</td>
                                     ${names.map(to => {
                                         const val = from === to ? null : (matrixMap[`${from}|${to}`] || 0);
                                         if (val === null) return `<td class="p-1"><div class="w-8 h-8 rounded bg-slate-100 flex items-center justify-center text-slate-300">—</div></td>`;
@@ -327,7 +321,7 @@
                                         return `<td class="p-1">
                                             <div class="heatmap-cell w-8 h-8 rounded flex items-center justify-center font-black ${textColor} cursor-default"
                                                  style="background:rgba(244,63,94,${alpha})"
-                                                 title="${esc(from)} → ${esc(to)} : ${val} ${t('stats.u_points_n')}">
+                                                 title="${escapeHtml(from)} → ${escapeHtml(to)} : ${val} ${t('stats.u_points_n')}">
                                                 ${val > 0 ? val : ''}
                                             </div>
                                         </td>`;

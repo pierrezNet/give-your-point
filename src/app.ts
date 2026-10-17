@@ -1,4 +1,5 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
+import { createMiddleware } from 'hono/factory'
 import { streamSSE } from 'hono/streaming'
 
 export type Bindings = {
@@ -56,16 +57,14 @@ function generateInviteCode(): string {
   return crypto.randomUUID().replace(/-/g, '').slice(0, 16);
 }
 
-// Base canonique pour les liens des e-mails / invitations (indépendante du domaine d'accès).
-// Prod : fallback donnetonpoint.fr. En local, poser APP_BASE_URL=http://localhost:8788 dans .dev.vars.
-function appBaseUrl(c: any): string {
-  // 1. APP_BASE_URL explicite (prod / config) prime toujours.
-  if (c.env.APP_BASE_URL) return c.env.APP_BASE_URL as string;
-  // 2. En dev local (host localhost/127.0.0.1), on renvoie l'origine réelle → liens testables en local.
+const CANONICAL_BASE_URL = 'https://donnetonpoint.fr';
+const LOCAL_HOST_PATTERN = /^(localhost|127\.0\.0\.1)(:\d+)?$/;
+
+function appBaseUrl(c: AppContext): string {
+  if (c.env.APP_BASE_URL) return c.env.APP_BASE_URL;
   const host = c.req.header('Host') || '';
-  if (host.startsWith('localhost') || host.startsWith('127.0.0.1')) return `http://${host}`;
-  // 3. Défaut : domaine canonique de prod.
-  return 'https://donnetonpoint.fr';
+  if (LOCAL_HOST_PATTERN.test(host)) return `http://${host}`;
+  return CANONICAL_BASE_URL;
 }
 
 async function sendEmail(env: Bindings, to: string, subject: string, html: string): Promise<void> {
@@ -86,6 +85,34 @@ async function sendEmail(env: Bindings, to: string, subject: string, html: strin
   } catch (e) {
     console.error('Email error:', e);
   }
+}
+
+export function buildInviteEmail(o: { isEn: boolean; inviterName: string; teamName: string; joinUrl: string }): { subject: string; html: string } {
+  const inviter = escapeHtml(o.inviterName);
+  const team = escapeHtml(o.teamName);
+  const joinUrl = escapeHtml(o.joinUrl);
+  const copy = o.isEn
+    ? { subject: `${o.inviterName} invites you to ${o.teamName} on Give Your Point`, title: "You're invited! 🎯",
+        body: `<b>${inviter}</b> invites you to join the team <b>${team}</b> on Give Your Point.`,
+        cta: 'Join the team', footer: "📭 This mailbox is not monitored — please don't reply." }
+    : { subject: `${o.inviterName} t'invite à rejoindre ${o.teamName} sur Donne Ton Point`, title: 'Tu es invité·e ! 🎯',
+        body: `<b>${inviter}</b> t'invite à rejoindre l'équipe <b>${team}</b> sur Donne Ton Point.`,
+        cta: "Rejoindre l'équipe", footer: "📭 Cette boîte mail n'est pas surveillée — ne réponds pas à ce message." };
+  return {
+    subject: copy.subject,
+    html: `
+    <div style="font-family:sans-serif;max-width:480px;margin:auto">
+      <h2 style="color:#1e293b">${copy.title}</h2>
+      <p style="color:#334155;font-size:15px">${copy.body}</p>
+      <p style="margin-top:24px">
+        <a href="${joinUrl}"
+           style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">
+          ${copy.cta}
+        </a>
+      </p>
+      <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">${copy.footer}</p>
+    </div>`,
+  };
 }
 
 // Mail « tu as reçu un point » (fr/en). Valeurs dynamiques échappées.
@@ -174,7 +201,7 @@ function buildWelcomeEmail(o: { isEn: boolean; name: string; teamName: string; l
 }
 
 // Construit le mail de digest hebdomadaire (fr/en). Les valeurs dynamiques sont échappées.
-function buildDigestEmail(opts: {
+export function buildDigestEmail(opts: {
   baseUrl: string; isEn: boolean; memberName: string; teamName: string;
   total: number; topUser: { name: string; count: number } | null;
   topCat: { name: string; emoji: string; count: number } | null;
@@ -184,7 +211,7 @@ function buildDigestEmail(opts: {
   const memberName = escapeHtml(opts.memberName);
   const teamName = escapeHtml(opts.teamName);
   const topUser = opts.topUser ? { name: escapeHtml(opts.topUser.name), count: opts.topUser.count } : null;
-  const topCat = opts.topCat ? { name: escapeHtml(opts.topCat.name), emoji: opts.topCat.emoji, count: opts.topCat.count } : null;
+  const topCat = opts.topCat ? { name: escapeHtml(opts.topCat.name), emoji: escapeHtml(opts.topCat.emoji ?? ''), count: opts.topCat.count } : null;
 
   if (isEn) {
     return {
@@ -234,7 +261,7 @@ function buildDigestEmail(opts: {
 
 async function verifyTurnstile(token: string, secret: string, ip?: string): Promise<boolean> {
   if (!token || !secret) {
-    console.log('[turnstile] missing input', { hasToken: !!token, tokenLen: token?.length, hasSecret: !!secret });
+    console.log('[turnstile] missing input', { hasToken: !!token, hasSecret: !!secret });
     return false;
   }
   const form = new FormData();
@@ -248,7 +275,7 @@ async function verifyTurnstile(token: string, secret: string, ip?: string): Prom
     });
     const data: any = await res.json();
     if (!data.success) {
-      console.log('[turnstile] rejected', { 'error-codes': data['error-codes'], hostname: data.hostname, action: data.action, ip });
+      console.log('[turnstile] rejected', { 'error-codes': data['error-codes'], hostname: data.hostname });
     }
     return data.success === true;
   } catch (e) {
@@ -261,10 +288,22 @@ type Variables = {
   user: AuthUser
 }
 
+type Role = 'member' | 'admin' | 'superadmin' | 'owner'
+
+const ROLE_RANK: Record<Role, number> = { member: 0, admin: 1, superadmin: 2, owner: 3 }
+
+function outranks(actorRole: string, targetRole: string): boolean {
+  return (ROLE_RANK[actorRole as Role] ?? 0) > (ROLE_RANK[targetRole as Role] ?? 0)
+}
+
+function canManageLink(actor: { id: string; role: string }, target: { id: string; role: string }): boolean {
+  return actor.id === target.id || outranks(actor.role, target.role)
+}
+
 interface AuthUser {
   id: string
   name: string
-  role: string
+  role: Role
   active: number
   team_id: string
   team_name: string
@@ -275,7 +314,30 @@ interface AuthUser {
   locale: string | null
 }
 
-const app = new Hono<{ Bindings: Bindings; Variables: Variables }>()
+type AppEnv = { Bindings: Bindings; Variables: Variables }
+type AppContext = Context<AppEnv>
+
+const app = new Hono<AppEnv>()
+
+const SECURITY_HEADERS: Record<string, string> = {
+  'Strict-Transport-Security': 'max-age=31536000',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'no-referrer',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  'Content-Security-Policy': "frame-ancestors 'none'; base-uri 'self'; object-src 'none'",
+}
+
+app.use('*', async (c, next) => {
+  await next();
+  for (const [name, value] of Object.entries(SECURITY_HEADERS)) c.res.headers.set(name, value);
+});
+
+app.onError((err, c) => {
+  if (err instanceof SyntaxError) return c.json({ error: 'Requête invalide' }, 400);
+  console.error(err);
+  return c.json({ error: 'Erreur interne' }, 500);
+});
 
 // Canonicalisation de l'hôte : www.* → apex en 301, pour n'avoir qu'un seul domaine indexé.
 app.use('*', async (c, next) => {
@@ -306,60 +368,53 @@ async function getUserByToken(db: D1Database, token: string): Promise<AuthUser |
            t.name AS team_name, t.company_id,
            c.name AS company_name
     FROM users u
-    LEFT JOIN teams t ON t.id = u.team_id
-    LEFT JOIN companies c ON c.id = t.company_id
-    WHERE u.token = ? AND u.active = 1
+    JOIN teams t ON t.id = u.team_id
+    JOIN companies c ON c.id = t.company_id
+    WHERE u.token = ? AND u.active = 1 AND t.active = 1 AND c.active = 1
   `).bind(token).first<AuthUser>();
 }
 
-function extractToken(c: any): string | null {
+const SSE_PATH = '/api/events';
+
+function extractToken(c: AppContext): string | null {
   const header = c.req.header('Authorization');
-  if (header) return header.replace('Bearer ', '');
-  // Pour SSE/EventSource qui n'accepte pas les headers custom
-  return c.req.query('t') || null;
+  if (header) return header.startsWith('Bearer ') ? header.slice('Bearer '.length) : null;
+  if (c.req.path === SSE_PATH) return c.req.query('t') || null;
+  return null;
 }
 
-const requireUser = async (c: any, next: any) => {
+const FORBIDDEN_MESSAGE: Record<Role, string> = {
+  member: 'Accès refusé',
+  admin: 'Accès admin requis',
+  superadmin: 'Accès superadmin requis',
+  owner: 'Accès owner requis',
+};
+
+const requireRole = (minimumRole: Role) => createMiddleware<AppEnv>(async (c, next) => {
   const token = extractToken(c);
   if (!token) return c.json({ error: 'Non autorisé' }, 401);
   const user = await getUserByToken(c.env.DB, token);
   if (!user) return c.json({ error: 'Session invalide' }, 401);
+  if (ROLE_RANK[user.role] < ROLE_RANK[minimumRole]) return c.json({ error: FORBIDDEN_MESSAGE[minimumRole] }, 403);
   c.set('user', user);
   await next();
-};
+});
 
-const ADMIN_ROLES = ['admin', 'superadmin', 'owner'];
-const SUPERADMIN_ROLES = ['superadmin', 'owner'];
+const requireUser = requireRole('member');
+const requireAdmin = requireRole('admin');
+const requireSuperadmin = requireRole('superadmin');
+const requireOwner = requireRole('owner');
 
-const requireAdmin = async (c: any, next: any) => {
-  const token = extractToken(c);
-  if (!token) return c.json({ error: 'Non autorisé' }, 401);
-  const user = await getUserByToken(c.env.DB, token);
-  if (!user) return c.json({ error: 'Session invalide' }, 401);
-  if (!ADMIN_ROLES.includes(user.role)) return c.json({ error: 'Accès admin requis' }, 403);
-  c.set('user', user);
-  await next();
-};
+const ADMIN_ROLES: Role[] = ['admin', 'superadmin', 'owner'];
+const SUPERADMIN_ROLES: Role[] = ['superadmin', 'owner'];
 
-const requireSuperadmin = async (c: any, next: any) => {
-  const token = extractToken(c);
-  if (!token) return c.json({ error: 'Non autorisé' }, 401);
-  const user = await getUserByToken(c.env.DB, token);
-  if (!user) return c.json({ error: 'Session invalide' }, 401);
-  if (!SUPERADMIN_ROLES.includes(user.role)) return c.json({ error: 'Accès superadmin requis' }, 403);
-  c.set('user', user);
-  await next();
-};
+function newUserCredentials(): { id: string; token: string } {
+  return { id: crypto.randomUUID(), token: crypto.randomUUID() };
+}
 
-const requireOwner = async (c: any, next: any) => {
-  const token = extractToken(c);
-  if (!token) return c.json({ error: 'Non autorisé' }, 401);
-  const user = await getUserByToken(c.env.DB, token);
-  if (!user) return c.json({ error: 'Session invalide' }, 401);
-  if (user.role !== 'owner') return c.json({ error: 'Accès owner requis' }, 403);
-  c.set('user', user);
-  await next();
-};
+function magicLinkUrl(c: AppContext, token: string): string {
+  return `${appBaseUrl(c)}/login/${token}`;
+}
 
 // Gage "spammeur" (automatique, calculé sur 7 jours glissants). Seuils réglables.
 // La jauge de proximité affichée = dons_7j / SPAM_MIN_GIVEN (100 % = pleine zone spam).
@@ -779,7 +834,7 @@ app.get('/api/users-stats', requireUser, async (c) => {
     return c.json(await getUsersStats(c.env.DB, u.team_id));
   } catch (e: any) {
     console.error("🔥 Erreur Stats:", e.message);
-    return c.json({ error: "Erreur calcul stats", details: e.message }, 500);
+    return c.json({ error: "Erreur calcul stats" }, 500);
   }
 });
 
@@ -993,12 +1048,19 @@ app.get('/api/config', async (c) => {
 // Événements whitelistés — cookieless, sans PII, stockés dans notre D1 (EU).
 const TRACKED_EVENTS = new Set(['landing_vue', 'onboarding_soumis', 'join_vue', 'join_soumis']);
 
+function isSameOrigin(c: AppContext): boolean {
+  const origin = c.req.header('Origin');
+  if (!origin) return false;
+  try {
+    return new URL(origin).host === new URL(c.req.url).host;
+  } catch {
+    return false;
+  }
+}
+
 app.post('/api/track', async (c) => {
   try {
-    // Anti-spam léger : on ignore les requêtes cross-origin (les beacons du site sont same-origin).
-    const origin = c.req.header('Origin');
-    const host = c.req.header('Host') || '';
-    if (origin && !origin.endsWith('://' + host)) return c.json({ ok: true });
+    if (!isSameOrigin(c)) return c.json({ ok: true });
     const { event } = await c.req.json();
     if (typeof event === 'string' && TRACKED_EVENTS.has(event)) {
       await c.env.DB.prepare("INSERT INTO analytics_events (name) VALUES (?)").bind(event).run();
@@ -1075,14 +1137,14 @@ app.post('/api/onboarding', async (c) => {
 
     const companyId = crypto.randomUUID();
     const teamId = crypto.randomUUID();
-    const userId = crypto.randomUUID();
+    const founder = newUserCredentials();
     const inviteCode = generateInviteCode();
     const categories = defaultCategoriesFor(userLocale);
 
     const statements = [
       c.env.DB.prepare("INSERT INTO companies (id, name, active) VALUES (?, ?, 1)").bind(companyId, company),
       c.env.DB.prepare("INSERT INTO teams (id, company_id, name, active, invite_code) VALUES (?, ?, ?, 1, ?)").bind(teamId, companyId, company, inviteCode),
-      c.env.DB.prepare("INSERT INTO users (id, team_id, name, role, active, token, email, locale) VALUES (?, ?, ?, 'superadmin', 1, ?, ?, ?)").bind(userId, teamId, admin, userId, email, userLocale),
+      c.env.DB.prepare("INSERT INTO users (id, team_id, name, role, active, token, email, locale) VALUES (?, ?, ?, 'superadmin', 1, ?, ?, ?)").bind(founder.id, teamId, admin, founder.token, email, userLocale),
       ...categories.map(cat =>
         c.env.DB.prepare("INSERT INTO categories (id, team_id, name, emoji, forfeit, active) VALUES (?, ?, ?, ?, ?, 1)")
           .bind(crypto.randomUUID(), teamId, cat.name, cat.emoji, cat.forfeit)
@@ -1093,12 +1155,11 @@ app.post('/api/onboarding', async (c) => {
 
     // Lien magique de bienvenue au fondateur (si email fourni)
     if (email) {
-      const loginUrl = `${appBaseUrl(c)}/login/${userId}`;
-      const mail = buildWelcomeEmail({ isEn: userLocale === 'en', name: admin, teamName: company, loginUrl });
+      const mail = buildWelcomeEmail({ isEn: userLocale === 'en', name: admin, teamName: company, loginUrl: magicLinkUrl(c, founder.token) });
       c.executionCtx.waitUntil(sendEmail(c.env, email, mail.subject, mail.html));
     }
 
-    return c.json({ success: true, token: userId });
+    return c.json({ success: true, token: founder.token });
   } catch (err: any) {
     console.error("Erreur onboarding:", err);
     return c.json({ error: "Erreur lors de la création de l'espace" }, 500);
@@ -1110,8 +1171,8 @@ app.get('/login/:token', async (c) => {
   const token = c.req.param('token');
 
   const user = await c.env.DB.prepare(
-    'SELECT id, name, email, email_verified FROM users WHERE token = ? AND active = 1'
-  ).bind(token).first<{ id: string; name: string; email: string | null; email_verified: number }>();
+    'SELECT id, email, email_verified FROM users WHERE token = ? AND active = 1'
+  ).bind(token).first<{ id: string; email: string | null; email_verified: number }>();
 
   if (!user) {
     return c.html(`
@@ -1129,7 +1190,7 @@ app.get('/login/:token', async (c) => {
     await c.env.DB.prepare("UPDATE users SET email_verified = 1 WHERE id = ?").bind(user.id).run();
   }
 
-  return c.redirect(`/?login_id=${user.id}&login_name=${encodeURIComponent(user.name as string)}`);
+  return c.redirect(`/#login=${token}`);
 });
 
 // « Lien perdu » : renvoie son lien magique à qui possède l'adresse. Public, protégé par Turnstile.
@@ -1144,13 +1205,12 @@ app.post('/api/recover', async (c) => {
     const clean = (email || '').trim();
     if (clean && isValidEmail(clean)) {
       const user = await c.env.DB.prepare(`
-        SELECT u.id, u.name, u.email, u.locale, t.name AS team_name
+        SELECT u.token, u.name, u.email, u.locale, t.name AS team_name
         FROM users u LEFT JOIN teams t ON t.id = u.team_id
         WHERE u.email = ? AND u.active = 1
-      `).bind(clean).first<{ id: string; name: string; email: string; locale: string | null; team_name: string | null }>();
+      `).bind(clean).first<{ token: string; name: string; email: string; locale: string | null; team_name: string | null }>();
       if (user) {
-        const loginUrl = `${appBaseUrl(c)}/login/${user.id}`;
-        const mail = buildWelcomeEmail({ isEn: user.locale === 'en', name: user.name, teamName: user.team_name || '', loginUrl });
+        const mail = buildWelcomeEmail({ isEn: user.locale === 'en', name: user.name, teamName: user.team_name || '', loginUrl: magicLinkUrl(c, user.token) });
         c.executionCtx.waitUntil(sendEmail(c.env, user.email, mail.subject, mail.html));
       }
     }
@@ -1172,7 +1232,7 @@ app.get('/api/join/:code', async (c) => {
   return c.json(team);
 });
 
-// Le visiteur muni du lien s'ajoute lui-même comme membre (invariant id == token).
+// Le visiteur muni du lien s'ajoute lui-même comme membre.
 app.post('/api/join', async (c) => {
   try {
     const { code, name, turnstile_token } = await c.req.json();
@@ -1191,12 +1251,10 @@ app.post('/api/join', async (c) => {
     `).bind(code).first<{ id: string }>();
     if (!team) return c.json({ error: "Lien d'invitation invalide ou expiré." }, 404);
 
-    const userId = crypto.randomUUID();
-    // active = 0 : l'auto-inscrit est "en attente" tant qu'un admin ne l'a pas validé.
-    // getUserByToken filtre active = 1 → un faux compte ne peut ni se connecter ni donner de points.
+    const newcomer = newUserCredentials();
     await c.env.DB.prepare(
       "INSERT INTO users (id, team_id, name, role, active, token) VALUES (?, ?, ?, 'member', 0, ?)"
-    ).bind(userId, team.id, cleanName, userId).run();
+    ).bind(newcomer.id, team.id, cleanName, newcomer.token).run();
     return c.json({ success: true, pending: true });
   } catch (err) {
     console.error("Erreur join:", err);
@@ -1211,7 +1269,7 @@ app.get('/api/admin/users', requireAdmin, async (c) => {
   // has_activity : a-t-il déjà donné/reçu au moins un point ? Sert à distinguer un membre
   // "en attente de validation" (auto-inscrit, active=0, aucune activité) d'un "désactivé".
   const users = await c.env.DB.prepare(`
-    SELECT u.*, EXISTS(
+    SELECT u.id, u.name, u.role, u.active, u.email, u.email_verified, u.locale, EXISTS(
       SELECT 1 FROM points_log p WHERE p.from_user_id = u.id OR p.to_user_id = u.id
     ) AS has_activity
     FROM users u WHERE u.team_id = ? ORDER BY u.active DESC, u.name ASC
@@ -1219,49 +1277,76 @@ app.get('/api/admin/users', requireAdmin, async (c) => {
   return c.json(users.results);
 });
 
-app.patch('/api/admin/users/:id/restore', requireAdmin, async (c) => {
+interface TeamMember { id: string; name: string; role: Role; active: number; email: string | null; locale: string | null; token: string }
+
+async function findTeamMember(db: D1Database, userId: string, teamId: string): Promise<TeamMember | null> {
+  return db.prepare("SELECT id, name, role, active, email, locale, token FROM users WHERE id = ? AND team_id = ?")
+    .bind(userId, teamId).first<TeamMember>();
+}
+
+async function findCompanyMember(db: D1Database, userId: string, companyId: string): Promise<TeamMember | null> {
+  return db.prepare(`
+    SELECT u.id, u.name, u.role, u.active, u.email, u.locale, u.token
+    FROM users u JOIN teams t ON t.id = u.team_id
+    WHERE u.id = ? AND t.company_id = ?
+  `).bind(userId, companyId).first<TeamMember>();
+}
+
+const MEMBER_NOT_IN_TEAM = "Membre introuvable dans ton équipe.";
+const MEMBER_NOT_IN_COMPANY = "Utilisateur introuvable dans ta société.";
+const ROLE_TOO_HIGH = "Action réservée à un rôle supérieur à celui de ce membre.";
+
+async function setMemberActive(c: AppContext, active: 0 | 1) {
   const admin = c.get('user');
-  const id = c.req.param('id');
-  await c.env.DB.prepare(
-    "UPDATE users SET active = 1 WHERE id = ? AND team_id = ?"
-  ).bind(id, admin.team_id).run();
+  const target = await findTeamMember(c.env.DB, c.req.param('id') ?? '', admin.team_id);
+  if (!target) return c.json({ error: MEMBER_NOT_IN_TEAM }, 404);
+  if (target.id === admin.id) return c.json({ error: "Tu ne peux pas modifier ton propre statut." }, 400);
+  if (!outranks(admin.role, target.role)) return c.json({ error: ROLE_TOO_HIGH }, 403);
+  await c.env.DB.prepare("UPDATE users SET active = ? WHERE id = ?").bind(active, target.id).run();
   return c.json({ success: true });
+}
+
+app.patch('/api/admin/users/:id/restore', requireAdmin, (c) => setMemberActive(c, 1));
+
+app.post('/api/admin/users/:id/magic-link', requireAdmin, async (c) => {
+  const admin = c.get('user');
+  const target = await findTeamMember(c.env.DB, c.req.param('id'), admin.team_id);
+  if (!target) return c.json({ error: MEMBER_NOT_IN_TEAM }, 404);
+  if (!canManageLink(admin, target)) return c.json({ error: ROLE_TOO_HIGH }, 403);
+  return c.json({ url: magicLinkUrl(c, target.token) });
 });
 
 app.post('/api/admin/users', requireAdmin, async (c) => {
   const admin = c.get('user');
   const { name, email } = await c.req.json();
-  const id = crypto.randomUUID();
-  const emailRaw = (email || '').trim();
+  const cleanName = typeof name === 'string' ? name.trim() : '';
+  if (!cleanName || cleanName.length > 40) return c.json({ error: "Prénom requis (1 à 40 caractères)" }, 400);
+  const emailRaw = typeof email === 'string' ? email.trim() : '';
   const cleanEmail = emailRaw && isValidEmail(emailRaw) ? emailRaw : null;
   if (cleanEmail && await emailTaken(c.env.DB, cleanEmail)) {
     return c.json({ error: "Cet e-mail est déjà utilisé par un autre compte." }, 409);
   }
+  const member = newUserCredentials();
   await c.env.DB.prepare(
     "INSERT INTO users (id, team_id, name, role, active, token, email) VALUES (?, ?, ?, 'member', 1, ?, ?)"
-  ).bind(id, admin.team_id, name, id, cleanEmail).run();
+  ).bind(member.id, admin.team_id, cleanName, member.token, cleanEmail).run();
 
-  // Lien magique envoyé au nouveau membre (si email fourni)
   if (cleanEmail) {
-    const loginUrl = `${appBaseUrl(c)}/login/${id}`;
-    const mail = buildWelcomeEmail({ isEn: admin.locale === 'en', name, teamName: admin.team_name, loginUrl });
+    const mail = buildWelcomeEmail({ isEn: admin.locale === 'en', name: cleanName, teamName: admin.team_name, loginUrl: magicLinkUrl(c, member.token) });
     c.executionCtx.waitUntil(sendEmail(c.env, cleanEmail, mail.subject, mail.html));
   }
 
-  return c.json({ success: true });
+  return c.json({ success: true, id: member.id });
 });
 
 // Renvoyer à un membre son lien magique par e-mail (réservé admin).
 app.post('/api/admin/users/:id/resend-link', requireAdmin, async (c) => {
   const admin = c.get('user');
   const id = c.req.param('id');
-  const user = await c.env.DB.prepare(
-    "SELECT id, name, email, locale FROM users WHERE id = ? AND team_id = ?"
-  ).bind(id, admin.team_id).first<{ id: string; name: string; email: string | null; locale: string | null }>();
-  if (!user) return c.json({ error: "Membre introuvable dans ton équipe." }, 404);
+  const user = await findTeamMember(c.env.DB, id, admin.team_id);
+  if (!user) return c.json({ error: MEMBER_NOT_IN_TEAM }, 404);
   if (!user.email) return c.json({ error: "Ce membre n'a pas d'e-mail." }, 400);
-  const loginUrl = `${appBaseUrl(c)}/login/${user.id}`;
-  const mail = buildWelcomeEmail({ isEn: (user.locale || admin.locale) === 'en', name: user.name, teamName: admin.team_name, loginUrl });
+  const mail = buildWelcomeEmail({ isEn: (user.locale || admin.locale) === 'en', name: user.name, teamName: admin.team_name, loginUrl: magicLinkUrl(c, user.token) });
   c.executionCtx.waitUntil(sendEmail(c.env, user.email, mail.subject, mail.html));
   return c.json({ success: true });
 });
@@ -1295,8 +1380,9 @@ app.post('/api/admin/regenerate-invite', requireAdmin, async (c) => {
 app.delete('/api/admin/users/:id/reject', requireAdmin, async (c) => {
   const admin = c.get('user');
   const id = c.req.param('id');
-  const u = await c.env.DB.prepare("SELECT active FROM users WHERE id = ? AND team_id = ?").bind(id, admin.team_id).first<{ active: number }>();
-  if (!u) return c.json({ error: "Membre introuvable dans ton équipe." }, 404);
+  const u = await findTeamMember(c.env.DB, id, admin.team_id);
+  if (!u) return c.json({ error: MEMBER_NOT_IN_TEAM }, 404);
+  if (!outranks(admin.role, u.role)) return c.json({ error: ROLE_TOO_HIGH }, 403);
   if (u.active === 1) return c.json({ error: "Ce membre est actif — désactive-le plutôt." }, 400);
   const activity = await c.env.DB.prepare("SELECT 1 FROM points_log WHERE from_user_id = ? OR to_user_id = ? LIMIT 1").bind(id, id).first();
   if (activity) return c.json({ error: "Ce membre a déjà une activité — désactive-le plutôt." }, 400);
@@ -1313,43 +1399,7 @@ app.post('/api/admin/invite', requireAdmin, async (c) => {
 
   const code = await getOrCreateInviteCode(c.env.DB, admin.team_id);
   const joinUrl = `${appBaseUrl(c)}/join/${code}`;
-  const isEn = admin.locale === 'en';
-  const subject = isEn
-    ? `${admin.name} invites you to ${admin.team_name} on Give Your Point`
-    : `${admin.name} t'invite à rejoindre ${admin.team_name} sur Donne Ton Point`;
-  const html = isEn ? `
-    <div style="font-family:sans-serif;max-width:480px;margin:auto">
-      <h2 style="color:#1e293b">You're invited! 🎯</h2>
-      <p style="color:#334155;font-size:15px">
-        <b>${admin.name}</b> invites you to join the team
-        <b>${admin.team_name}</b> on Give Your Point.
-      </p>
-      <p style="margin-top:24px">
-        <a href="${joinUrl}"
-           style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">
-          Join the team
-        </a>
-      </p>
-      <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">
-        📭 This mailbox is not monitored — please don't reply.
-      </p>
-    </div>` : `
-    <div style="font-family:sans-serif;max-width:480px;margin:auto">
-      <h2 style="color:#1e293b">Tu es invité·e ! 🎯</h2>
-      <p style="color:#334155;font-size:15px">
-        <b>${admin.name}</b> t'invite à rejoindre l'équipe
-        <b>${admin.team_name}</b> sur Donne Ton Point.
-      </p>
-      <p style="margin-top:24px">
-        <a href="${joinUrl}"
-           style="background:#2563eb;color:white;padding:10px 18px;border-radius:8px;text-decoration:none;font-weight:bold">
-          Rejoindre l'équipe
-        </a>
-      </p>
-      <p style="color:#94a3b8;font-size:11px;margin-top:32px;line-height:1.6">
-        📭 Cette boîte mail n'est pas surveillée — ne réponds pas à ce message.
-      </p>
-    </div>`;
+  const { subject, html } = buildInviteEmail({ isEn: admin.locale === 'en', inviterName: admin.name, teamName: admin.team_name, joinUrl });
   c.executionCtx.waitUntil(sendEmail(c.env, clean, subject, html));
   return c.json({ success: true });
 });
@@ -1364,14 +1414,7 @@ app.post('/api/admin/categories', requireAdmin, async (c) => {
   return c.json({ success: true });
 });
 
-app.delete('/api/admin/users/:id', requireAdmin, async (c) => {
-  const admin = c.get('user');
-  const id = c.req.param('id');
-  await c.env.DB.prepare(
-    "UPDATE users SET active = 0 WHERE id = ? AND team_id = ?"
-  ).bind(id, admin.team_id).run();
-  return c.json({ success: true });
-});
+app.delete('/api/admin/users/:id', requireAdmin, (c) => setMemberActive(c, 0));
 
 app.get('/api/admin/categories', requireAdmin, async (c) => {
   const admin = c.get('user');
@@ -1427,25 +1470,17 @@ app.post('/api/admin/users/:id/pardon-spammer', requireAdmin, async (c) => {
   return c.json({ success: true });
 });
 
-// Régénère le lien magique d'un membre : rotation de token (nouvel UUID) + cascade sur ses données.
-// L'ancien lien devient invalide (utile si un lien a fuité / a été partagé à la mauvaise personne).
 app.post('/api/admin/users/:id/regenerate-link', requireAdmin, async (c) => {
   const admin = c.get('user');
-  const oldId = c.req.param('id');
-  const target = await c.env.DB.prepare("SELECT id FROM users WHERE id = ? AND team_id = ?").bind(oldId, admin.team_id).first();
-  if (!target) return c.json({ error: "Membre introuvable dans ton équipe." }, 404);
+  const target = await findTeamMember(c.env.DB, c.req.param('id'), admin.team_id);
+  if (!target) return c.json({ error: MEMBER_NOT_IN_TEAM }, 404);
+  if (!canManageLink(admin, target)) return c.json({ error: ROLE_TOO_HIGH }, 403);
 
-  const newId = crypto.randomUUID();
-  // Invariant id == token → on cascade le changement d'id sur toutes les références. D1 batch = transactionnel.
-  await c.env.DB.batch([
-    c.env.DB.prepare("UPDATE points_log SET from_user_id = ? WHERE from_user_id = ? AND team_id = ?").bind(newId, oldId, admin.team_id),
-    c.env.DB.prepare("UPDATE points_log SET to_user_id = ? WHERE to_user_id = ? AND team_id = ?").bind(newId, oldId, admin.team_id),
-    c.env.DB.prepare("UPDATE dare_log SET user_id = ? WHERE user_id = ? AND team_id = ?").bind(newId, oldId, admin.team_id),
-    c.env.DB.prepare("UPDATE push_subscriptions SET user_id = ? WHERE user_id = ?").bind(newId, oldId),
-    c.env.DB.prepare("UPDATE users SET id = ?, token = ? WHERE id = ?").bind(newId, newId, oldId),
-  ]);
+  const newToken = crypto.randomUUID();
+  await c.env.DB.prepare("UPDATE users SET token = ? WHERE id = ?").bind(newToken, target.id).run();
 
-  return c.json({ success: true, token: newId });
+  const isSelf = target.id === admin.id;
+  return c.json({ success: true, login_url: magicLinkUrl(c, newToken), is_self: isSelf, ...(isSelf && { token: newToken }) });
 });
 
 app.get('/api/admin/dares', requireAdmin, async (c) => {
@@ -1772,9 +1807,10 @@ app.post('/api/superadmin/teams/:id/users', requireSuperadmin, async (c) => {
   const sa = c.get('user');
   const teamId = c.req.param('id');
   const { name, role, email } = await c.req.json();
-  if (!name || !name.trim()) return c.json({ error: 'Nom requis' }, 400);
+  const cleanName = typeof name === 'string' ? name.trim() : '';
+  if (!cleanName || cleanName.length > 40) return c.json({ error: 'Nom requis (1 à 40 caractères)' }, 400);
   const userRole = (role === 'admin' || role === 'superadmin') ? role : 'member';
-  const emailRaw = (email || '').trim();
+  const emailRaw = typeof email === 'string' ? email.trim() : '';
   const cleanEmail = emailRaw && isValidEmail(emailRaw) ? emailRaw : null;
 
   // Vérifier que la team appartient à la société du superadmin
@@ -1787,26 +1823,25 @@ app.post('/api/superadmin/teams/:id/users', requireSuperadmin, async (c) => {
     return c.json({ error: "Cet e-mail est déjà utilisé par un autre compte." }, 409);
   }
 
-  const id = crypto.randomUUID();
+  const member = newUserCredentials();
   await c.env.DB.prepare(
     "INSERT INTO users (id, team_id, name, role, active, token, email) VALUES (?, ?, ?, ?, 1, ?, ?)"
-  ).bind(id, teamId, name.trim(), userRole, id, cleanEmail).run();
+  ).bind(member.id, teamId, cleanName, userRole, member.token, cleanEmail).run();
 
-  // Lien magique envoyé au nouveau membre (si email fourni)
+  const loginUrl = magicLinkUrl(c, member.token);
   if (cleanEmail) {
-    const loginUrl = `${appBaseUrl(c)}/login/${id}`;
-    const mail = buildWelcomeEmail({ isEn: sa.locale === 'en', name: name.trim(), teamName: team.name, loginUrl });
+    const mail = buildWelcomeEmail({ isEn: sa.locale === 'en', name: cleanName, teamName: team.name, loginUrl });
     c.executionCtx.waitUntil(sendEmail(c.env, cleanEmail, mail.subject, mail.html));
   }
 
-  return c.json({ success: true, id, token: id });
+  return c.json({ success: true, id: member.id, login_url: loginUrl });
 });
 
-// Liste les admins et superadmins de la société (pour gestion + récupération magic link)
+// Liste les admins et superadmins de la société
 app.get('/api/superadmin/admins', requireSuperadmin, async (c) => {
   const sa = c.get('user');
   const { results } = await c.env.DB.prepare(`
-    SELECT u.id, u.name, u.role, u.token, u.active, u.team_id, t.name AS team_name
+    SELECT u.id, u.name, u.role, u.active, u.team_id, t.name AS team_name
     FROM users u
     JOIN teams t ON t.id = u.team_id
     WHERE t.company_id = ?
@@ -1829,6 +1864,14 @@ app.get('/api/superadmin/users', requireSuperadmin, async (c) => {
   return c.json(results);
 });
 
+app.post('/api/superadmin/users/:id/magic-link', requireSuperadmin, async (c) => {
+  const sa = c.get('user');
+  const target = await findCompanyMember(c.env.DB, c.req.param('id'), sa.company_id);
+  if (!target) return c.json({ error: MEMBER_NOT_IN_COMPANY }, 404);
+  if (!canManageLink(sa, target)) return c.json({ error: ROLE_TOO_HIGH }, 403);
+  return c.json({ url: magicLinkUrl(c, target.token) });
+});
+
 // Promouvoir un user en admin ou superadmin
 app.post('/api/superadmin/users/:id/promote', requireSuperadmin, async (c) => {
   const sa = c.get('user');
@@ -1837,12 +1880,9 @@ app.post('/api/superadmin/users/:id/promote', requireSuperadmin, async (c) => {
   if (role !== 'admin' && role !== 'superadmin') {
     return c.json({ error: "Rôle invalide (admin ou superadmin uniquement)" }, 400);
   }
-  // Vérifier que le user cible est dans la société du superadmin
-  const target = await c.env.DB.prepare(`
-    SELECT u.id FROM users u JOIN teams t ON t.id = u.team_id
-    WHERE u.id = ? AND t.company_id = ?
-  `).bind(id, sa.company_id).first();
-  if (!target) return c.json({ error: "Utilisateur introuvable dans ta société." }, 404);
+  const target = await findCompanyMember(c.env.DB, id, sa.company_id);
+  if (!target) return c.json({ error: MEMBER_NOT_IN_COMPANY }, 404);
+  if (!outranks(sa.role, target.role)) return c.json({ error: ROLE_TOO_HIGH }, 403);
 
   await c.env.DB.prepare("UPDATE users SET role = ? WHERE id = ?").bind(role, id).run();
   return c.json({ success: true });
@@ -1885,9 +1925,31 @@ app.get('/api/push/vapid-key', async (c) => {
   return c.json({ publicKey: c.env.VAPID_PUBLIC_KEY || null });
 });
 
+const PUSH_SERVICE_DOMAINS = ['fcm.googleapis.com', 'push.services.mozilla.com', 'push.apple.com', 'notify.windows.com'];
+const MAX_PUSH_ENDPOINT_LENGTH = 2048;
+const MAX_PUSH_KEY_LENGTH = 256;
+
+function isKnownPushEndpoint(endpoint: unknown): endpoint is string {
+  if (typeof endpoint !== 'string' || endpoint.length > MAX_PUSH_ENDPOINT_LENGTH) return false;
+  try {
+    const url = new URL(endpoint);
+    return url.protocol === 'https:'
+      && PUSH_SERVICE_DOMAINS.some((domain) => url.hostname === domain || url.hostname.endsWith(`.${domain}`));
+  } catch {
+    return false;
+  }
+}
+
+function isPushKey(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && value.length <= MAX_PUSH_KEY_LENGTH;
+}
+
 app.post('/api/push/subscribe', requireUser, async (c) => {
   const me = c.get('user');
   const { endpoint, keys } = await c.req.json();
+  if (!isKnownPushEndpoint(endpoint) || !isPushKey(keys?.p256dh) || !isPushKey(keys?.auth)) {
+    return c.json({ error: 'Abonnement push invalide' }, 400);
+  }
   await c.env.DB.prepare(`
     INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth)
     VALUES (?, ?, ?, ?)
@@ -1897,12 +1959,21 @@ app.post('/api/push/subscribe', requireUser, async (c) => {
   return c.json({ success: true });
 });
 
+async function secretsMatch(provided: string, expected: string): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const [a, b] = await Promise.all(
+    [provided, expected].map((value) => crypto.subtle.digest('SHA-256', encoder.encode(value))),
+  );
+  return crypto.subtle.timingSafeEqual(a, b);
+}
+
 // === Digest hebdomadaire (rétention) ===
 // Déclenché par un cron externe (GitHub Actions) via secret. Pages Functions n'a pas de Cron Trigger.
 // Envoie à chaque membre (ayant un email) le résumé de la semaine de son équipe. ?dry=1 = simulation sans envoi.
 app.post('/api/cron/weekly-digest', async (c) => {
-  const provided = (c.req.header('Authorization') || '').replace('Bearer ', '') || c.req.query('secret') || '';
-  if (!c.env.CRON_SECRET || provided !== c.env.CRON_SECRET) {
+  const header = c.req.header('Authorization') || '';
+  const provided = header.startsWith('Bearer ') ? header.slice('Bearer '.length) : '';
+  if (!c.env.CRON_SECRET || !(await secretsMatch(provided, c.env.CRON_SECRET))) {
     return c.json({ error: 'Non autorisé' }, 401);
   }
   const dryRun = c.req.query('dry') === '1';
@@ -2009,8 +2080,8 @@ const OG_DATA: Record<string, Record<'fr' | 'en', { title: string; desc: string;
   },
 };
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+export function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
 async function serveHtmlWithOg(c: any, key: string, assetPath?: string): Promise<Response> {
@@ -2048,7 +2119,8 @@ app.get('/about.html', (c) => serveHtmlWithOg(c, '/about'));
 app.get('/join/:code', (c) => serveHtmlWithOg(c, '/', '/'));
 
 app.get('/*', async (c) => {
-  return c.env.ASSETS.fetch(c.req.raw);
+  const asset = await c.env.ASSETS.fetch(c.req.raw);
+  return new Response(asset.body, asset);
 });
 
 export default app;

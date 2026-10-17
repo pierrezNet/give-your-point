@@ -5,6 +5,7 @@ declare global {
   namespace Cloudflare {
     interface Env extends Bindings {
       TEST_SCHEMA: D1Migration[];
+      SPLIT_TOKEN_MIGRATION: string[];
     }
   }
 }

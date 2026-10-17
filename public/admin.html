@@ -14,6 +14,7 @@
         }
     </style>
     <link rel="stylesheet" href="/styles.css">
+    <script src="session.js"></script>
     <script src="i18n.js"></script>
     <script src="ui.js"></script>
     <script src="app.js"></script>
@@ -137,19 +138,17 @@
     </div>
 
     <script>
-        // Auth admin : on s'appuie sur le magic link (token user dans localStorage)
-        // et on vérifie via /api/me que le role === 'admin'.
-        const myUserId = localStorage.getItem('my_user_id');
+        let adminUsersById = new Map();
+        let spammersById = new Map();
+        let adminCategoriesById = new Map();
 
         async function checkAndLoad() {
-            if (!myUserId) {
+            if (!getSessionToken()) {
                 uiToast(t('admin.connect_first'));
                 return window.location.href = "/";
             }
 
-            const res = await fetch('/api/me', {
-                headers: { 'Authorization': `Bearer ${myUserId}` }
-            });
+            const res = await authFetch('/api/me');
 
             if (!res.ok) {
                 uiToast(t('admin.session_invalid'));
@@ -185,15 +184,10 @@
             loadGlobalLog();
         }
 
-        // Fonction fetch sécurisée — passe le token user en Bearer
         async function adminFetch(url, options = {}) {
-            options.headers = {
-                ...options.headers,
-                'Authorization': `Bearer ${myUserId}`
-            };
-            const res = await fetch(url, options);
+            const res = await authFetch(url, options);
 
-            if (res.status === 401 || res.status === 403) {
+            if (res.status === 401) {
                 uiToast(t('common.access_denied'));
                 window.location.href = "/";
                 return;
@@ -211,8 +205,10 @@
                 ]);
 
                 const users = await resUsers.json();
+                adminUsersById = new Map(users.map(u => [u.id, u]));
                 const dares = await resDares.json();
                 const categories = await resCats.json();
+                adminCategoriesById = new Map(categories.map(cat => [cat.id, cat]));
                 const spammers = (resSpam && resSpam.ok) ? await resSpam.json() : [];
 
                 renderSpamBanner(spammers);
@@ -236,7 +232,7 @@
                         <tr class="border-b border-slate-100 ${!isActive ? 'bg-slate-50 opacity-60' : 'hover:bg-slate-50'} transition-colors">
                             <td class="p-4">
                                 <div class="font-bold ${isActive ? 'text-slate-800' : 'text-slate-400 italic'}">
-                                    ${u.name} ${!isActive ? (isPending ? `<span class="text-[10px] font-black uppercase text-blue-600 not-italic">⏳ ${t('admin.pending_flag')}</span>` : t('admin.user_deactivated')) : ''}
+                                    ${escapeHtml(u.name)} ${!isActive ? (isPending ? `<span class="text-[10px] font-black uppercase text-blue-600 not-italic">⏳ ${t('admin.pending_flag')}</span>` : t('admin.user_deactivated')) : ''}
                                 </div>
                                 ${activeDares.map(d => `<div class="text-[9px] text-orange-600 font-black uppercase">${t('admin.has_gage')}</div>`).join('')}
                             </td>
@@ -249,7 +245,7 @@
                                             ? `<span class="text-[10px] font-black uppercase text-emerald-600">✓ ${t('admin.email_confirmed')}</span>`
                                             : `<span class="text-[10px] font-black uppercase text-amber-600">⏳ ${t('admin.email_pending')}</span>`}
                                        </div>`
-                                    : `<span class="font-mono text-slate-400">.../login/${u.token}</span>`)}
+                                    : '<span class="text-slate-400">—</span>')}
                             </td>
 
                             <td class="p-4">
@@ -261,10 +257,10 @@
                                             if (!hasGageForThisCat) return '';
 
                                             return `
-                                                <button onclick="clearCategoryPoints('${u.id}', '${cat.id}', '${cat.name}', '${u.name}')"
+                                                <button onclick="clearCategoryPoints('${u.id}', '${cat.id}')"
                                                         class="w-10 h-10 flex flex-col items-center justify-center bg-orange-50 hover:bg-orange-100 rounded-lg border border-orange-200 transition-all shadow-sm animate-bounce-short"
-                                                        title="${cat.name}">
-                                                    <span class="text-xs">${cat.emoji}</span>
+                                                        title="${escapeHtml(cat.name)}">
+                                                    <span class="text-xs">${escapeHtml(cat.emoji)}</span>
                                                 </button>
                                             `;
                                         }).join('')}
@@ -274,13 +270,13 @@
                                         ${isActive ? `
                                             ${u.email
                                                 ? `<button onclick="resendLink('${u.id}')" class="text-xs font-black text-blue-600 uppercase hover:underline">${t('admin.resend_link')}</button>
-                                                   <button onclick="revealLink('${u.token}')" class="text-sm text-slate-400 hover:text-slate-600" title="${t('admin.reveal_link_title')}">🔗</button>`
-                                                : `<button onclick="copyLink('${u.token}')" class="text-xs font-black text-blue-600 uppercase hover:underline">${t('common.copy_link')}</button>`}
-                                            <button onclick="regenerateLink('${u.id}', '${encodeURIComponent(u.name)}')" title="${t('admin.regen_title')}" class="text-base text-amber-500 hover:text-amber-600 leading-none">↻</button>
+                                                   <button onclick="revealLink('${u.id}')" class="text-sm text-slate-400 hover:text-slate-600" title="${t('admin.reveal_link_title')}">🔗</button>`
+                                                : `<button onclick="copyLink('${u.id}')" class="text-xs font-black text-blue-600 uppercase hover:underline">${t('common.copy_link')}</button>`}
+                                            <button onclick="regenerateLink('${u.id}')" title="${t('admin.regen_title')}" class="text-base text-amber-500 hover:text-amber-600 leading-none">↻</button>
                                             <button onclick="toggleUser('${u.id}', false)" class="text-xs font-black text-red-400 hover:text-red-600 uppercase">${t('common.deactivate')}</button>
                                         ` : `
                                             <button onclick="toggleUser('${u.id}', true)" class="text-xs font-black text-emerald-600 uppercase">${isPending ? t('admin.validate') : t('common.restore')}</button>
-                                            ${isPending ? `<button onclick="rejectPending('${u.id}', '${encodeURIComponent(u.name)}')" title="${t('admin.reject_title')}" class="text-xs font-black text-red-400 hover:text-red-600 uppercase">${t('admin.reject')}</button>` : ''}
+                                            ${isPending ? `<button onclick="rejectPending('${u.id}')" title="${t('admin.reject_title')}" class="text-xs font-black text-red-400 hover:text-red-600 uppercase">${t('admin.reject')}</button>` : ''}
                                         `}
                                     </div>
 
@@ -295,8 +291,8 @@
         }
 
         // Rejeter un auto-inscrit en attente : suppression définitive (sûr, il n'a aucune donnée).
-        async function rejectPending(id, encName) {
-            const name = decodeURIComponent(encName || '');
+        async function rejectPending(id) {
+            const name = adminUsersById.get(id)?.name || '';
             if (!await uiConfirm(t('admin.reject_confirm', { name }))) return;
             const res = await adminFetch(`/api/admin/users/${id}/reject`, { method: 'DELETE' });
             if (res && res.ok) loadAdminUsers();
@@ -307,15 +303,23 @@
             const url = shouldActivate ? `/api/admin/users/${id}/restore` : `/api/admin/users/${id}`;
             const method = shouldActivate ? 'PATCH' : 'DELETE'; // On utilise DELETE pour désactiver car c'est notre route existante
             
-            if (await uiConfirm(shouldActivate ? t('admin.confirm_restore_user') : t('admin.confirm_deactivate_user'))) {
-                await adminFetch(url, { method });
-                loadAdminUsers();
+            if (!await uiConfirm(shouldActivate ? t('admin.confirm_restore_user') : t('admin.confirm_deactivate_user'))) return;
+            const res = await adminFetch(url, { method });
+            if (res && !res.ok) {
+                const e = await res.json().catch(() => ({}));
+                uiToast(e.error || t('common.error'));
             }
+            loadAdminUsers();
         }
 
-        function copyLink(token) {
-            const url = `${window.location.origin}/login/${token}`;
-            navigator.clipboard.writeText(url);
+        async function copyLink(userId) {
+            const res = await adminFetch(`/api/admin/users/${userId}/magic-link`, { method: 'POST' });
+            if (!res || !res.ok) {
+                const e = res ? await res.json().catch(() => ({})) : {};
+                return uiToast(e.error || t('common.error'));
+            }
+            const { url } = await res.json();
+            try { await navigator.clipboard.writeText(url); } catch {}
             uiToast(t('admin.toast_link_copied'));
         }
 
@@ -334,21 +338,20 @@
         }
 
         // Filet de secours : afficher/copier le lien malgré l'e-mail (dépannage), derrière confirmation
-        async function revealLink(token) {
+        async function revealLink(userId) {
             if (!await uiConfirm(t('admin.reveal_confirm'))) return;
-            copyLink(token);
+            copyLink(userId);
         }
 
-        // Régénère le lien magique d'un membre (rotation de token) : l'ancien lien est invalidé.
-        async function regenerateLink(id, encName) {
-            const name = decodeURIComponent(encName || '');
+        async function regenerateLink(id) {
+            const name = adminUsersById.get(id)?.name || '';
             if (!await uiConfirm(t('admin.regen_confirm', { name }))) return;
             const res = await adminFetch(`/api/admin/users/${id}/regenerate-link`, { method: 'POST' });
             if (res && res.ok) {
                 const data = await res.json();
-                const url = `${window.location.origin}/login/${data.token}`;
-                try { await navigator.clipboard.writeText(url); } catch {}
-                uiToast(t('admin.regen_ok', { url }));
+                if (data.is_self) setSessionToken(data.token);
+                try { await navigator.clipboard.writeText(data.login_url); } catch {}
+                uiToast(t('admin.regen_ok', { url: data.login_url }));
                 loadAdminUsers();
             } else {
                 const e = res ? await res.json().catch(() => ({})) : {};
@@ -486,9 +489,9 @@
                     <div class="relative group flex flex-col p-5 bg-white rounded-2xl border-2 ${isActive ? 'border-slate-100' : 'border-slate-50 bg-slate-50/50'} transition-all shadow-sm">
                         
                         <div class="flex items-center gap-4 mb-4">
-                            <span class="text-4xl ${!isActive ? 'grayscale opacity-30' : ''}">${c.emoji}</span>
+                            <span class="text-4xl ${!isActive ? 'grayscale opacity-30' : ''}">${escapeHtml(c.emoji)}</span>
                             <div class="flex flex-col">
-                                <span class="font-bold text-lg ${isActive ? 'text-slate-800' : 'text-slate-400 italic'}">${c.name}</span>
+                                <span class="font-bold text-lg ${isActive ? 'text-slate-800' : 'text-slate-400 italic'}">${escapeHtml(c.name)}</span>
                                 <span class="text-[10px] font-black uppercase tracking-widest ${isActive ? 'text-emerald-500' : 'text-slate-400'}">
                                     ${isActive ? t('admin.badge_active') : t('admin.badge_inactive')}
                                 </span>
@@ -537,7 +540,7 @@
             const res = await adminFetch('/api/admin/categories');
             const cats = await res.json();
             const select = document.getElementById('rule-cat');
-            select.innerHTML = cats.map(c => `<option value="${c.id}">${c.emoji} ${c.name}</option>`).join('');
+            select.innerHTML = cats.map(c => `<option value="${c.id}">${escapeHtml(c.emoji)} ${escapeHtml(c.name)}</option>`).join('');
         }
 
         async function addRule() {
@@ -562,15 +565,15 @@
             list.innerHTML = rules.map(r => `
                 <div id="rule-row-${r.id}" class="p-3 bg-white border border-slate-100 rounded-lg shadow-sm">
                     <div class="rule-display flex justify-between items-center">
-                        <span class="text-sm">${t('admin.rule_if')} <b>${r.cat_emoji} ${r.cat_name}</b> ${t('admin.rule_reaches')} <b>${r.threshold}</b> ${t('admin.rule_then')} <span class="text-orange-600 font-bold">${r.dare_text}</span></span>
+                        <span class="text-sm">${t('admin.rule_if')} <b>${escapeHtml(r.cat_emoji)} ${escapeHtml(r.cat_name)}</b> ${t('admin.rule_reaches')} <b>${escapeHtml(r.threshold)}</b> ${t('admin.rule_then')} <span class="text-orange-600 font-bold">${escapeHtml(r.dare_text)}</span></span>
                         <div class="flex gap-3 shrink-0 ml-3">
-                            <button onclick="editRule('${r.id}', ${r.threshold}, \`${r.dare_text}\`)" class="text-blue-400 hover:text-blue-600 text-xs font-bold">${t('common.edit')}</button>
+                            <button onclick="editRule('${r.id}')" class="text-blue-400 hover:text-blue-600 text-xs font-bold">${t('common.edit')}</button>
                             <button onclick="deleteRule('${r.id}')" class="text-red-400 hover:text-red-600 text-xs font-bold">${t('common.delete')}</button>
                         </div>
                     </div>
                     <div class="rule-edit hidden mt-2 flex gap-2 items-center">
-                        <input type="number" id="edit-threshold-${r.id}" class="w-20 p-2 rounded-lg border text-sm" value="${r.threshold}">
-                        <input type="text" id="edit-text-${r.id}" class="flex-1 p-2 rounded-lg border text-sm" value="${r.dare_text}">
+                        <input type="number" id="edit-threshold-${r.id}" class="w-20 p-2 rounded-lg border text-sm" value="${escapeHtml(r.threshold)}">
+                        <input type="text" id="edit-text-${r.id}" class="flex-1 p-2 rounded-lg border text-sm" value="${escapeHtml(r.dare_text)}">
                         <button onclick="saveRule('${r.id}')" class="bg-orange-600 text-white px-3 py-2 rounded-lg text-xs font-bold">OK</button>
                         <button onclick="cancelEdit('${r.id}')" class="text-slate-400 text-xs font-bold">${t('common.cancel')}</button>
                     </div>
@@ -609,10 +612,11 @@
             }
         }
 
-        async function clearCategoryPoints(userId, catId, catName, userName) {
+        async function clearCategoryPoints(userId, catId) {
+            const userName = adminUsersById.get(userId)?.name || '';
+            const catName = adminCategoriesById.get(catId)?.name || '';
             if (!await uiConfirm(t('admin.confirm_clear_category', { cat: catName, user: userName }))) return;
 
-            // Utilisation de adminFetch pour inclure le header X-Admin-Password
             const res = await adminFetch(`/api/admin/clear-category/${userId}/${catId}`, { 
                 method: 'POST' 
             });
@@ -655,10 +659,10 @@
                 return `
                 <div class="flex items-center justify-between p-3 ${isSpam ? 'bg-purple-50 border-purple-100' : 'bg-orange-50 border-orange-100'} rounded-xl border">
                     <div class="flex items-center gap-3 text-sm min-w-0">
-                        <span class="text-lg shrink-0">${log.emoji || '🚨'}</span>
+                        <span class="text-lg shrink-0">${escapeHtml(log.emoji || '🚨')}</span>
                         <span class="text-slate-600 min-w-0">
-                            <b class="text-slate-800">${log.user_name}</b>
-                            ${t('admin.dare_log_did')} <span class="${isSpam ? 'text-purple-600' : 'text-orange-600'} font-bold">${log.dare_text}</span>
+                            <b class="text-slate-800">${escapeHtml(log.user_name)}</b>
+                            ${t('admin.dare_log_did')} <span class="${isSpam ? 'text-purple-600' : 'text-orange-600'} font-bold">${escapeHtml(log.dare_text)}</span>
                         </span>
                     </div>
                     <div class="flex items-center gap-3 shrink-0 ml-4">
@@ -676,8 +680,8 @@
             const banner = document.getElementById('spam-banner');
             if (!banner) return;
             const list = (spammers || []).filter(s => s.flagged || s.progress >= 0.5);
+            spammersById = new Map(list.map(s => [s.userId, s]));
             if (!list.length) { banner.innerHTML = ''; return; }
-            const esc = s => String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
             banner.innerHTML = `
                 <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6">
                     <div class="font-black text-amber-800 text-sm mb-3 flex items-center gap-2">⚠️ ${t('admin.spam_zone_title')}</div>
@@ -686,20 +690,20 @@
                             const pct = Math.min(Math.round(s.progress * 100), 100);
                             const flagged = s.flagged;
                             return `<div class="flex items-center gap-3">
-                                <span class="text-sm font-bold ${flagged ? 'text-purple-700' : 'text-amber-900'} w-28 sm:w-32 truncate shrink-0">${flagged ? '🚨 ' : ''}${esc(s.name)}</span>
+                                <span class="text-sm font-bold ${flagged ? 'text-purple-700' : 'text-amber-900'} w-28 sm:w-32 truncate shrink-0">${flagged ? '🚨 ' : ''}${escapeHtml(s.name)}</span>
                                 <div class="flex-1 h-2 bg-white rounded-full overflow-hidden border border-amber-100">
                                     <div class="h-full ${flagged ? 'bg-purple-500' : 'bg-amber-400'} rounded-full" style="width:${pct}%"></div>
                                 </div>
                                 <span class="text-xs font-black ${flagged ? 'text-purple-700' : 'text-amber-700'} w-9 text-right shrink-0">${pct}%</span>
-                                ${flagged ? `<button onclick="pardonSpammer('${s.userId}', '${encodeURIComponent(s.name)}')" class="text-[10px] font-black uppercase text-emerald-600 hover:underline whitespace-nowrap shrink-0">${t('admin.spammer_pardon')}</button>` : ''}
+                                ${flagged ? `<button onclick="pardonSpammer('${s.userId}')" class="text-[10px] font-black uppercase text-emerald-600 hover:underline whitespace-nowrap shrink-0">${t('admin.spammer_pardon')}</button>` : ''}
                             </div>`;
                         }).join('')}
                     </div>
                 </div>`;
         }
 
-        async function pardonSpammer(id, encName) {
-            const name = decodeURIComponent(encName || '');
+        async function pardonSpammer(id) {
+            const name = spammersById.get(id)?.name || '';
             if (!await uiConfirm(t('admin.spammer_pardon_confirm', { name }))) return;
             const res = await adminFetch(`/api/admin/users/${id}/pardon-spammer`, { method: 'POST' });
             if (res && res.ok) { uiToast(t('admin.spammer_pardon_ok')); loadAdminUsers(); loadDareLog(); }
@@ -722,11 +726,11 @@
             container.innerHTML = logs.map(log => `
                 <div class="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-white transition-all group">
                     <div class="flex items-center gap-3 text-sm">
-                        <span class="text-lg">${log.emoji}</span>
+                        <span class="text-lg">${escapeHtml(log.emoji)}</span>
                         <span class="text-slate-600">
-                            <b class="text-slate-800">${log.from_name}</b>
+                            <b class="text-slate-800">${escapeHtml(log.from_name)}</b>
                             ${t('admin.global_log_gave')}
-                            <b class="text-slate-800">${log.to_name}</b>
+                            <b class="text-slate-800">${escapeHtml(log.to_name)}</b>
                         </span>
                     </div>
                     <div class="flex items-center gap-4">

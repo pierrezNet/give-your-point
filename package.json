@@ -34,7 +34,9 @@
     "db:migrate:point-reason:local": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=migrations/2026-13-point-reason.sql",
     "generate:vapid": "node generate-vapid.mjs",
     "deploy": "npm run build && wrangler pages deploy public",
-    "build": "npx @tailwindcss/cli -i public/input.css -o public/styles.css --minify"
+    "build": "npx @tailwindcss/cli -i public/input.css -o public/styles.css --minify",
+    "db:migrate:split-token": "wrangler d1 execute give-your-point-eu --remote --file=migrations/2026-14-split-token.sql",
+    "db:migrate:split-token:local": "wrangler d1 execute give-your-point-eu --local --persist-to=./db_data --file=migrations/2026-14-split-token.sql"
   },
   "keywords": [],
   "author": "",

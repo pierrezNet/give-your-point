@@ -3,13 +3,7 @@ let lastPointId = null;
 let isModalOpen = false;
 let isTransitioning = false;
 let landingTurnstileKey = ''; // clé Turnstile mémorisée pour la modale « lien perdu »
-
-// Échappe une chaîne avant injection dans innerHTML (données utilisateur : nom d'équipe, etc.)
-function escapeHtml(s) {
-    return String(s ?? '').replace(/[&<>"']/g, ch => ({
-        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
-    }[ch]));
-}
+let selectorUserNames = new Map();
 
 // Mesure cookieless de l'entonnoir : envoie un événement whitelisté au backend (fire-and-forget).
 function track(event) {
@@ -69,29 +63,8 @@ function showHelp() {
 }
 
 function handleAuth() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const loginId = urlParams.get('login_id');
-    const loginName = urlParams.get('login_name');
-
-    // Si on vient du lien magique, on enregistre
-    if (loginId && loginName) {
-        localStorage.setItem('my_user_id', loginId);
-        localStorage.setItem('my_user_name', loginName);
-        // On nettoie l'URL proprement
-        window.history.replaceState({}, document.title, window.location.pathname);
-    }
-
-    return localStorage.getItem('my_user_id');
-}
-
-function authHeaders() {
-    const myId = localStorage.getItem('my_user_id');
-    return myId ? { 'Authorization': `Bearer ${myId}` } : {};
-}
-
-async function authFetch(url, options = {}) {
-    options.headers = { ...(options.headers || {}), ...authHeaders() };
-    return fetch(url, options);
+    captureLoginFromUrl();
+    return getSessionToken();
 }
 
 async function showProfileModal() {
@@ -155,12 +128,12 @@ async function removeProfileEmail() {
 }
 
 async function loadMe() {
-    const myId = localStorage.getItem('my_user_id');
-    if (!myId) return null;
+    if (!getSessionToken()) return null;
     try {
         const res = await authFetch('/api/me');
         if (!res.ok) return null;
         const me = await res.json();
+        setCurrentUserId(me.id);
         localStorage.setItem('my_team_id', me.team_id || '');
         localStorage.setItem('my_team_name', me.team_name || '');
         localStorage.setItem('my_role', me.role || 'member');
@@ -183,7 +156,7 @@ async function loadCategories() {
         const div = document.createElement('div');
         div.className = 'category-card bg-white p-2 lg:p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-all';
         div.draggable = true;
-        div.innerHTML = `<span class="text-xl lg:text-2xl pointer-events-none">${cat.emoji}</span> <span class="text-base lg:text-2xl pointer-events-none">${cat.name}</span>`;
+        div.innerHTML = `<span class="text-xl lg:text-2xl pointer-events-none">${escapeHtml(cat.emoji)}</span> <span class="text-base lg:text-2xl pointer-events-none">${escapeHtml(cat.name)}</span>`;
 
         div.onclick = () => selectCategory(div, String(cat.id));
         div.ondragstart = (e) => e.dataTransfer.setData('text/plain', String(cat.id));
@@ -204,7 +177,7 @@ function renderUsers(users) {
         return;
     }
 
-    const myId = localStorage.getItem('my_user_id');
+    const myId = getCurrentUserId();
     usersGrid.innerHTML = '';
 
     users.forEach(user => {
@@ -218,20 +191,20 @@ function renderUsers(users) {
             ${isMe ? 'cursor-not-allowed border-slate-200 hover:bg-red-50' : 'cursor-pointer hover:shadow-md border-transparent'}`;
         
         div.innerHTML = `
-            <button onclick="showHistory(event, '${user.id}', '${user.name}')" 
-                    class="absolute top-3 left-3 text-slate-300 hover:text-blue-500 hover:scale-110 transition-all z-30 p-1">
+            <button class="history-button absolute top-3 left-3 text-slate-300 hover:text-blue-500 hover:scale-110 transition-all z-30 p-1">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
             </button>
             <div class="rank-badge absolute top-3 right-3 text-white text-[10px] font-black px-2 py-1 rounded-lg shadow-sm"></div>
             <div class="collapse lg:visible w-16 h-16 bg-linear-to-br from-blue-100 to-blue-50 rounded-full mb-3 flex items-center justify-center text-blue-600 text-2xl font-bold border border-blue-100 shadow-inner">
-                ${(user.name || "U")[0].toUpperCase()}
+                ${escapeHtml((user.name || "U")[0].toUpperCase())}
             </div>
-            <h3 class="font-bold text-gray-800 text-lg">${user.name} ${isMe ? t('index.you_label') : ''}</h3>
+            <h3 class="font-bold text-gray-800 text-lg">${escapeHtml(user.name)} ${isMe ? t('index.you_label') : ''}</h3>
             <p class="user-points-total text-blue-600 font-black text-sm mb-3"></p>
             <div class="top-categories-container flex flex-wrap justify-center gap-2 mt-2 w-full"></div>
         `;
+        div.querySelector('.history-button').onclick = (event) => showHistory(event, user.id, user.name);
 
         if (isMe) {
             // Ma carte : feedback visuel + message si on essaie quand même
@@ -355,8 +328,8 @@ function updateCardUI(card, user) {
     const catContainer = card.querySelector('.top-categories-container');
     catContainer.innerHTML = (user.topCategories || []).map(cat => `
         <div class="flex items-center bg-gray-50 px-2 py-1 rounded-md border border-gray-100">
-            <span class="text-sm">${cat.emoji}</span>
-            <span class="text-[10px] font-bold ml-1 text-gray-500">${cat.count}</span>
+            <span class="text-sm">${escapeHtml(cat.emoji)}</span>
+            <span class="text-[10px] font-bold ml-1 text-gray-500">${escapeHtml(cat.count)}</span>
         </div>`).join('') || `<span class="text-[10px] text-gray-400 italic">${t('index.no_badge')}</span>`;
 
     // Gestion du gage
@@ -417,7 +390,7 @@ function selectCategory(el, id) {
 async function openUserSelector(catId, emoji) {
     const res = await authFetch('/api/users-stats');
     const users = await res.json();
-    const myId = localStorage.getItem('my_user_id');
+    const myId = getCurrentUserId();
 
     const overlay = document.createElement('div');
     overlay.id = 'wheel-selector';
@@ -425,24 +398,25 @@ async function openUserSelector(catId, emoji) {
     
     // On filtre pour ne pas s'auto-mousser
     const otherUsers = users.filter(u => String(u.id) !== String(myId));
+    selectorUserNames = new Map(otherUsers.map(u => [u.id, u.name]));
 
     isModalOpen = true;
 
     overlay.innerHTML = `
         <div class="bg-white rounded-[40px] w-full max-w-sm p-6 animate-pop shadow-2xl text-center">
             <div class="mb-6">
-                <div class="text-5xl mb-2">${emoji}</div>
+                <div class="text-5xl mb-2">${escapeHtml(emoji)}</div>
                 <p class="text-slate-500 text-sm font-medium">${t('selector.who')}</p>
             </div>
             
             <div class="grid grid-cols-3 gap-4 mb-6">
                 ${otherUsers.map(u => `
-                    <button onclick="sendPointAndClose('${u.id}', '${catId}', '${encodeURIComponent(u.name)}')"
+                    <button onclick="sendPointAndClose('${u.id}', '${catId}')"
                             class="flex flex-col items-center gap-2 group">
                         <div class="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center text-blue-600 font-bold text-xl group-active:bg-blue-600 group-active:text-white transition-all shadow-sm">
-                            ${u.name[0].toUpperCase()}
+                            ${escapeHtml(u.name[0].toUpperCase())}
                         </div>
-                        <span class="text-[10px] font-bold text-slate-600 truncate w-full">${u.name}</span>
+                        <span class="text-[10px] font-bold text-slate-600 truncate w-full">${escapeHtml(u.name)}</span>
                     </button>
                 `).join('')}
             </div>
@@ -458,7 +432,7 @@ async function openUserSelector(catId, emoji) {
 }
 
 // Fonction de pont pour envoyer et fermer
-window.sendPointAndClose = async (userId, catId, encodedName) => {
+window.sendPointAndClose = async (userId, catId) => {
     const selector = document.getElementById('wheel-selector');
     const modalContent = selector.querySelector('.bg-white'); // La boîte blanche
 
@@ -471,7 +445,7 @@ window.sendPointAndClose = async (userId, catId, encodedName) => {
 
     requestAnimationFrame(() => {
         const cardMock = document.createElement('div');
-        giveWithReason(userId, cardMock, catId, decodeURIComponent(encodedName || ''));
+        giveWithReason(userId, cardMock, catId, selectorUserNames.get(userId) || '');
     });
 };
 
@@ -572,7 +546,8 @@ function showToast(message, type = 'success') {
         : '';
 
     toast.className = `fixed bottom-8 left-1/2 -translate-x-1/2 ${bg} text-white px-6 py-3 rounded-full shadow-2xl z-[200] flex items-center gap-4 animate-in slide-in-from-bottom-10 max-w-[90vw]`;
-    toast.innerHTML = `<span class="text-sm font-medium">${message}</span>${undoButton}`;
+    toast.innerHTML = `<span class="text-sm font-medium"></span>${undoButton}`;
+    toast.querySelector('span').textContent = message;
     document.body.appendChild(toast);
 
     setTimeout(() => {
@@ -616,7 +591,7 @@ function renderLeaderboardUI(data) {
         <div class="flex items-center justify-between p-3 ${i === 0 ? 'bg-yellow-50 border border-yellow-200' : 'bg-gray-50'} rounded-lg">
             <div class="flex items-center gap-4">
                 <span class="text-lg font-bold w-6 text-gray-400">#${i + 1}</span>
-                <span class="font-semibold text-gray-800">${u.name}</span>
+                <span class="font-semibold text-gray-800">${escapeHtml(u.name)}</span>
             </div>
             <span class="text-xl font-black text-blue-600">${u.total_points || 0} <small class="text-[10px] text-gray-400">PTS</small></span>
         </div>`).join('');
@@ -657,7 +632,7 @@ async function showHistory(event, userId, userName) {
                  onclick="if(event.target === this) { this.remove(); isModalOpen = false; }">
                 <div class="bg-white rounded-3xl p-6 max-w-md w-full max-h-[85vh] overflow-y-auto shadow-2xl animate-in fade-in zoom-in duration-200">
                     <div class="flex justify-between items-center mb-6 border-b border-slate-100 pb-4">
-                        <h2 class="text-xl font-black text-slate-800">${t('history.title', { name: userName })}</h2>
+                        <h2 class="text-xl font-black text-slate-800">${t('history.title', { name: escapeHtml(userName) })}</h2>
                         <button onclick="document.getElementById('history-modal').remove(); isModalOpen = false;" class="text-slate-400 hover:text-slate-600 text-3xl leading-none">&times;</button>
                     </div>
 
@@ -668,7 +643,7 @@ async function showHistory(event, userId, userName) {
                         ${data.received.length > 0 ? data.received.map(p => `
                             <div class="flex items-start justify-between gap-2 text-sm bg-slate-50 p-3 rounded-xl border border-slate-100">
                                 <div class="min-w-0">
-                                    <span class="text-slate-700">${p.emoji} <b>${p.cat_name}</b> <span class="text-slate-400 text-xs">${t('history.received_from')}</span> ${p.from_name}</span>
+                                    <span class="text-slate-700">${escapeHtml(p.emoji)} <b>${escapeHtml(p.cat_name)}</b> <span class="text-slate-400 text-xs">${t('history.received_from')}</span> ${escapeHtml(p.from_name)}</span>
                                     ${p.reason ? `<div class="text-xs italic text-slate-500 mt-1">« ${escapeHtml(p.reason)} »</div>` : ''}
                                 </div>
                                 <span class="text-[10px] font-bold text-slate-400 bg-white px-2 py-1 rounded-md shadow-sm shrink-0">${formatSmartDate(p.created_at)}</span>
@@ -683,7 +658,7 @@ async function showHistory(event, userId, userName) {
                         ${data.given.length > 0 ? data.given.map(p => `
                             <div class="flex items-start justify-between gap-2 text-sm bg-emerald-50/30 p-3 rounded-xl border border-emerald-100">
                                 <div class="min-w-0">
-                                    <span class="text-slate-700">${t('history.gave')} ${p.emoji} <b>${p.cat_name}</b> <span class="text-slate-400 text-xs">${t('history.given_to')}</span> ${p.to_name}</span>
+                                    <span class="text-slate-700">${t('history.gave')} ${escapeHtml(p.emoji)} <b>${escapeHtml(p.cat_name)}</b> <span class="text-slate-400 text-xs">${t('history.given_to')}</span> ${escapeHtml(p.to_name)}</span>
                                     ${p.reason ? `<div class="text-xs italic text-slate-500 mt-1">« ${escapeHtml(p.reason)} »</div>` : ''}
                                 </div>
                                 <span class="text-[10px] font-bold text-emerald-600/50 bg-white px-2 py-1 rounded-md shadow-sm shrink-0">${formatSmartDate(p.created_at)}</span>
@@ -698,7 +673,7 @@ async function showHistory(event, userId, userName) {
                     <div class="space-y-3">
                         ${data.dares.map(d => `
                             <div class="flex items-center justify-between text-sm bg-orange-50 p-3 rounded-xl border border-orange-100">
-                                <span class="text-slate-700">${d.emoji} <b>${d.dare_text}</b></span>
+                                <span class="text-slate-700">${escapeHtml(d.emoji)} <b>${escapeHtml(d.dare_text)}</b></span>
                                 <span class="text-[10px] font-bold text-orange-400 bg-white px-2 py-1 rounded-md shadow-sm">${formatSmartDate(d.cleared_at)}</span>
                             </div>
                         `).join('')}
@@ -734,9 +709,9 @@ async function init() {
         return;
     }
 
-    const myId = handleAuth();
+    const token = handleAuth();
 
-    if (!myId) {
+    if (!token) {
         await renderLanding();
         return;
     }
@@ -746,8 +721,7 @@ async function init() {
 
     const me = await loadMe();
     if (!me) {
-        localStorage.removeItem('my_user_id');
-        localStorage.removeItem('my_user_name');
+        clearSession();
         document.body.innerHTML = `
             <div class="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4 font-sans">
                 <h1 class="text-2xl font-bold text-gray-800">${t('auth.session_invalid_title')}</h1>
@@ -1299,9 +1273,9 @@ function showCompanyActivityModal() {
 }
 
 function startEventSource() {
-    const myId = localStorage.getItem('my_user_id');
-    if (!myId) return;
-    const source = new EventSource(`/api/events?t=${encodeURIComponent(myId)}`);
+    const token = getSessionToken();
+    if (!token) return;
+    const source = new EventSource(`/api/events?t=${encodeURIComponent(token)}`);
 
     source.addEventListener('stats', (e) => {
         if (isModalOpen || isTransitioning) return;
@@ -1326,11 +1300,10 @@ function urlBase64ToUint8Array(base64String) {
 }
 
 async function registerPushSubscription(subscription) {
-    const myId = localStorage.getItem('my_user_id');
-    if (!myId) return;
-    await fetch('/api/push/subscribe', {
+    if (!getSessionToken()) return;
+    await authFetch('/api/push/subscribe', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${myId}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ endpoint: subscription.endpoint, keys: subscription.toJSON().keys }),
     });
 }

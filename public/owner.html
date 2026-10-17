@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Owner - Donne Ton Point</title>
     <link rel="stylesheet" href="/styles.css">
+    <script src="session.js"></script>
     <script src="i18n.js"></script>
     <script src="ui.js"></script>
     <script src="app.js"></script>
@@ -105,7 +106,6 @@
     </div>
 
     <script>
-        const myUserId = localStorage.getItem('my_user_id');
         let myCompanyId = null;
         let companiesData = [];
 
@@ -129,11 +129,11 @@
         }
 
         async function checkAndLoad() {
-            if (!myUserId) {
+            if (!getSessionToken()) {
                 uiToast(t('owner.connect_first'));
                 return window.location.href = "/";
             }
-            const res = await fetch('/api/me', { headers: { 'Authorization': `Bearer ${myUserId}` } });
+            const res = await authFetch('/api/me');
             if (!res.ok) { window.location.href = "/"; return; }
             const me = await res.json();
             if (me.role !== 'owner') {
@@ -147,7 +147,7 @@
         }
 
         async function loadFunnel() {
-            const res = await fetch('/api/owner/funnel', { headers: { 'Authorization': `Bearer ${myUserId}` } });
+            const res = await authFetch('/api/owner/funnel');
             if (!res.ok) return;
             const f = await res.json();
             const pct = (num, den) => den > 0 ? Math.round((num / den) * 100) + '%' : '—';
@@ -163,7 +163,7 @@
         }
 
         async function loadCompanies() {
-            const res = await fetch('/api/owner/companies', { headers: { 'Authorization': `Bearer ${myUserId}` } });
+            const res = await authFetch('/api/owner/companies');
             if (!res.ok) return;
             const data = await res.json();
             companiesData = data;
@@ -194,11 +194,11 @@
                 return `
                     <tr class="border-b border-slate-100 ${c.active === 0 ? 'opacity-50' : ''} ${candidate ? 'bg-amber-50' : ''}">
                         <td class="p-3">
-                            <div class="font-bold text-slate-800">${c.name}</div>
+                            <div class="font-bold text-slate-800">${escapeHtml(c.name)}</div>
                             ${c.active === 0 ? `<div class="text-[10px] font-bold uppercase text-slate-400">${t('owner.company_disabled')}</div>` : ''}
                             ${candidate ? `<div class="text-[10px] font-black uppercase text-amber-600">🧹 ${t('owner.cleanup_flag')}</div>` : ''}
                         </td>
-                        <td class="p-3 text-sm text-slate-600">${c.admins || '<i class="text-slate-400">—</i>'}</td>
+                        <td class="p-3 text-sm text-slate-600">${c.admins ? escapeHtml(c.admins) : '<i class="text-slate-400">—</i>'}</td>
                         <td class="p-3 text-center text-sm font-bold">${c.team_count}</td>
                         <td class="p-3 text-center text-sm font-bold">${c.member_count}</td>
                         <td class="p-3 text-center text-sm hidden md:table-cell">${c.total_points}</td>
@@ -233,10 +233,7 @@
                 points: c.total_points,
             });
             if (!await uiConfirm(msg)) return;
-            const res = await fetch(`/api/owner/companies/${id}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${myUserId}` },
-            });
+            const res = await authFetch(`/api/owner/companies/${id}`, { method: 'DELETE' });
             if (res.ok) {
                 loadCompanies();
             } else {
