@@ -300,31 +300,187 @@
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen p-2 sm:p-4 lg:p-8">
-    <section id="seo-landing" class="max-w-3xl mx-auto px-4 py-10 text-slate-700">
-        <h1 class="text-3xl md:text-4xl font-black text-slate-900">Donne Ton Point — le rituel d'équipe 🎯</h1>
-        <p class="mt-4 text-lg">Récompensez les bons coups (et les bourdes) de votre équipe avec des badges. Quand un seuil est atteint dans une catégorie, c'est gage&nbsp;! Un outil de gamification d'équipe simple, gratuit et sans carte bancaire, hébergé en Europe.</p>
-        <a href="/" class="inline-block mt-6 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold">Créer mon espace gratuit</a>
+    <div id="landing" class="min-h-screen bg-gray-100">
+    <header class="sticky top-0 z-40 bg-white/85 backdrop-blur border-b border-slate-200">
+        <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+            <a href="/" class="flex items-center gap-2"><span class="text-2xl" aria-hidden="true">🎯</span><span class="font-black text-slate-800" data-i18n="app.title">Donne Ton Point</span></a>
+            <nav class="flex items-center gap-3 text-xs font-bold text-slate-500">
+                <a href="/about" class="px-1 hover:text-slate-800" data-i18n="nav.about">À propos</a>
+                <span class="text-slate-300" aria-hidden="true">|</span>
+                <button type="button" data-lang-toggle="fr" lang="fr" class="px-1">FR</button>
+                <span class="text-slate-300" aria-hidden="true">|</span>
+                <button type="button" data-lang-toggle="en" lang="en" class="px-1">EN</button>
+            </nav>
+        </div>
+    </header>
+    <main>
+        <section class="max-w-5xl mx-auto px-4 pt-12 pb-8 grid md:grid-cols-2 gap-10 items-center">
+            <div>
+                <h1 class="text-4xl md:text-5xl font-black text-slate-800 leading-tight"><span data-i18n="app.title">Donne Ton Point</span> 🎯</h1>
+                <p class="text-lg text-slate-600 mt-4" data-i18n="landing.hero_pitch">Récompense les bons coups (et les bourdes) de ton équipe avec des badges. Quand un seuil est atteint, c'est gage !</p>
+                <div class="mt-6 flex flex-wrap items-center gap-4">
+                    <a href="#create" class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg shadow-blue-600/20" data-i18n="landing.cta_create">🚀 Créer mon espace</a>
+                    <a href="#have-link" class="text-sm font-bold text-blue-700 hover:underline" data-i18n="landing.have_link_link">J'ai déjà un lien magique →</a>
+                </div>
+            </div>
+            <div class="flex justify-center md:justify-end">
+        <svg viewBox="0 0 320 360" xmlns="http://www.w3.org/2000/svg" class="w-72 md:w-80 drop-shadow-2xl" role="img" aria-label="Aperçu de l&#x27;application" data-i18n-aria-label="landing.mockup_alt">
+            <rect x="10" y="10" width="300" height="340" rx="28" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/>
+            <rect x="240" y="30" width="50" height="22" rx="8" fill="#facc15"/>
+            <text x="265" y="46" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" font-weight="900" fill="#1e293b" data-i18n="landing.mockup_user_rank">#2</text>
+            <rect x="30" y="30" width="56" height="22" rx="8" fill="#dbeafe"/>
+            <text x="58" y="46" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="800" fill="#2563eb" data-i18n="landing.mockup_demo_label">Démo</text>
+            <circle cx="160" cy="115" r="42" fill="url(#avatarGrad)" stroke="#bfdbfe" stroke-width="2"/>
+            <text x="160" y="128" text-anchor="middle" font-family="system-ui, sans-serif" font-size="36" font-weight="900" fill="#2563eb">A</text>
+            <text x="160" y="190" text-anchor="middle" font-family="system-ui, sans-serif" font-size="20" font-weight="800" fill="#1e293b" data-i18n="landing.mockup_user_name">Alice</text>
+            <text x="160" y="216" text-anchor="middle" font-family="system-ui, sans-serif" font-size="16" font-weight="900" fill="#2563eb" data-i18n="landing.mockup_user_pts">12 pts</text>
+            <g transform="translate(50, 250)"><rect width="60" height="34" rx="8" fill="#f8fafc" stroke="#e2e8f0"/><text x="30" y="22" text-anchor="middle" font-size="18">😂</text><text x="48" y="22" text-anchor="middle" font-size="10" font-weight="700" fill="#64748b">5</text></g>
+            <g transform="translate(130, 250)"><rect width="60" height="34" rx="8" fill="#f8fafc" stroke="#e2e8f0"/><text x="30" y="22" text-anchor="middle" font-size="18">👿</text><text x="48" y="22" text-anchor="middle" font-size="10" font-weight="700" fill="#64748b">4</text></g>
+            <g transform="translate(210, 250)"><rect width="60" height="34" rx="8" fill="#f8fafc" stroke="#e2e8f0"/><text x="30" y="22" text-anchor="middle" font-size="18">😴</text><text x="48" y="22" text-anchor="middle" font-size="10" font-weight="700" fill="#64748b">3</text></g>
+            <g transform="translate(40, 305)"><rect width="240" height="30" rx="15" fill="#ea580c"/><text x="120" y="20" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" font-weight="900" fill="white" data-i18n="landing.mockup_dare">🚨 GAGE : VIENNOISERIES</text></g>
+            <defs><linearGradient id="avatarGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#dbeafe"/><stop offset="100%" stop-color="#eff6ff"/></linearGradient></defs>
+        </svg>
+            </div>
+        </section>
 
-        <h2 class="text-2xl font-black text-slate-900 mt-10">Comment ça marche</h2>
-        <ol class="mt-3 space-y-2 list-decimal list-inside">
-            <li><strong>Offrez un badge</strong> à un coéquipier (humour, retard en réunion, bonne idée…).</li>
-            <li><strong>Les scores grimpent</strong> en temps réel pour toute l'équipe.</li>
-            <li><strong>Le gage tombe</strong> au seuil défini&nbsp;: le coupable apporte les viennoiseries.</li>
-        </ol>
+        <section class="max-w-5xl mx-auto px-4 py-12">
+            <h2 class="text-2xl font-black text-slate-800 mb-8 text-center" data-i18n="landing.how_title">Comment ça marche ?</h2>
+            <div class="grid md:grid-cols-3 gap-6">
+                <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+                    <div class="text-3xl mb-2" aria-hidden="true">🎁</div>
+                    <h3 class="font-bold text-slate-800 mb-1" data-i18n="landing.how_step1_title">1. Tu offres un badge</h3>
+                    <p class="text-sm text-slate-600" data-i18n="landing.how_step1_desc">Glisse une catégorie sur la carte d'un collègue.</p>
+                </div>
+                <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+                    <div class="text-3xl mb-2" aria-hidden="true">📈</div>
+                    <h3 class="font-bold text-slate-800 mb-1" data-i18n="landing.how_step2_title">2. Le score grimpe</h3>
+                    <p class="text-sm text-slate-600" data-i18n="landing.how_step2_desc">Chaque membre cumule ses points en temps réel.</p>
+                </div>
+                <div class="bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
+                    <div class="text-3xl mb-2" aria-hidden="true">⚠️</div>
+                    <h3 class="font-bold text-slate-800 mb-1" data-i18n="landing.how_step3_title">3. Le gage tombe</h3>
+                    <p class="text-sm text-slate-600" data-i18n="landing.how_step3_desc">Au seuil défini, le coupable apporte les viennoiseries.</p>
+                </div>
+            </div>
+        </section>
 
-        <h2 class="text-2xl font-black text-slate-900 mt-10">Pour qui&nbsp;?</h2>
-        <p class="mt-3">Pensé d'abord pour les <strong>équipes au travail</strong> qui veulent célébrer les bons moments et dédramatiser les ratés. Fonctionne aussi très bien pour une <strong>classe</strong> ou un <strong>groupe d'amis</strong>.</p>
+        <section class="max-w-5xl mx-auto px-4 py-12">
+            <h2 class="text-2xl font-black text-slate-800 mb-8 text-center" data-i18n="landing.who_title">Pour qui ?</h2>
+            <div class="grid md:grid-cols-3 gap-6">
+                <div class="bg-blue-50 border-blue-100 rounded-2xl p-6 border">
+                    <h3 class="font-bold text-slate-800 mb-2" data-i18n="landing.who_team_title">🧑‍💻 Équipe au travail</h3>
+                    <p class="text-sm text-slate-600" data-i18n="landing.who_team_desc">Pour célébrer les bonnes idées et taquiner les retards en réunion.</p>
+                </div>
+                <div class="bg-emerald-50 border-emerald-100 rounded-2xl p-6 border">
+                    <h3 class="font-bold text-slate-800 mb-2" data-i18n="landing.who_class_title">🎓 Classe ou groupe d'étude</h3>
+                    <p class="text-sm text-slate-600" data-i18n="landing.who_class_desc">Stimuler la participation, encourager l'entraide.</p>
+                </div>
+                <div class="bg-amber-50 border-amber-100 rounded-2xl p-6 border">
+                    <h3 class="font-bold text-slate-800 mb-2" data-i18n="landing.who_friends_title">🍻 Soirée entre potes</h3>
+                    <p class="text-sm text-slate-600" data-i18n="landing.who_friends_desc">Vannes du soir et gages du lendemain — un classique.</p>
+                </div>
+            </div>
+        </section>
 
-        <h2 class="text-2xl font-black text-slate-900 mt-10">Questions fréquentes</h2>
-        <h3 class="font-bold text-slate-900 mt-4">C'est vraiment gratuit&nbsp;?</h3>
-        <p>Oui, sans limite pour l'instant. Une offre Premium viendra plus tard pour les besoins avancés (exports, personnalisation).</p>
-        <h3 class="font-bold text-slate-900 mt-4">Où sont stockées les données&nbsp;?</h3>
-        <p>Sur Cloudflare D1, en <strong>juridiction européenne stricte</strong>. Vous pouvez demander la suppression à tout moment.</p>
-        <h3 class="font-bold text-slate-900 mt-4">Faut-il installer quelque chose&nbsp;?</h3>
-        <p>Non&nbsp;: Donne Ton Point fonctionne dans le navigateur et s'installe en un clic sur mobile (application web). <a href="/about" class="text-blue-600 underline">En savoir plus sur le projet</a>.</p>
+        <section id="create" class="max-w-md mx-auto px-4 py-12">
+            <div class="bg-white rounded-3xl shadow-xl p-8 space-y-5 border border-slate-200">
+                <div class="text-center">
+                    <h2 class="text-2xl font-black text-slate-800" data-i18n="landing.create_title">✨ Lance ton espace</h2>
+                    <p class="text-sm text-slate-600 mt-2" data-i18n="landing.create_subtitle">C'est gratuit, 30 secondes, pas de carte bleue.</p>
+                </div>
+                <form id="onboarding-form" class="space-y-3">
+                    <input id="ob-company" name="company_name" type="text" required minlength="2" maxlength="60" placeholder="Nom de ta société ou équipe" data-i18n-placeholder="onboarding.company_placeholder" aria-label="Nom de ta société ou équipe" data-i18n-aria-label="onboarding.company_placeholder" class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
+                    <input id="ob-admin" name="admin_name" type="text" required minlength="1" maxlength="40" placeholder="Ton prénom" data-i18n-placeholder="onboarding.admin_placeholder" aria-label="Ton prénom" data-i18n-aria-label="onboarding.admin_placeholder" class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
+                    <input id="ob-email" name="admin_email" type="email" maxlength="120" placeholder="Ton email (optionnel, pour les notifications)" data-i18n-placeholder="onboarding.email_placeholder" aria-label="Ton email (optionnel, pour les notifications)" data-i18n-aria-label="onboarding.email_placeholder" class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
+                    <div class="cf-turnstile" data-size="flexible"></div>
+                    <button type="submit" id="ob-submit" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition disabled:opacity-50" data-i18n="onboarding.submit">Lancer mon équipe 🚀</button>
+                    <p id="ob-error" class="text-red-600 text-xs text-center hidden" role="alert"></p>
+                </form>
+                <p class="text-[11px] text-slate-500 text-center" data-i18n="landing.legal_note">En créant ton espace, tu acceptes que tes données soient stockées sur Cloudflare D1 (UE). Aucune publicité, aucun pistage tiers.</p>
+            </div>
+        </section>
 
-        <noscript><p class="mt-6 font-bold text-red-600">Activez JavaScript pour créer votre espace et utiliser l'application.</p></noscript>
-    </section>
+        <section id="have-link" class="max-w-md mx-auto px-4 pb-12">
+            <div class="bg-slate-50 rounded-xl p-4 text-sm text-slate-700 border border-slate-200">
+                <h3 class="font-bold text-slate-800 mb-1" data-i18n="onboarding.have_link_title">Tu as déjà un lien magique ?</h3>
+                <p class="text-xs text-slate-600" data-i18n-html="onboarding.have_link_desc">Clique simplement dessus pour te connecter (format <span class="font-mono text-[11px] bg-slate-100 px-1 py-0.5 rounded">/login/&lt;token&gt;</span>).</p>
+                <button type="button" data-action="show-recover" class="mt-2 text-xs font-bold text-blue-700 hover:underline" data-i18n="recover.link">Perdu ton lien ? Reçois-le par e-mail</button>
+            </div>
+        </section>
+
+        <section class="max-w-3xl mx-auto px-4 py-12">
+            <h2 class="text-2xl font-black text-slate-800 mb-6 text-center" data-i18n="landing.faq_title">Questions fréquentes</h2>
+            <div class="space-y-3">
+                <details class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                    <summary class="font-bold text-slate-800 cursor-pointer marker:text-blue-500" data-i18n="landing.faq_free_q">C'est vraiment gratuit ?</summary>
+                    <p class="text-sm text-slate-600 mt-3" data-i18n="landing.faq_free_a">Oui, sans limite pour l'instant. Une offre Premium arrivera plus tard pour les besoins avancés (exports, personnalisation).</p>
+                </details>
+                <details class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                    <summary class="font-bold text-slate-800 cursor-pointer marker:text-blue-500" data-i18n="landing.faq_data_q">Où sont stockées les données ?</summary>
+                    <p class="text-sm text-slate-600 mt-3" data-i18n="landing.faq_data_a">Sur Cloudflare D1 (serveurs européens). Tu peux demander la suppression à tout moment via la page À propos.</p>
+                </details>
+                <details class="bg-white rounded-xl p-4 border border-slate-200 shadow-sm">
+                    <summary class="font-bold text-slate-800 cursor-pointer marker:text-blue-500" data-i18n="landing.faq_account_q">Faut-il un compte par participant ?</summary>
+                    <p class="text-sm text-slate-600 mt-3" data-i18n="landing.faq_account_a">L'admin de l'équipe crée chaque membre et lui envoie un lien magique unique. Pas de mot de passe à retenir.</p>
+                </details>
+            </div>
+        </section>
+        <noscript><p class="max-w-md mx-auto px-4 pb-8 font-bold text-red-600 text-center">Activez JavaScript pour créer votre espace et utiliser l'application.</p></noscript>
+    </main>
+
+    <footer class="max-w-5xl mx-auto px-4 py-8 text-center text-xs text-slate-500 border-t border-slate-200">
+        <a href="/about" class="block mb-2 font-bold text-slate-600 hover:text-slate-800 underline" data-i18n="landing.about_link">À propos, rôles et données personnelles</a>
+        Made with ❤️ — <span data-i18n="app.title">Donne Ton Point</span>
+    </footer>
+    </div>
+
+    <template id="join-page">
+    <div class="min-h-screen bg-gray-100">
+    <header class="sticky top-0 z-40 bg-white/85 backdrop-blur border-b border-slate-200">
+        <div class="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+            <a href="/" class="flex items-center gap-2"><span class="text-2xl" aria-hidden="true">🎯</span><span class="font-black text-slate-800" data-i18n="app.title">Donne Ton Point</span></a>
+            <nav class="flex items-center gap-3 text-xs font-bold text-slate-500">
+                <button type="button" data-lang-toggle="fr" lang="fr" class="px-1">FR</button>
+                <span class="text-slate-300" aria-hidden="true">|</span>
+                <button type="button" data-lang-toggle="en" lang="en" class="px-1">EN</button>
+            </nav>
+        </div>
+    </header>
+    <main class="max-w-md mx-auto px-4 py-16">
+        <div id="join-card" class="bg-white rounded-3xl shadow-xl p-8 space-y-5 border border-slate-200 text-center">
+            <div class="text-5xl" aria-hidden="true">🎉</div>
+            <div>
+                <h1 id="join-heading" class="text-2xl font-black text-slate-800"></h1>
+                <p id="join-subtitle" class="text-sm text-slate-600 mt-2"></p>
+            </div>
+            <form id="join-form" class="space-y-3 text-left">
+                <input id="join-name" name="name" type="text" required minlength="1" maxlength="40" placeholder="Ton prénom" data-i18n-placeholder="join.name_placeholder" aria-label="Ton prénom" data-i18n-aria-label="join.name_placeholder" class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
+                <div class="cf-turnstile" data-size="flexible"></div>
+                <button type="submit" id="join-submit" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition disabled:opacity-50" data-i18n="join.submit">Rejoindre</button>
+                <p id="join-error" class="text-red-600 text-xs text-center hidden" role="alert"></p>
+            </form>
+            <a href="/" class="text-xs font-bold text-slate-500 hover:underline block" data-i18n="join.have_account">J'ai déjà un compte</a>
+        </div>
+    </main>
+    </div>
+    </template>
+
+    <template id="join-pending">
+        <div class="text-5xl" aria-hidden="true">⏳</div>
+        <h1 class="text-2xl font-black text-slate-800" data-i18n="join.pending_title">Presque terminé ! ⏳</h1>
+        <p id="join-pending-message" class="text-sm text-slate-600"></p>
+        <a href="/" class="text-xs font-bold text-slate-500 hover:underline block" data-i18n="join.back_home">Retour à l'accueil</a>
+    </template>
+
+    <template id="join-invalid">
+    <main class="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4 text-center">
+        <div class="text-5xl mb-4" aria-hidden="true">🔗</div>
+        <h1 class="text-2xl font-black text-slate-800" data-i18n="join.invalid_title">Lien invalide</h1>
+        <p class="text-slate-600 mt-2 max-w-sm" data-i18n="join.invalid_msg">Ce lien d'invitation n'est plus valide. Demande-en un nouveau à ton admin.</p>
+        <a href="/" class="mt-6 inline-block bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition" data-i18n="join.back_home">Retour à l'accueil</a>
+    </main>
+    </template>
+
 
     <div id="app-shell" class="hidden">
     <header class="relative flex justify-between items-center mb-2 lg:mb-8 rounded-xl shadow-lg p-3 lg:p-4">

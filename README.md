@@ -80,7 +80,7 @@ public/
   owner.html       # Console owner (vue globale des sociétés + entonnoir)
   stats.html       # Tableaux de bord
   js/core/         # Modules ES communs (session, i18n + dictionnaire FR/EN, dialogues, actions…)
-  js/home/         # Fonctionnalités de l'accueil (don de point, landing, invitation, historique…)
+  js/features/     # Une fonctionnalité par dossier : api.js, *.view.js (vues pures), model.js, controller.js
   js/pages/        # Un point d'entrée par page
   sw.js            # Service worker (push + PWA)
   manifest.json    # PWA installable (+ icon.svg, icon-192.png, icon-512.png)

@@ -28,6 +28,7 @@ test.describe('console admin', () => {
 
   test('crée un badge puis une règle de gage', async ({ page }) => {
     await openAs(page, TOKENS.admin, '/admin');
+    await expect(page.locator('#admin-categories-list')).toContainText('Entraide');
     await page.fill('#new-cat-emoji', '⏰');
     await page.fill('#new-cat-name', 'Ponctualité');
     await page.getByRole('button', { name: 'Créer le badge' }).click();

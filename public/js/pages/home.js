@@ -1,25 +1,24 @@
-import { applyI18n, t } from '../core/i18n.js';
+import { t } from '../core/i18n.js';
+import { startPage } from '../core/page.js';
 import { ADMIN_ROLES, SUPERADMIN_ROLES, captureLoginFromUrl, clearSession, fetchCurrentUser, getSessionToken } from '../core/session.js';
 import { registerActions } from '../core/actions.js';
-import { renderLanding } from '../home/landing.js';
-import { renderJoin } from '../home/join.js';
-import { loadCategories, refreshScores } from '../home/scoreboard.js';
-import { setViewerRole } from '../home/emptyTeam.js';
-import { loadCompanyActivity } from '../home/companyActivity.js';
-import { startRealtimeScores } from '../home/realtime.js';
-import { initPushNotifications } from '../home/push.js';
-import '../home/help.js';
-import '../home/profile.js';
+import { startLanding } from '../features/landing/controller.js';
+import { startJoin } from '../features/join/controller.js';
+import { loadCategories, refreshScores, startBoard } from '../features/board/controller.js';
+import { setViewerRole } from '../features/emptyTeam/controller.js';
+import { startCompanyActivity } from '../features/companyActivity/controller.js';
+import { startRealtimeScores } from '../features/realtime/controller.js';
+import { startPushNotifications } from '../features/push/controller.js';
+import { startHelp } from '../features/help/controller.js';
+import { startProfile } from '../features/profile/controller.js';
 
 const JOIN_PATH = /^\/join\/([^/]+)$/;
 
-function toggleMobileMenu(force) {
+function toggleMobileMenu(open) {
   const menu = document.getElementById('mobile-menu');
-  const toggle = document.getElementById('menu-toggle');
-  const open = force ?? !menu.classList.contains('open');
   menu.classList.toggle('open', open);
   menu.classList.toggle('hidden', !open);
-  toggle.setAttribute('aria-expanded', String(open));
+  document.getElementById('menu-toggle').setAttribute('aria-expanded', String(open));
 }
 
 function closeMenuOnOutsideClick(event) {
@@ -46,8 +45,8 @@ function showSignedInHeader(me) {
   show('.nav-btn-owner', me.role === 'owner');
 }
 
-async function renderBoard() {
-  document.getElementById('seo-landing')?.remove();
+async function startSignedInApp() {
+  document.getElementById('landing').remove();
   document.getElementById('app-shell').classList.remove('hidden');
   const me = await fetchCurrentUser();
   if (!me) {
@@ -56,21 +55,24 @@ async function renderBoard() {
   }
   setViewerRole(me.role);
   showSignedInHeader(me);
+  startBoard();
+  startHelp();
+  startProfile();
+  registerActions({ 'toggle-menu': () => toggleMobileMenu(!document.getElementById('mobile-menu').classList.contains('open')) });
+  document.addEventListener('click', closeMenuOnOutsideClick);
   await Promise.all([loadCategories(), refreshScores()]);
   startRealtimeScores();
-  loadCompanyActivity();
-  initPushNotifications();
+  startCompanyActivity();
+  startPushNotifications();
 }
 
-async function route() {
-  applyI18n();
+function route() {
+  startPage();
   const invitation = location.pathname.match(JOIN_PATH);
-  if (invitation) return renderJoin(decodeURIComponent(invitation[1]));
+  if (invitation) return startJoin(decodeURIComponent(invitation[1]));
   captureLoginFromUrl();
-  if (!getSessionToken()) return renderLanding();
-  return renderBoard();
+  if (!getSessionToken()) return startLanding();
+  return startSignedInApp();
 }
 
-registerActions({ 'toggle-menu': () => toggleMobileMenu() });
-document.addEventListener('click', closeMenuOnOutsideClick);
 route();

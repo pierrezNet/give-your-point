@@ -9,5 +9,6 @@
     "lib": ["ESNext"],
     "types": ["@cloudflare/workers-types", "@cloudflare/vitest-plugin/types"]
   },
-  "include": ["src", "functions", "test"]
+  "include": ["src", "functions", "test"],
+  "exclude": ["test/frontend"]
 }

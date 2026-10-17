@@ -111,8 +111,22 @@ module ; chaque entrée cite le symbole concerné pour être retrouvée par rech
 
 ## Frontend — architecture (`public/js/`)
 
-- Modules ES natifs, sans bundler : `core/` (commun), `home/` (fonctionnalités de l'accueil),
-  `pages/` (un point d'entrée par page HTML, chargé par `<script type="module">`).
+- Modules ES natifs, sans bundler : `core/` (commun), `features/<fonctionnalité>/` et `pages/`
+  (un point d'entrée par page HTML, chargé par `<script type="module">`, qui ne fait qu'assembler).
+- **MVC léger par fonctionnalité** (`features/board`, `features/admin`…) :
+  - `api.js` : accès aux données uniquement (via `core/api.js#apiRequest` → `{ ok, status, data }`) ;
+  - `*.view.js` : fonctions **pures** données → chaîne HTML (aucun DOM, aucun `fetch`), testées par
+    `test/frontend/` dans Node (`vitest.frontend.config.mts`) ;
+  - `model.js` : calculs purs (palmarès, ancienneté d'activité, pluriels…), testés aussi ;
+  - `controller.js` : état local, événements (délégation), orchestration api → vue → DOM.
+- Contenu **statique** (landing, écran d'invitation) : dans `index.html`, en français, avec
+  `data-i18n` pour la bascule de langue (indexable par les moteurs). Les écrans d'invitation sont des
+  `<template>` clonés par `features/join` ; ils sont mis en cache au premier usage car l'écran
+  d'invitation remplace tout le `<body>`.
+- Les modules `core/` n'ont **aucun effet de bord à l'import** (les écouteurs globaux sont posés par
+  `startPage()` / `registerActions`) : c'est ce qui permet d'importer les vues dans Node.
+- Classes Tailwind toujours écrites en entier dans le code (jamais `text-${couleur}-600`) : Tailwind
+  ne génère que les classes qu'il trouve littéralement dans les sources.
 - **Aucun script inline ni `onclick`** : c'est ce qui autorise la CSP stricte
   (`script-src 'self' https://challenges.cloudflare.com`). Un bouton déclare `data-action="nom"` et
   la page enregistre `registerActions({ nom: (bouton) => … })` (`core/actions.js`, délégation sur
@@ -145,6 +159,9 @@ module ; chaque entrée cite le symbole concerné pour être retrouvée par rech
   ou une erreur JS introduite par une modification est donc détectée.
 - Les tests partagent la base sur un run (exécution séquentielle) : chaque scénario utilise des
   données qui ne gênent pas les autres (ex. le don de point est annulé dans le même test).
+- Un scénario doit attendre que la page soit prête (une donnée chargée) avant de soumettre un
+  formulaire : sinon la soumission peut précéder le branchement du gestionnaire par le module et
+  déclencher une soumission HTML classique (rechargement).
 
 ## Déploiement — cache des fichiers statiques
 

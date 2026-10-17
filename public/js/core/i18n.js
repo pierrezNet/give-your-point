@@ -6,13 +6,14 @@ const LANGUAGE_KEY = 'lang';
 const DEFAULT_LANGUAGE = 'fr';
 
 export function getLang() {
+  if (typeof localStorage === 'undefined') return DEFAULT_LANGUAGE;
   try {
     const stored = localStorage.getItem(LANGUAGE_KEY);
     if (stored && translations[stored]) return stored;
   } catch {
     return DEFAULT_LANGUAGE;
   }
-  return (navigator.language || DEFAULT_LANGUAGE).toLowerCase().startsWith('en') ? 'en' : DEFAULT_LANGUAGE;
+  return (globalThis.navigator?.language || DEFAULT_LANGUAGE).toLowerCase().startsWith('en') ? 'en' : DEFAULT_LANGUAGE;
 }
 
 const lookup = (key) => translations[getLang()]?.[key] ?? translations[DEFAULT_LANGUAGE][key] ?? key;
@@ -53,7 +54,9 @@ export async function setLang(language) {
   location.reload();
 }
 
-document.addEventListener('click', (event) => {
-  const toggle = event.target.closest('[data-lang-toggle]');
-  if (toggle) setLang(toggle.dataset.langToggle);
-});
+export function bindLanguageToggles() {
+  document.addEventListener('click', (event) => {
+    const toggle = event.target.closest('[data-lang-toggle]');
+    if (toggle) setLang(toggle.dataset.langToggle);
+  });
+}

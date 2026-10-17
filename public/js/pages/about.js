@@ -1,3 +1,3 @@
-import { applyI18n } from '../core/i18n.js';
+import { startPage } from '../core/page.js';
 
-applyI18n();
+startPage();

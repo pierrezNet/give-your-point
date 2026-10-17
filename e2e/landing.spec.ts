@@ -8,7 +8,7 @@ test.describe('landing (non connecté)', () => {
     await expect(page.getByRole('heading', { level: 1, name: /Donne Ton Point/ })).toBeVisible();
     await expect(page.locator('#ob-company')).toBeVisible();
     await expect(page.locator('#ob-admin')).toBeVisible();
-    await expect(page.locator('a[href="/about"]')).toHaveCount(2);
+    await expect(page.locator('#landing a[href="/about"]')).toHaveCount(2);
     await expect(page.locator('details')).toHaveCount(3);
     expect(errors).toEqual([]);
   });
