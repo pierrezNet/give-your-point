@@ -1,4 +1,4 @@
-import { applyI18n, tText } from '../../core/i18n.js';
+import { applyI18n, getLang, tText } from '../../core/i18n.js';
 import { apiErrorMessage } from '../../core/api.js';
 import { track } from '../../core/track.js';
 import { loadTurnstile, turnstileSiteKey, turnstileToken } from '../../core/turnstile.js';
@@ -35,11 +35,12 @@ async function submitJoin(event, code, invitation) {
   }
   setSubmitting(true);
   try {
-    const outcome = await joinTeam({ code, name: event.target.name.value.trim(), turnstileToken: token });
+    const email = event.target.email.value.trim();
+    const outcome = await joinTeam({ code, name: event.target.name.value.trim(), email, language: getLang(), turnstileToken: token });
     if (outcome.ok) {
       track('join_soumis');
       showTemplate('join-pending', document.getElementById('join-card'));
-      document.getElementById('join-pending-message').textContent = tText('join.pending_msg', { team: invitation.team_name });
+      document.getElementById('join-pending-message').textContent = tText(email ? 'join.pending_msg_email' : 'join.pending_msg', { team: invitation.team_name, email });
       return;
     }
     showError(apiErrorMessage(outcome.body, 'join.error_generic'));

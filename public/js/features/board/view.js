@@ -98,6 +98,12 @@ export const reasonFormHtml = () => `
     <button type="submit" class="bg-white text-slate-900 font-bold text-xs px-3 rounded-xl">${t('common.save')}</button>
   </form>`;
 
+export const dareAnnouncementHtml = (announcements) => `
+  <div id="dare-announcement" role="status" aria-live="polite"
+       class="fixed top-20 left-1/2 -translate-x-1/2 bg-orange-700 text-white px-6 py-3 rounded-3xl shadow-2xl z-[200] max-w-[90vw] text-sm font-bold text-center animate-pop">
+    ${announcements.map((announcement) => `<p>${t('index.dare_announcement', announcement)}</p>`).join('')}
+  </div>`;
+
 export function pointOutcomeMessage(result) {
   if (result.gageTriggered) return { type: 'danger', message: tText('toast.gage_triggered', result.gageTriggered) };
   if (result.gageWarning) return { type: 'warning', message: tText('toast.gage_warning', result.gageWarning) };

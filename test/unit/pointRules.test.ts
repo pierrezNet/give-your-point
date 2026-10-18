@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  findPointRefusal, normalizeReason, MAX_POINTS_PER_DAY, MAX_POINTS_PER_RECIPIENT_PER_DAY, REASON_MAX_LENGTH,
+  findPointRefusal, normalizeReason, startOfQuotaDay, MAX_POINTS_PER_DAY, MAX_POINTS_PER_RECIPIENT_PER_DAY, REASON_MAX_LENGTH,
 } from '../../src/domain/pointRules';
 
 const calm = { sameBadgeToRecipientRecently: false, givenToday: 0, givenToRecipientToday: 0, isFlaggedSpammer: false };
@@ -42,5 +42,20 @@ describe('normalizeReason', () => {
 
   it.each([undefined, null, 3, '', '   '])('renvoie null pour %p', (raw) => {
     expect(normalizeReason(raw)).toBeNull();
+  });
+});
+
+describe('startOfQuotaDay', () => {
+  it("commence à minuit heure de Paris en hiver (23 h UTC la veille)", () => {
+    expect(startOfQuotaDay(new Date('2026-01-15T00:30:00Z'))).toBe('2026-01-14 23:00:00');
+  });
+
+  it("commence à minuit heure de Paris en été (22 h UTC la veille)", () => {
+    expect(startOfQuotaDay(new Date('2026-07-15T21:59:00Z'))).toBe('2026-07-14 22:00:00');
+    expect(startOfQuotaDay(new Date('2026-07-15T22:01:00Z'))).toBe('2026-07-15 22:00:00');
+  });
+
+  it('reste juste le jour du passage à l\'heure d\'été', () => {
+    expect(startOfQuotaDay(new Date('2026-03-29T12:00:00Z'))).toBe('2026-03-28 23:00:00');
   });
 });

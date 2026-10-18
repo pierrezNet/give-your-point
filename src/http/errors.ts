@@ -41,10 +41,13 @@ const API_ERRORS = {
 
   BADGE_INVALID: [400, 'Badge invalide (nom de 1 à 40 caractères et emoji requis)'],
   RULE_INVALID: [400, 'Règle invalide (seuil entier de 1 à 1000, gage de 1 à 140 caractères)'],
+  RULE_NOT_FOUND: [404, 'Règle introuvable dans ton équipe'],
+  NO_ACTIVE_DARE: [409, "Aucun gage en cours pour ce membre sur ce badge."],
   POINT_NOT_FOUND: [404, 'Point introuvable dans ton équipe'],
   DARE_LOG_NOT_FOUND: [404, 'Entrée introuvable.'],
 
   TEAM_NOT_FOUND: [404, 'Équipe introuvable'],
+  COMPANY_STILL_ACTIVE: [409, "Désactive d'abord la société avant de la supprimer."],
   OWN_TEAM: [400, 'Tu ne peux pas désactiver ta propre équipe.'],
   ROLE_INVALID: [400, 'Rôle invalide (admin ou superadmin uniquement)'],
   OWNER_UNTOUCHABLE: [403, 'Impossible de révoquer un owner.'],

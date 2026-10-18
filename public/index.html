@@ -185,6 +185,7 @@
             </div>
             <form id="join-form" class="space-y-3 text-left">
                 <input id="join-name" name="name" type="text" required minlength="1" maxlength="40" placeholder="Ton prénom" data-i18n-placeholder="join.name_placeholder" aria-label="Ton prénom" data-i18n-aria-label="join.name_placeholder" class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
+                <input id="join-email" name="email" type="email" maxlength="254" autocomplete="email" placeholder="Ton e-mail (optionnel, pour recevoir ton lien)" data-i18n-placeholder="join.email_placeholder" aria-label="Ton e-mail (optionnel, pour recevoir ton lien)" data-i18n-aria-label="join.email_placeholder" class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
                 <div class="cf-turnstile" data-size="flexible"></div>
                 <button type="submit" id="join-submit" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition disabled:opacity-50" data-i18n="join.submit">Rejoindre</button>
                 <p id="join-error" class="text-red-600 text-xs text-center hidden" role="alert"></p>

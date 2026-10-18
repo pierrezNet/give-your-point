@@ -24,6 +24,16 @@ function activityBadge(days) {
   return `<span class="text-xs font-black uppercase px-2 py-1 rounded-full ${colors}">${t(key)}</span>`;
 }
 
+function companyActionsHtml(company) {
+  const id = escapeHtml(company.id);
+  if (company.active === 1) {
+    return `<button type="button" data-action="deactivate-company" data-company-id="${id}" class="text-xs font-black uppercase text-amber-700 hover:underline">${t('owner.deactivate')}</button>`;
+  }
+  return `
+    <button type="button" data-action="reactivate-company" data-company-id="${id}" class="text-xs font-black uppercase text-emerald-700 hover:underline mr-3">${t('owner.reactivate')}</button>
+    <button type="button" data-action="delete-company" data-company-id="${id}" class="text-xs font-black uppercase text-red-700 hover:text-red-800 hover:underline">🗑 ${t('owner.delete')}</button>`;
+}
+
 export function companyRowHtml(company, ownCompanyId) {
   const days = daysSinceLastPoint(company);
   const isOwn = company.id === ownCompanyId;
@@ -45,7 +55,7 @@ export function companyRowHtml(company, ownCompanyId) {
       <td class="p-3 text-right whitespace-nowrap">
         ${isOwn
           ? `<span class="text-xs font-bold uppercase text-slate-600">${t('owner.your_company')}</span>`
-          : `<button type="button" data-action="delete-company" data-company-id="${escapeHtml(company.id)}" class="text-xs font-black uppercase text-red-700 hover:text-red-800 hover:underline">🗑 ${t('owner.delete')}</button>`}
+          : companyActionsHtml(company)}
       </td>
     </tr>`;
 }

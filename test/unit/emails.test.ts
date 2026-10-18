@@ -65,6 +65,12 @@ describe('tous les e-mails', () => {
     expect(build.gage(false).html).toContain('🚨 GAGE : croissants');
   });
 
+  it("le gage dû à un seuil abaissé ne cite pas de donneur", () => {
+    const mail = buildGageEmail({ isEn: false, name: 'Bob', fromName: null, catLabel: '🤝 Aide', dare: 'croissants', baseUrl: 'u' });
+    expect(mail.html).toContain('vient d\'être abaissé');
+    expect(mail.html).not.toContain('null');
+  });
+
   it("le digest n'affiche la ligne des gages que s'il y en a", () => {
     expect(build.digest(false).html).toContain('gage(s) déclenché(s)');
     expect(buildDigestEmail({ baseUrl: 'u', isEn: false, memberName: 'Bob', teamName: 'Dev', total: 3, topUser: null, topCat: null, gages: 0, myReceived: 0 }).html)

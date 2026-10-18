@@ -18,11 +18,26 @@ export async function computeSpammers(db: D1Database, teamId: string): Promise<M
   });
 }
 
+const RECEIVED_SINCE_LAST_CLEARED_DARE = `p.created_at > IFNULL((
+  SELECT MAX(d.cleared_at) FROM dare_log d
+  WHERE d.team_id = p.team_id AND d.user_id = p.to_user_id AND d.category_id = p.category_id
+), '')`;
+
 export async function fetchPointTotals(db: D1Database, teamId: string): Promise<PointTotal[]> {
-  const { results } = await db.prepare(
-    'SELECT to_user_id, category_id, COUNT(*) as total FROM points_log WHERE team_id = ? GROUP BY to_user_id, category_id',
-  ).bind(teamId).all<PointTotal>();
+  const { results } = await db.prepare(`
+    SELECT p.to_user_id, p.category_id, COUNT(*) as total FROM points_log p
+    WHERE p.team_id = ? AND ${RECEIVED_SINCE_LAST_CLEARED_DARE}
+    GROUP BY p.to_user_id, p.category_id
+  `).bind(teamId).all<PointTotal>();
   return results ?? [];
+}
+
+export async function countPointsTowardsDare(db: D1Database, teamId: string, userId: string, categoryId: string): Promise<number> {
+  const row = await db.prepare(`
+    SELECT COUNT(*) as count FROM points_log p
+    WHERE p.team_id = ? AND p.to_user_id = ? AND p.category_id = ? AND ${RECEIVED_SINCE_LAST_CLEARED_DARE}
+  `).bind(teamId, userId, categoryId).first<{ count: number }>();
+  return row?.count ?? 0;
 }
 
 export async function fetchDareRules(db: D1Database, teamId: string): Promise<DareRule[]> {

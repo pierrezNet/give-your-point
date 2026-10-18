@@ -41,8 +41,25 @@ module ; chaque entrée cite le symbole concerné pour être retrouvée par rech
   (anti-énumération) ; les erreurs d'envoi sont journalisées, jamais renvoyées.
 - `/api/track` est best-effort : un échec d'écriture est journalisé mais ne fait jamais échouer la
   page qui envoie la mesure.
-- `/api/admin/clear-category` : l'entrée `dare_log` et l'effacement des points partent dans un même
-  `batch` (transactionnel) — avant, un échec entre les deux perdait la trace du gage.
+- `/api/admin/clear-category` n'efface plus aucun point : l'entrée `dare_log` sert de **marqueur de
+  remise à zéro**. Le compteur d'un gage (`fetchPointTotals`, `countPointsTowardsDare`) ne compte que
+  les points reçus *après* le dernier `dare_log` du membre sur ce badge ; statistiques, matrice,
+  digest et historiques gardent tout. Comparaison stricte `created_at > cleared_at` : un point donné
+  dans la même seconde que l'acquittement est rattaché au gage acquitté. Refus `NO_ACTIVE_DARE`
+  sans gage en cours : un marqueur sans gage fausserait le compte des gages.
+- Seuil d'une règle abaissé (ou règle créée) : les membres qui l'atteignent *du fait du changement*
+  sont prévenus comme si un point l'avait déclenché (`membersReachedByRuleChange`), e-mail sans
+  donneur. Un seuil relevé ne prévient personne.
+- Gage déclenché : le membre reçoit push + e-mail, les admins de l'équipe un push vers la console
+  (`announceDare`), et les membres connectés voient un bandeau, calculé côté client en comparant
+  deux classements successifs (`newlyTriggeredDares`) — pas de nouveau type d'événement SSE.
+- Inscrit par lien validé (`restore` d'un membre inactif) : s'il a laissé un e-mail, son lien de
+  connexion lui part aussitôt. Sans e-mail, l'écran d'attente lui dit de le demander à un admin.
+- `DELETE /api/owner/companies/:id` exige une société désactivée d'abord (`COMPANY_STILL_ACTIVE`) :
+  la désactivation coupe les sessions et reste réversible, la suppression non.
+- Digest : le compte des gages exclut les pardons spammeur (`category_id IS NULL`), comme
+  `/api/stats`. Les équipes sont parcourues dans un ordre qui tourne chaque semaine
+  (`rotateForWeek`) pour que le plafond de 200 e-mails ne prive pas toujours les mêmes.
 - `/api/stats` période « tout » : filtre `(?1 IS NULL OR created_at >= …)` pour conserver d'éventuelles
   lignes sans date, comme l'ancien code sans filtre.
 - Flux SSE `/api/events` : à chaque tick (10 s), une seule requête d'empreinte
@@ -50,15 +67,19 @@ module ; chaque entrée cite le symbole concerné pour être retrouvée par rech
   classement complet (≈ 9 requêtes) n'est recalculé que si l'empreinte change, et au moins une fois
   par minute pour refléter les changements que l'empreinte ne voit pas (règles, membres, décroissance
   de la fenêtre spam). Rien n'est envoyé si le classement est identique au précédent.
+- Index `2026-16-dare-reset.sql` (`dare_log(team_id, user_id, category_id, cleared_at)`) : la
+  sous-requête « dernier acquittement » tourne pour chaque ligne comptée.
 - Index `2026-15-indexes.sql` : les quotas de dons, l'annulation et l'historique filtrent par
   `from_user_id` / `to_user_id` sans `team_id` ; sans index, chaque don balayait `points_log`.
 
-## Migrations
 ## Migrations
 
 - `migrations/2026-05`, `-06` et `-07` sont des migrations ponctuelles déjà appliquées en prod.
   Les UUID d'utilisateurs y sont masqués (`<uuid-masqué>`) : ces UUID étaient aussi des jetons
   de connexion, le dépôt est public.
+- `2026-16-dare-reset.sql` supprime `categories.forfeit`, rempli à l'onboarding mais jamais lu : les
+  gages par défaut sont désormais de vraies `dare_rules` (seuil `DEFAULT_DARE_THRESHOLD` = 5) créées
+  avec les badges, pour qu'une équipe neuve ait des gages sans configuration.
 - `schema.sql` est la référence complète (il intègre toutes les migrations) ; `init_db.sql` en
   est une copie utilisée par `npm run db:init`.
 
@@ -182,16 +203,17 @@ traduisent le résultat en réponse HTTP. C'est ce qui les rend testables sans b
   *en plus* un déséquilibre (donné ≥ 3 × (reçu + 1), le +1 amortit les petits volumes et évite la
   division par zéro) *et* d'être ≥ 2 × la moyenne de l'équipe — pour ne pas punir un donneur
   populaire et équilibré. La jauge affichée (`progress`) est volontairement simple : donné / 8.
-  La moyenne divise les dons de *tous* les donneurs (anciens membres compris) par les membres
-  *actifs* : comportement historique conservé, figé par un test.
+  La moyenne ne compte que les dons des membres *actifs* : avant, les dons d'anciens membres
+  gonflaient la moyenne et rendaient le seuil « 2 × la moyenne » plus tolérant.
 - Pardon spammeur = ligne `dare_log` **sans** `category_id` : elle suspend le flag 7 jours et garde
   une trace dans l'historique.
-- `dares.ts` — `dareProgressAfterPoint` compare en **égalité stricte** : un gage ne se déclenche
-  qu'au point qui atteint pile le seuil. Si un admin baisse un seuil sous le compteur actuel, rien ne
-  se déclenche (critique fonctionnelle n° 2, à arbitrer en phase 7) ; un test fige ce comportement.
-  `findActiveDare` (affichage) utilise au contraire `>=`.
+- `dares.ts` — un gage *en cours* = la règle **la plus haute** atteinte sur le badge
+  (`highestReachedRule`, partout : affichage, liste admin, acquittement). La notification
+  (`dareProgressAfterPoint`) part au point qui atteint pile un seuil ; le cas « seuil abaissé sous
+  le compteur » est couvert à la modification de la règle (voir Routes).
 - `pointRules.ts` — ordre des refus : doublon 5 min → quota 10/jour → quota 3/collègue/jour → gel
-  spammeur. Le « jour » est le jour **UTC** de SQLite (`date('now')`), cf. critique n° 7. Les
+  spammeur. Le « jour » commence à minuit **heure de Paris** (`startOfQuotaDay`, `QUOTA_TIME_ZONE`) :
+  toutes les sociétés sont françaises ; un fuseau par équipe sera à prévoir à l'international. Les
   compteurs sont lus en parallèle, puis `findPointRefusal` tranche.
 - `push/crypto.ts` — `encryptPushPayload` accepte un `seed` (sel + clés émetteur) uniquement pour
   rejouer le vecteur officiel de la RFC 8291 (annexe A) dans les tests ; en production le sel et la

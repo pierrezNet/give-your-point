@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import app from '../src/app';
-import { seedDatabase, USERS } from './fixtures';
+import { CATEGORY_HELP, seedDatabase, TEAM_ACME_DEV, USERS } from './fixtures';
 
 beforeEach(seedDatabase);
 afterEach(() => vi.restoreAllMocks());
@@ -42,5 +42,53 @@ describe('e-mails contenant un lien magique', () => {
       headers: { Authorization: `Bearer ${USERS.admin.token}` },
     });
     expect(mail.html).toContain(`/login/${USERS.bob.token}`);
+  });
+});
+
+describe('e-mails de gage', () => {
+  const adminRequest = (method: string, body?: unknown) => ({
+    method,
+    headers: { Authorization: `Bearer ${USERS.admin.token}`, 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+
+  beforeEach(async () => {
+    await env.DB.batch([
+      env.DB.prepare("UPDATE users SET email = 'bob@example.com', email_verified = 1 WHERE id = ?").bind(USERS.bob.id),
+      env.DB.prepare("INSERT INTO dare_rules (id, team_id, category_id, threshold, dare_text) VALUES ('rule', ?, ?, 5, 'croissants')").bind(TEAM_ACME_DEV, CATEGORY_HELP),
+      env.DB.prepare('INSERT INTO points_log (team_id, from_user_id, to_user_id, category_id) VALUES (?1, ?2, ?3, ?4), (?1, ?2, ?3, ?4), (?1, ?2, ?3, ?4)')
+        .bind(TEAM_ACME_DEV, USERS.alice.id, USERS.bob.id, CATEGORY_HELP),
+    ]);
+  });
+
+  it('prévient le membre quand un seuil abaissé sous son compteur le met en gage', async () => {
+    const [mail, ...others] = await requestCapturingEmails('/api/admin/rules/rule', adminRequest('PATCH', { threshold: 2, dare_text: 'croissants' }));
+    expect(others).toEqual([]);
+    expect(mail.to).toBe('bob@example.com');
+    expect(mail.html).toContain('abaissé');
+  });
+
+  it('ne prévient personne quand le seuil monte', async () => {
+    expect(await requestCapturingEmails('/api/admin/rules/rule', adminRequest('PATCH', { threshold: 8, dare_text: 'croissants' }))).toEqual([]);
+  });
+});
+
+describe("validation d'un inscrit", () => {
+  it('envoie son lien de connexion à l\'inscrit qui a laissé son e-mail', async () => {
+    await env.DB.prepare("UPDATE users SET active = 0, email = 'bob@example.com' WHERE id = ?").bind(USERS.bob.id).run();
+    const [mail] = await requestCapturingEmails(`/api/admin/users/${USERS.bob.id}/restore`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${USERS.admin.token}` },
+    });
+    expect(mail.to).toBe('bob@example.com');
+    expect(mail.html).toContain(`/login/${USERS.bob.token}`);
+  });
+
+  it("n'envoie rien à un membre déjà actif", async () => {
+    await env.DB.prepare("UPDATE users SET email = 'bob@example.com' WHERE id = ?").bind(USERS.bob.id).run();
+    expect(await requestCapturingEmails(`/api/admin/users/${USERS.bob.id}/restore`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${USERS.admin.token}` },
+    })).toEqual([]);
   });
 });

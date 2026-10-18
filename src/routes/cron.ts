@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { AppEnv } from '../env';
 import { apiError } from '../http/errors';
-import { summarizeWeek, type WeeklyPoint } from '../domain/digest';
+import { rotateForWeek, summarizeWeek, type WeeklyPoint } from '../domain/digest';
 import { buildDigestEmail } from '../email/templates';
 import { sendEmail } from '../services/email';
 import { appBaseUrl } from '../services/links';
@@ -26,7 +26,7 @@ cronRoutes.post('/api/cron/weekly-digest', async (c) => {
   const baseUrl = appBaseUrl(c);
   const teams = await db.prepare(`
     SELECT t.id, t.name AS team_name FROM teams t JOIN companies co ON co.id = t.company_id
-    WHERE t.active = 1 AND co.active = 1
+    WHERE t.active = 1 AND co.active = 1 ORDER BY t.id
   `).all<{ id: string; team_name: string }>();
 
   let teamsWithActivity = 0;
@@ -34,7 +34,7 @@ cronRoutes.post('/api/cron/weekly-digest', async (c) => {
   let processed = 0;
   const preview: { team: string; to: string; myReceived: number; subject: string }[] = [];
 
-  for (const team of teams.results ?? []) {
+  for (const team of rotateForWeek(teams.results ?? [], new Date())) {
     const weekPoints = await db.prepare(`
       SELECT p.to_user_id, p.category_id, c.name AS cat_name, c.emoji, u.name AS to_name
       FROM points_log p JOIN categories c ON c.id = p.category_id JOIN users u ON u.id = p.to_user_id
@@ -45,7 +45,7 @@ cronRoutes.post('/api/cron/weekly-digest', async (c) => {
 
     const week = summarizeWeek(weekPoints.results);
     const [dares, members] = await Promise.all([
-      db.prepare("SELECT COUNT(*) AS n FROM dare_log WHERE team_id = ? AND cleared_at >= datetime('now', '-7 days')").bind(team.id).first<{ n: number }>(),
+      db.prepare("SELECT COUNT(*) AS n FROM dare_log WHERE team_id = ? AND category_id IS NOT NULL AND cleared_at >= datetime('now', '-7 days')").bind(team.id).first<{ n: number }>(),
       db.prepare("SELECT id, name, email, locale FROM users WHERE team_id = ? AND active = 1 AND email_verified = 1 AND email IS NOT NULL AND email != ''")
         .bind(team.id).all<{ id: string; name: string; email: string; locale: string | null }>(),
     ]);

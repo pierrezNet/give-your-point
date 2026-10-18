@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dareProgressAfterPoint, findActiveDare, listActiveDares } from '../../src/domain/dares';
+import { dareProgressAfterPoint, findActiveDare, highestReachedRule, listActiveDares, membersReachedByRuleChange } from '../../src/domain/dares';
 
 const rule = (category_id: string, threshold: number, dare_text: string) => ({ category_id, threshold, dare_text });
 
@@ -16,6 +16,35 @@ describe('findActiveDare', () => {
 
   it('renvoie null sous tous les seuils', () => {
     expect(findActiveDare(new Map([['blague', 2]]), rules)).toBeNull();
+  });
+
+  it('retient la règle la plus haute atteinte sur un même badge', () => {
+    expect(findActiveDare(new Map([['blague', 7]]), [rule('blague', 6, 'pizza'), rule('blague', 3, 'croissants')])).toBe('pizza');
+  });
+});
+
+describe('highestReachedRule', () => {
+  const rules = [rule('blague', 6, 'pizza'), rule('blague', 3, 'croissants')];
+
+  it.each([[2, null], [3, 'croissants'], [5, 'croissants'], [6, 'pizza'], [40, 'pizza']])('à %i point(s) → %s', (count, dare) => {
+    expect(highestReachedRule(count as number, rules)?.dare_text ?? null).toBe(dare);
+  });
+});
+
+describe('membersReachedByRuleChange', () => {
+  const totals = [
+    { to_user_id: 'ann', category_id: 'blague', total: 4 },
+    { to_user_id: 'bob', category_id: 'blague', total: 7 },
+    { to_user_id: 'cid', category_id: 'blague', total: 1 },
+    { to_user_id: 'dan', category_id: 'retard', total: 9 },
+  ];
+
+  it('retient ceux qui passent le nouveau seuil sans avoir atteint l\'ancien', () => {
+    expect(membersReachedByRuleChange(totals, rule('blague', 3, 'croissants'), 5).map((total) => total.to_user_id)).toEqual(['ann']);
+  });
+
+  it('retient tous ceux au-dessus du seuil d\'une nouvelle règle', () => {
+    expect(membersReachedByRuleChange(totals, rule('blague', 3, 'croissants'), null).map((total) => total.to_user_id)).toEqual(['ann', 'bob']);
   });
 });
 
@@ -40,6 +69,13 @@ describe('dareProgressAfterPoint', () => {
 });
 
 describe('listActiveDares', () => {
+  it('liste un seul gage par membre et par badge, celui de la règle la plus haute', () => {
+    const totals = [{ to_user_id: 'ann', category_id: 'blague', total: 7 }];
+    expect(listActiveDares([rule('blague', 3, 'croissants'), rule('blague', 6, 'pizza')], totals)).toEqual([
+      { userId: 'ann', categoryId: 'blague', count: 7, dare: 'pizza' },
+    ]);
+  });
+
   it('liste chaque membre ayant atteint un seuil, par règle', () => {
     const totals = [
       { to_user_id: 'ann', category_id: 'blague', total: 4 },

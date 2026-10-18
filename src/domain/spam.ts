@@ -24,7 +24,7 @@ export interface SpamInput {
 const sum = (values: Iterable<number>) => [...values].reduce((total, value) => total + value, 0);
 
 export function detectSpammers({ activeUsers, givenByUser, receivedByUser, pardonedUserIds }: SpamInput): Map<string, SpamStatus> {
-  const teamAverageGiven = activeUsers.length ? sum(givenByUser.values()) / activeUsers.length : 0;
+  const teamAverageGiven = activeUsers.length ? sum(activeUsers.map((user) => givenByUser.get(user.id) || 0)) / activeUsers.length : 0;
 
   return new Map(activeUsers.map((user) => {
     const given = givenByUser.get(user.id) || 0;

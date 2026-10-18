@@ -75,23 +75,49 @@ describe("lien d'invitation", () => {
 });
 
 describe("remise à zéro d'un gage", () => {
+  const insertPoint = (createdAt: string) => env.DB.prepare(
+    `INSERT INTO points_log (team_id, from_user_id, to_user_id, category_id, created_at) VALUES (?, ?, ?, ?, datetime('now', '${createdAt}'))`,
+  ).bind(TEAM_ACME_DEV, USERS.alice.id, USERS.bob.id, CATEGORY_HELP);
+  const clear = () => api(`/api/admin/clear-category/${USERS.bob.id}/${CATEGORY_HELP}`, { as: USERS.admin, method: 'POST' });
+
   beforeEach(async () => {
     await env.DB.batch([
-      env.DB.prepare("INSERT INTO dare_rules (id, team_id, category_id, threshold, dare_text) VALUES ('rule', ?, ?, 2, 'croissants')").bind(TEAM_ACME_DEV, CATEGORY_HELP),
-      env.DB.prepare('INSERT INTO points_log (team_id, from_user_id, to_user_id, category_id) VALUES (?1, ?2, ?3, ?4), (?1, ?2, ?3, ?4)')
-        .bind(TEAM_ACME_DEV, USERS.alice.id, USERS.bob.id, CATEGORY_HELP),
+      env.DB.prepare("INSERT INTO dare_rules (id, team_id, category_id, threshold, dare_text) VALUES ('rule', ?, ?, 2, 'croissants'), ('rule-big', ?, ?, 3, 'pizza')")
+        .bind(TEAM_ACME_DEV, CATEGORY_HELP, TEAM_ACME_DEV, CATEGORY_HELP),
+      insertPoint('-2 minutes'),
+      insertPoint('-1 minutes'),
     ]);
   });
 
-  it("consigne le gage acquitté et remet le compteur à zéro", async () => {
-    const response = await api(`/api/admin/clear-category/${USERS.bob.id}/${CATEGORY_HELP}`, { as: USERS.admin, method: 'POST' });
-    expect(response.status).toBe(200);
+  it("consigne le gage acquitté sans effacer l'historique des points", async () => {
+    expect((await clear()).status).toBe(200);
     const [log, points] = await Promise.all([
       env.DB.prepare('SELECT user_id, dare_text FROM dare_log').first(),
       env.DB.prepare('SELECT COUNT(*) AS n FROM points_log').first<{ n: number }>(),
     ]);
     expect(log).toEqual({ user_id: USERS.bob.id, dare_text: 'croissants' });
-    expect(points?.n).toBe(0);
+    expect(points?.n).toBe(2);
+  });
+
+  it('remet le compteur du gage à zéro, puis compte les points reçus ensuite', async () => {
+    await clear();
+    expect(await json(await api('/api/admin/dares', { as: USERS.admin }))).toEqual([]);
+    await env.DB.prepare("UPDATE dare_log SET cleared_at = datetime('now', '-30 seconds')").run();
+    await env.DB.batch([insertPoint('-10 seconds'), insertPoint('-5 seconds')]);
+    expect(await json(await api('/api/admin/dares', { as: USERS.admin }))).toEqual([
+      { userId: USERS.bob.id, categoryId: CATEGORY_HELP, count: 2, dare: 'croissants' },
+    ]);
+  });
+
+  it('consigne la règle la plus haute atteinte', async () => {
+    await env.DB.batch([insertPoint('-30 seconds')]);
+    await clear();
+    expect((await env.DB.prepare('SELECT dare_text FROM dare_log').first())?.dare_text).toBe('pizza');
+  });
+
+  it("refuse quand aucun gage n'est en cours", async () => {
+    await clear();
+    expect((await json(await clear())).code).toBe('NO_ACTIVE_DARE');
   });
 
   it("refuse un membre d'une autre équipe", async () => {

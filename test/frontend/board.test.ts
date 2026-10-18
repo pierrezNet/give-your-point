@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { categoryButtonsHtml, pointOutcomeMessage, pointToastHtml, userCardHtml } from '../../public/js/features/board/view.js';
+import { categoryButtonsHtml, dareAnnouncementHtml, pointOutcomeMessage, pointToastHtml, userCardHtml } from '../../public/js/features/board/view.js';
 
 const user = { id: 'u1', name: 'Bob', rank: 1, total_points: 4, topCategories: [{ emoji: '😂', count: 4 }], gage: null, spammer: false };
 
@@ -71,5 +71,13 @@ describe('toast après un don', () => {
     expect(pointOutcomeMessage({ gageTriggered: { name: 'Bob', dare: 'pizza' } })).toEqual({ type: 'danger', message: '🚨 Gage activé pour Bob : pizza !' });
     expect(pointOutcomeMessage({ gageWarning: { name: 'Bob' } }).type).toBe('warning');
     expect(pointOutcomeMessage({}).type).toBe('success');
+  });
+});
+
+describe("annonce d'un gage à l'équipe", () => {
+  it('nomme le membre et son gage, en échappant les données', () => {
+    const html = dareAnnouncementHtml([{ name: '<b>Bob</b>', dare: 'croissants' }]);
+    expect(html).toContain("&lt;b&gt;Bob&lt;/b&gt; écope d'un gage : croissants");
+    expect(html).toContain('aria-live="polite"');
   });
 });

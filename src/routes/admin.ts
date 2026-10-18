@@ -4,14 +4,15 @@ import { requireAdmin } from '../middleware/auth';
 import { apiError, readJsonObject } from '../http/errors';
 import { canManageLink, outranks } from '../domain/roles';
 import { normalizeDareText, normalizeEmoji, normalizeName, normalizeOptionalEmail, normalizeThreshold } from '../domain/validation';
-import { listActiveDares } from '../domain/dares';
+import { highestReachedRule, listActiveDares, membersReachedByRuleChange, type DareRule } from '../domain/dares';
 import { spamWatchlist } from '../domain/spam';
 import { buildInviteEmail } from '../email/templates';
 import { emailTaken, findTeamMember, newUserCredentials } from '../services/users';
 import { sendInBackground, sendMagicLinkEmail } from '../services/email';
 import { joinUrl, magicLinkUrl } from '../services/links';
 import { generateInviteCode, getOrCreateInviteCode } from '../services/invites';
-import { computeSpammers, fetchDareRules, fetchPointTotals } from '../services/teamStats';
+import { computeSpammers, countPointsTowardsDare, fetchDareRules, fetchPointTotals } from '../services/teamStats';
+import { announceDare, type DareMember } from '../services/dares';
 
 const POINTS_LOG_LIMIT = 50;
 const DARE_LOG_LIMIT = 50;
@@ -28,6 +29,10 @@ async function setMemberActive(c: AppContext, active: 0 | 1) {
   if (target.id === admin.id) return apiError(c, 'OWN_STATUS');
   if (!outranks(admin.role, target.role)) return apiError(c, 'ROLE_TOO_HIGH');
   await c.env.DB.prepare('UPDATE users SET active = ? WHERE id = ?').bind(active, target.id).run();
+  if (active === 1 && target.active !== 1 && target.email) {
+    const team = await c.env.DB.prepare('SELECT name FROM teams WHERE id = ?').bind(admin.team_id).first<{ name: string }>();
+    sendMagicLinkEmail(c, { email: target.email, name: target.name, teamName: team?.name ?? '', locale: target.locale, token: target.token });
+  }
   return c.json({ success: true });
 }
 
@@ -168,6 +173,20 @@ adminRoutes.get('/rules', async (c) => {
   return c.json(results);
 });
 
+async function announceDaresReachedByRuleChange(c: AppContext, rule: DareRule, previousThreshold: number | null) {
+  const teamId = teamOf(c);
+  const reached = membersReachedByRuleChange(await fetchPointTotals(c.env.DB, teamId), rule, previousThreshold);
+  if (!reached.length) return;
+  const category = await c.env.DB.prepare('SELECT name, emoji FROM categories WHERE id = ? AND team_id = ?')
+    .bind(rule.category_id, teamId).first<{ name: string; emoji: string }>();
+  if (!category) return;
+  for (const { to_user_id } of reached) {
+    const member = await c.env.DB.prepare('SELECT id, name, email, email_verified, locale FROM users WHERE id = ? AND team_id = ? AND active = 1')
+      .bind(to_user_id, teamId).first<DareMember>();
+    if (member) await announceDare(c, { teamId, member, category, dare: rule.dare_text, givenBy: null });
+  }
+}
+
 adminRoutes.post('/rules', async (c) => {
   const body = await readJsonObject(c);
   const threshold = normalizeThreshold(body.threshold);
@@ -178,6 +197,7 @@ adminRoutes.post('/rules', async (c) => {
   if (!category) return apiError(c, 'CATEGORY_NOT_IN_TEAM');
   await c.env.DB.prepare('INSERT INTO dare_rules (id, team_id, category_id, threshold, dare_text) VALUES (?, ?, ?, ?, ?)')
     .bind(crypto.randomUUID(), teamOf(c), category.id, threshold, dareText).run();
+  c.executionCtx.waitUntil(announceDaresReachedByRuleChange(c, { category_id: category.id, threshold, dare_text: dareText }, null).catch(() => {}));
   return c.json({ success: true });
 });
 
@@ -186,8 +206,14 @@ adminRoutes.patch('/rules/:id', async (c) => {
   const threshold = normalizeThreshold(body.threshold);
   const dareText = normalizeDareText(body.dare_text);
   if (!threshold || !dareText) return apiError(c, 'RULE_INVALID');
+  const previous = await c.env.DB.prepare('SELECT category_id, threshold FROM dare_rules WHERE id = ? AND team_id = ?')
+    .bind(c.req.param('id'), teamOf(c)).first<{ category_id: string; threshold: number }>();
+  if (!previous) return apiError(c, 'RULE_NOT_FOUND');
   await c.env.DB.prepare('UPDATE dare_rules SET threshold = ?, dare_text = ? WHERE id = ? AND team_id = ?')
     .bind(threshold, dareText, c.req.param('id'), teamOf(c)).run();
+  if (threshold < previous.threshold) {
+    c.executionCtx.waitUntil(announceDaresReachedByRuleChange(c, { category_id: previous.category_id, threshold, dare_text: dareText }, previous.threshold).catch(() => {}));
+  }
   return c.json({ success: true });
 });
 
@@ -201,14 +227,16 @@ adminRoutes.post('/clear-category/:userId/:categoryId', async (c) => {
   const { userId, categoryId } = c.req.param();
   if (!await findTeamMember(c.env.DB, userId, teamId)) return apiError(c, 'USER_OUTSIDE_TEAM');
 
-  const rule = await c.env.DB.prepare('SELECT dare_text FROM dare_rules WHERE category_id = ? AND team_id = ?')
-    .bind(categoryId, teamId).first<{ dare_text: string }>();
-  const resetPoints = c.env.DB.prepare('DELETE FROM points_log WHERE to_user_id = ? AND category_id = ? AND team_id = ?')
-    .bind(userId, categoryId, teamId);
-  await c.env.DB.batch(rule
-    ? [c.env.DB.prepare('INSERT INTO dare_log (team_id, user_id, category_id, dare_text) VALUES (?, ?, ?, ?)').bind(teamId, userId, categoryId, rule.dare_text), resetPoints]
-    : [resetPoints]);
-  return c.json({ success: true, message: 'Compteur catégorie réinitialisé.' });
+  const [count, rules] = await Promise.all([
+    countPointsTowardsDare(c.env.DB, teamId, userId, categoryId),
+    c.env.DB.prepare('SELECT threshold, dare_text FROM dare_rules WHERE category_id = ? AND team_id = ?')
+      .bind(categoryId, teamId).all<{ threshold: number; dare_text: string }>(),
+  ]);
+  const clearedRule = highestReachedRule(count, rules.results ?? []);
+  if (!clearedRule) return apiError(c, 'NO_ACTIVE_DARE');
+  await c.env.DB.prepare('INSERT INTO dare_log (team_id, user_id, category_id, dare_text) VALUES (?, ?, ?, ?)')
+    .bind(teamId, userId, categoryId, clearedRule.dare_text).run();
+  return c.json({ success: true });
 });
 
 adminRoutes.get('/points-log', async (c) => {

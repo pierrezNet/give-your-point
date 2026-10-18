@@ -88,20 +88,25 @@ export function buildPointEmail(o: { isEn: boolean; name: string; fromName: stri
   };
 }
 
-export function buildGageEmail(o: { isEn: boolean; name: string; fromName: string; catLabel: string; dare: string; baseUrl: string }): Email {
+export function buildGageEmail(o: { isEn: boolean; name: string; fromName: string | null; catLabel: string; dare: string; baseUrl: string }): Email {
   const language = languageOf(o.isEn);
-  const [name, fromName, badge, dare] = [o.name, o.fromName, o.catLabel, o.dare].map(escapeHtml);
+  const [name, badge, dare] = [o.name, o.catLabel, o.dare].map(escapeHtml);
+  const fromName = o.fromName === null ? null : escapeHtml(o.fromName);
   const copy = {
     fr: {
       subject: "🚨 Tu écopes d'un gage sur Donne Ton Point !",
       heading: `Aïe, ${name}… 🚨`,
-      body: `<b>${fromName}</b> t'a donné un point pour <b>${badge}</b> — et tu viens d'atteindre le seuil !`,
+      body: fromName
+        ? `<b>${fromName}</b> t'a donné un point pour <b>${badge}</b> — et tu viens d'atteindre le seuil !`
+        : `Le seuil du badge <b>${badge}</b> vient d'être abaissé : tu l'as atteint !`,
       highlight: `🚨 GAGE : ${dare}`,
     },
     en: {
       subject: '🚨 You owe a forfeit on Give Your Point!',
       heading: `Uh oh, ${name}… 🚨`,
-      body: `<b>${fromName}</b> gave you a point for <b>${badge}</b> — and you just hit the threshold!`,
+      body: fromName
+        ? `<b>${fromName}</b> gave you a point for <b>${badge}</b> — and you just hit the threshold!`
+        : `The threshold for <b>${badge}</b> was just lowered: you have reached it!`,
       highlight: `🚨 FORFEIT: ${dare}`,
     },
   }[language];

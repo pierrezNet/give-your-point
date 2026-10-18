@@ -4,13 +4,14 @@ import { requireUser } from '../middleware/auth';
 import { apiError, readJsonObject, type ApiErrorCode, type ErrorParams } from '../http/errors';
 import {
   DUPLICATE_WINDOW_MINUTES, MAX_POINTS_PER_DAY, MAX_POINTS_PER_RECIPIENT_PER_DAY, REASON_EDIT_WINDOW_SECONDS, UNDO_WINDOW_SECONDS,
-  findPointRefusal, normalizeReason, type PointRefusal,
+  findPointRefusal, normalizeReason, startOfQuotaDay, type PointRefusal,
 } from '../domain/pointRules';
 import { dareProgressAfterPoint } from '../domain/dares';
-import { buildGageEmail, buildPointEmail } from '../email/templates';
-import { computeSpammers } from '../services/teamStats';
+import { buildPointEmail } from '../email/templates';
+import { computeSpammers, countPointsTowardsDare } from '../services/teamStats';
 import { sendInBackground } from '../services/email';
-import { sendPushToUser } from '../services/push';
+import { pointNotification, sendPushToUser } from '../services/push';
+import { announceDare } from '../services/dares';
 import { appBaseUrl } from '../services/links';
 
 interface Recipient {
@@ -32,15 +33,16 @@ const REFUSAL_ERROR: Record<PointRefusal, { code: ApiErrorCode; params: (recipie
 
 async function giverActivity(c: AppContext, recipientId: string, categoryId: string) {
   const giver = c.get('user');
+  const quotaDayStart = startOfQuotaDay(new Date());
   const [recentDuplicate, givenToday, givenToRecipientToday, spamStatuses] = await Promise.all([
     c.env.DB.prepare(`
       SELECT 1 FROM points_log
       WHERE from_user_id = ? AND to_user_id = ? AND category_id = ? AND created_at >= datetime('now', ?)
     `).bind(giver.id, recipientId, categoryId, `-${DUPLICATE_WINDOW_MINUTES} minutes`).first(),
-    c.env.DB.prepare("SELECT COUNT(*) as count FROM points_log WHERE from_user_id = ? AND created_at >= date('now')")
-      .bind(giver.id).first<{ count: number }>(),
-    c.env.DB.prepare("SELECT COUNT(*) as count FROM points_log WHERE from_user_id = ? AND to_user_id = ? AND created_at >= date('now')")
-      .bind(giver.id, recipientId).first<{ count: number }>(),
+    c.env.DB.prepare("SELECT COUNT(*) as count FROM points_log WHERE from_user_id = ? AND created_at >= ?")
+      .bind(giver.id, quotaDayStart).first<{ count: number }>(),
+    c.env.DB.prepare("SELECT COUNT(*) as count FROM points_log WHERE from_user_id = ? AND to_user_id = ? AND created_at >= ?")
+      .bind(giver.id, recipientId, quotaDayStart).first<{ count: number }>(),
     computeSpammers(c.env.DB, giver.team_id),
   ]);
   return {
@@ -54,21 +56,23 @@ async function giverActivity(c: AppContext, recipientId: string, categoryId: str
 async function dareProgressFor(c: AppContext, recipientId: string, categoryId: string) {
   const teamId = c.get('user').team_id;
   const [count, rules] = await Promise.all([
-    c.env.DB.prepare('SELECT COUNT(*) as count FROM points_log WHERE team_id = ? AND to_user_id = ? AND category_id = ?')
-      .bind(teamId, recipientId, categoryId).first<{ count: number }>(),
+    countPointsTowardsDare(c.env.DB, teamId, recipientId, categoryId),
     c.env.DB.prepare('SELECT dare_text, threshold FROM dare_rules WHERE team_id = ? AND category_id = ? ORDER BY threshold ASC')
       .bind(teamId, categoryId).all<{ dare_text: string; threshold: number }>(),
   ]);
-  return dareProgressAfterPoint(count?.count ?? 0, rules.results ?? []);
+  return dareProgressAfterPoint(count, rules.results ?? []);
 }
 
 function notifyRecipient(c: AppContext, recipient: Recipient, category: { id: string; name: string; emoji: string }, triggeredDare: string | null) {
   const giver = c.get('user');
-  c.executionCtx.waitUntil(sendPushToUser(c.env, recipient.id, giver.name, category.id).catch(() => {}));
+  if (triggeredDare) {
+    c.executionCtx.waitUntil(announceDare(c, { teamId: giver.team_id, member: recipient, category, dare: triggeredDare, givenBy: giver.name }).catch(() => {}));
+    return;
+  }
+  const badge = `${category.emoji} ${category.name}`;
+  c.executionCtx.waitUntil(sendPushToUser(c.env, recipient.id, (language) => pointNotification({ language, fromName: giver.name, badge })).catch(() => {}));
   if (!recipient.email || !recipient.email_verified) return;
-
-  const mail = { isEn: recipient.locale === 'en', name: recipient.name, fromName: giver.name, catLabel: `${category.emoji} ${category.name}`, baseUrl: appBaseUrl(c) };
-  sendInBackground(c, recipient.email, triggeredDare ? buildGageEmail({ ...mail, dare: triggeredDare }) : buildPointEmail(mail));
+  sendInBackground(c, recipient.email, buildPointEmail({ isEn: recipient.locale === 'en', name: recipient.name, fromName: giver.name, catLabel: badge, baseUrl: appBaseUrl(c) }));
 }
 
 export const pointRoutes = new Hono<AppEnv>();

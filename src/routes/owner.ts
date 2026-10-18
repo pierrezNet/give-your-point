@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { AppEnv } from '../env';
 import { requireOwner } from '../middleware/auth';
-import { apiError } from '../http/errors';
+import { apiError, readJsonObject } from '../http/errors';
 import { ADMIN_ROLES } from '../domain/roles';
 import { sqlPlaceholders } from '../services/users';
 
@@ -26,11 +26,22 @@ ownerRoutes.get('/companies', async (c) => {
   return c.json(results);
 });
 
+ownerRoutes.patch('/companies/:id/active', async (c) => {
+  const companyId = c.req.param('id');
+  if (companyId === c.get('user').company_id) return apiError(c, 'OWN_COMPANY');
+  const active = (await readJsonObject(c)).active ? 1 : 0;
+  const result = await c.env.DB.prepare('UPDATE companies SET active = ? WHERE id = ?').bind(active, companyId).run();
+  if (result.meta.changes === 0) return apiError(c, 'COMPANY_NOT_FOUND');
+  return c.json({ success: true });
+});
+
 ownerRoutes.delete('/companies/:id', async (c) => {
   const companyId = c.req.param('id');
   if (companyId === c.get('user').company_id) return apiError(c, 'OWN_COMPANY');
   const db = c.env.DB;
-  if (!await db.prepare('SELECT id FROM companies WHERE id = ?').bind(companyId).first()) return apiError(c, 'COMPANY_NOT_FOUND');
+  const company = await db.prepare('SELECT active FROM companies WHERE id = ?').bind(companyId).first<{ active: number }>();
+  if (!company) return apiError(c, 'COMPANY_NOT_FOUND');
+  if (company.active === 1) return apiError(c, 'COMPANY_STILL_ACTIVE');
 
   const teamsOfCompany = 'SELECT id FROM teams WHERE company_id = ?';
   await db.batch([

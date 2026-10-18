@@ -44,9 +44,19 @@ async function deleteCompany({ dataset }) {
   if (confirmed && await run(ownerApi.deleteCompany(company.id), 'owner.delete_error')) loadCompanies();
 }
 
+async function deactivateCompany({ dataset }) {
+  const company = state.companies.find((candidate) => candidate.id === dataset.companyId);
+  if (!company || !await uiConfirm(tText('owner.deactivate_confirm', { name: company.name }))) return;
+  if (await run(ownerApi.setCompanyActive(company.id, false), 'owner.status_error')) loadCompanies();
+}
+
+async function reactivateCompany({ dataset }) {
+  if (await run(ownerApi.setCompanyActive(dataset.companyId, true), 'owner.status_error')) loadCompanies();
+}
+
 export async function startOwnerConsole(me) {
   state.ownCompanyId = me.company_id;
-  registerActions({ 'delete-company': deleteCompany });
+  registerActions({ 'delete-company': deleteCompany, 'deactivate-company': deactivateCompany, 'reactivate-company': reactivateCompany });
   document.getElementById('owner-body').classList.remove('opacity-0');
   await Promise.all([loadCompanies(), loadFunnel()]);
 }

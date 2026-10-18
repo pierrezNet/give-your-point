@@ -4,7 +4,8 @@ import { apiErrorMessage } from '../../core/api.js';
 import { registerActions } from '../../core/actions.js';
 import { openModal } from '../../core/dialogs.js';
 import { addReason, fetchCategories, fetchLeaderboard, sendPoint, undoLastPoint } from './api.js';
-import { UNDO_WINDOW_SECONDS, categoryButtonsHtml, pointOutcomeMessage, pointToastHtml, reasonFormHtml, recipientSelectorHtml, userCardHtml } from './view.js';
+import { UNDO_WINDOW_SECONDS, categoryButtonsHtml, dareAnnouncementHtml, pointOutcomeMessage, pointToastHtml, reasonFormHtml, recipientSelectorHtml, userCardHtml } from './view.js';
+import { newlyTriggeredDares } from './model.js';
 import { renderEmptyTeam } from '../emptyTeam/controller.js';
 import { showHistory } from '../history/controller.js';
 
@@ -13,6 +14,7 @@ const MIN_PLAYERS = 2;
 const SELECTED_CLASSES = ['ring-4', 'ring-blue-500', 'category-active'];
 
 const TOAST_DURATION_MS = { undoable: UNDO_WINDOW_SECONDS * 1000, plain: 5000 };
+const DARE_ANNOUNCEMENT_DURATION_MS = 8000;
 const SECOND_MS = 1000;
 
 const state = { selectedCategoryId: null, members: [], transitioning: false, lastPointId: null, toastTimers: [] };
@@ -136,7 +138,16 @@ async function givePoint(recipientId, categoryId) {
   await refreshScores();
 }
 
+function announceDares(announcements) {
+  if (!announcements.length) return;
+  document.getElementById('dare-announcement')?.remove();
+  document.body.insertAdjacentHTML('beforeend', dareAnnouncementHtml(announcements));
+  const banner = document.getElementById('dare-announcement');
+  setTimeout(() => banner.remove(), DARE_ANNOUNCEMENT_DURATION_MS);
+}
+
 export function renderUsers(users) {
+  announceDares(newlyTriggeredDares(state.members, users));
   state.members = users;
   if (users.length < MIN_PLAYERS) {
     renderEmptyTeam(usersGrid());

@@ -39,3 +39,11 @@ export function summarizeWeek(points: WeeklyPoint[]): WeeklySummary {
     receivedByUser: new Map([...byRecipient].map(([userId, { count }]) => [userId, count])),
   };
 }
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function rotateForWeek<T>(items: T[], now: Date): T[] {
+  if (!items.length) return items;
+  const offset = Math.floor(now.getTime() / WEEK_MS) % items.length;
+  return [...items.slice(offset), ...items.slice(0, offset)];
+}

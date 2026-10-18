@@ -35,7 +35,6 @@ CREATE TABLE categories (
     team_id TEXT NOT NULL,
     name TEXT NOT NULL,
     emoji TEXT,
-    forfeit TEXT,
     active INTEGER DEFAULT 1
 );
 
@@ -93,6 +92,7 @@ CREATE TABLE dare_log (
 
 CREATE INDEX idx_dare_log_team ON dare_log(team_id, cleared_at DESC);
 CREATE INDEX idx_dare_log_user ON dare_log(user_id);
+CREATE INDEX idx_dare_log_reset ON dare_log(team_id, user_id, category_id, cleared_at);
 
 CREATE TABLE push_subscriptions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

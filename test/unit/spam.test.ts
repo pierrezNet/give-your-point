@@ -38,9 +38,9 @@ describe('detectSpammers', () => {
     expect(statusesFor({ u0: 4 }).get('u0')?.progress).toBe(4 / SPAM_MIN_GIVEN);
   });
 
-  it("compte dans la moyenne les dons d'anciens membres, rapportés aux membres actifs", () => {
+  it("ignore les dons d'anciens membres dans la moyenne de l'équipe", () => {
     const statuses = statusesFor({ u0: 8, ancien: 12 }, {}, [], 2);
-    expect(statuses.get('u0')?.flagged).toBe(false);
+    expect(statuses.get('u0')?.flagged).toBe(true);
     expect(statuses.has('ancien')).toBe(false);
   });
 });
