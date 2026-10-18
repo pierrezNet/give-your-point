@@ -13,8 +13,11 @@ const PAGES: { path: string; token?: string; ready: string }[] = [
   { path: '/owner', token: TOKENS.owner, ready: '#companies-list tr' },
 ];
 
-for (const { path, token, ready } of PAGES) {
-  test(`${path}${token ? ' (connecté)' : ''} : conforme WCAG 2.1 AA (axe)`, async ({ page }) => {
+const COLOR_SCHEMES = ['light', 'dark'] as const;
+
+for (const colorScheme of COLOR_SCHEMES) for (const { path, token, ready } of PAGES) {
+  test(`${path}${token ? ' (connecté)' : ''}, thème ${colorScheme === 'dark' ? 'sombre' : 'clair'} : conforme WCAG 2.1 AA (axe)`, async ({ page }) => {
+    await page.emulateMedia({ colorScheme });
     if (token) await openAs(page, token, path);
     else await page.goto(path);
     await expect(page.locator(ready).first()).toBeVisible();
