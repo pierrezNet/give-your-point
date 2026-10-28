@@ -26,7 +26,7 @@
     <meta name="twitter:image" content="https://donnetonpoint.fr/og-fr.png">
     <meta name="twitter:image:alt" content="Donne Ton Point : classement d’équipe avec badges et gage déclenché">
     <link rel="preconnect" href="https://challenges.cloudflare.com">
-    <link rel="stylesheet" href="/styles.css?v=20261017">
+    <link rel="stylesheet" href="/styles.css?v=20261028">
     <script type="module" src="/js/pages/home.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen p-2 sm:p-4 lg:p-8">
@@ -48,10 +48,16 @@
             <div>
                 <h1 class="text-4xl md:text-5xl font-black text-slate-800 leading-tight"><span data-i18n="app.title">Donne Ton Point</span> 🎯</h1>
                 <p class="text-lg text-slate-600 mt-4" data-i18n="landing.hero_pitch">Récompense les bons coups (et les bourdes) de ton équipe avec des badges. Quand un seuil est atteint, c'est gage !</p>
-                <div class="mt-6 flex flex-wrap items-center gap-4">
+                <div class="mt-6 flex flex-wrap items-center gap-x-4 gap-y-2">
                     <a href="#create" class="inline-block bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition shadow-lg shadow-blue-600/20" data-i18n="landing.cta_create">🚀 Créer mon espace</a>
-                    <a href="#have-link" class="text-sm font-bold text-blue-700 hover:underline" data-i18n="landing.have_link_link">J'ai déjà un lien magique →</a>
+                    <p class="text-sm font-bold text-slate-600" data-i18n="landing.cta_promise">Gratuit · Sans carte bancaire · 30 secondes</p>
                 </div>
+                <p class="mt-4 text-sm text-slate-600">
+                    <span data-i18n="landing.returning_intro">Déjà inscrit·e ?</span>
+                    <a href="#have-link" class="font-bold text-blue-700 underline" data-i18n="landing.returning_link">Ouvre ton lien de connexion</a>
+                    <span data-i18n="landing.returning_or">ou</span>
+                    <a href="/?lost=1" data-action="show-recover" class="font-bold text-blue-700 underline" data-i18n="landing.returning_recover">reçois-le par e-mail</a>
+                </p>
             </div>
             <div class="flex justify-center md:justify-end">
         <svg viewBox="0 0 320 360" xmlns="http://www.w3.org/2000/svg" class="w-72 md:w-80 drop-shadow-2xl" role="img" aria-label="Aperçu de l&#x27;application" data-i18n-aria-label="landing.mockup_alt">
@@ -115,15 +121,15 @@
         <section id="create" class="max-w-md mx-auto px-4 py-12">
             <div class="bg-white rounded-3xl shadow-xl p-8 space-y-5 border border-slate-200">
                 <div class="text-center">
-                    <h2 class="text-2xl font-black text-slate-800" data-i18n="landing.create_title">✨ Lance ton espace</h2>
-                    <p class="text-sm text-slate-600 mt-2" data-i18n="landing.create_subtitle">C'est gratuit, 30 secondes, pas de carte bleue.</p>
+                    <h2 class="text-2xl font-black text-slate-800" data-i18n="landing.create_title">✨ Crée ton espace</h2>
+                    <p class="text-sm text-slate-600 mt-2" data-i18n="landing.cta_promise">Gratuit · Sans carte bancaire · 30 secondes</p>
                 </div>
                 <form id="onboarding-form" class="space-y-3">
                     <input id="ob-company" name="company_name" type="text" required minlength="2" maxlength="60" placeholder="Nom de ta société ou équipe" data-i18n-placeholder="onboarding.company_placeholder" aria-label="Nom de ta société ou équipe" data-i18n-aria-label="onboarding.company_placeholder" class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
                     <input id="ob-admin" name="admin_name" type="text" required minlength="1" maxlength="40" placeholder="Ton prénom" data-i18n-placeholder="onboarding.admin_placeholder" aria-label="Ton prénom" data-i18n-aria-label="onboarding.admin_placeholder" class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
                     <input id="ob-email" name="admin_email" type="email" maxlength="120" placeholder="Ton email (optionnel, pour les notifications)" data-i18n-placeholder="onboarding.email_placeholder" aria-label="Ton email (optionnel, pour les notifications)" data-i18n-aria-label="onboarding.email_placeholder" class="w-full p-3 rounded-lg border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500" />
                     <div class="cf-turnstile" data-size="flexible"></div>
-                    <button type="submit" id="ob-submit" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition disabled:opacity-50" data-i18n="onboarding.submit">Lancer mon équipe 🚀</button>
+                    <button type="submit" id="ob-submit" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition disabled:opacity-50" data-i18n="onboarding.submit">🚀 Créer mon espace</button>
                     <p id="ob-error" class="text-red-600 text-xs text-center hidden" role="alert"></p>
                 </form>
                 <p class="text-xs text-slate-600 text-center" data-i18n="landing.legal_note">En créant ton espace, tu acceptes que tes données soient stockées sur Cloudflare D1 (UE). Aucune publicité, aucun pistage tiers.</p>
@@ -132,7 +138,7 @@
 
         <section id="have-link" class="max-w-md mx-auto px-4 pb-12">
             <div class="bg-slate-50 rounded-xl p-4 text-sm text-slate-700 border border-slate-200">
-                <h3 class="font-bold text-slate-800 mb-1" data-i18n="onboarding.have_link_title">Tu as déjà un lien magique ?</h3>
+                <h3 class="font-bold text-slate-800 mb-1" data-i18n="onboarding.have_link_title">Tu as déjà un lien de connexion ?</h3>
                 <p class="text-xs text-slate-600" data-i18n-html="onboarding.have_link_desc">Clique simplement dessus pour te connecter (format <span class="font-mono text-xs bg-slate-100 px-1 py-0.5 rounded">/login/&lt;token&gt;</span>).</p>
                 <button type="button" data-action="show-recover" class="mt-2 text-xs font-bold text-blue-700 hover:underline" data-i18n="recover.link">Perdu ton lien ? Reçois-le par e-mail</button>
             </div>
@@ -155,7 +161,12 @@
                 </details>
             </div>
         </section>
-        <noscript><p class="max-w-md mx-auto px-4 pb-8 font-bold text-red-600 text-center">Activez JavaScript pour créer votre espace et utiliser l'application.</p></noscript>
+        <noscript data-noscript-localized>
+            <div role="note" class="max-w-md mx-auto px-4 pb-8 text-center">
+                <p class="font-bold text-slate-800" data-i18n="noscript.message">Donne Ton Point a besoin de JavaScript pour créer un espace et donner des points. Active-le dans ton navigateur, puis recharge la page.</p>
+                <a href="/" class="inline-block mt-2 text-sm font-bold text-blue-700 underline" data-i18n="noscript.home">Retour à l'accueil</a>
+            </div>
+        </noscript>
     </main>
 
     <footer class="max-w-5xl mx-auto px-4 py-8 text-center text-xs text-slate-600 border-t border-slate-200">
@@ -213,6 +224,39 @@
     </template>
 
 
+    <template id="boot-loading">
+        <div role="status" class="max-w-md mx-auto mt-16 flex flex-col items-center gap-4 text-center">
+            <span class="boot-spinner" aria-hidden="true"></span>
+            <p class="text-slate-600 font-bold" data-i18n="boot.loading">Chargement de ton équipe…</p>
+        </div>
+    </template>
+
+    <template id="boot-error">
+        <div role="alert" class="max-w-md mx-auto mt-16 bg-white rounded-3xl shadow-xl p-8 space-y-4 border border-slate-200 text-center">
+            <div class="text-5xl" aria-hidden="true">📡</div>
+            <h1 class="text-2xl font-black text-slate-800" data-i18n="boot.error_title">Impossible de charger ton équipe</h1>
+            <p class="text-sm text-slate-600" data-i18n="boot.error_msg">Le serveur ne répond pas ou ta connexion est coupée. Tu restes connecté·e : réessaie dans un instant.</p>
+            <div class="flex flex-wrap items-center justify-center gap-4 pt-2">
+                <button type="button" data-action="retry-boot" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition" data-i18n="boot.retry">Réessayer</button>
+                <a href="/#accueil" class="text-sm font-bold text-blue-700 hover:underline" data-i18n="boot.home">Retour à l'accueil</a>
+            </div>
+        </div>
+    </template>
+
+    <template id="session-invalid">
+        <main class="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
+            <div role="alert" class="max-w-md bg-white rounded-3xl shadow-xl p-8 space-y-4 border border-slate-200 text-center">
+                <div class="text-5xl" aria-hidden="true">🔒</div>
+                <h1 class="text-2xl font-black text-slate-800" data-i18n="auth.session_invalid_title">Session invalide</h1>
+                <p class="text-sm text-slate-600" data-i18n="auth.session_invalid_msg">Ton lien de connexion n'est plus valable. Reçois-en un nouveau par e-mail, ou demande-le à un admin de ton équipe.</p>
+                <div class="flex flex-wrap items-center justify-center gap-4 pt-2">
+                    <a href="/?lost=1" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold transition" data-i18n="auth.session_invalid_recover">Recevoir mon lien par e-mail</a>
+                    <a href="/" class="text-sm font-bold text-blue-700 hover:underline" data-i18n="boot.home">Retour à l'accueil</a>
+                </div>
+            </div>
+        </main>
+    </template>
+
     <div id="app-shell" class="hidden">
     <header class="gradient-banner relative flex justify-between items-center mb-2 lg:mb-8 rounded-xl shadow-lg p-3 lg:p-4">
         <div class="text-md lg:text-2xl font-black flex items-center gap-2">
@@ -259,7 +303,8 @@
             </div>
         </div>
     </header>
-    <main class="grid grid-cols-1 md:grid-cols-4 gap-8">
+    <div id="boot-status"></div>
+    <main id="board" class="hidden grid grid-cols-1 md:grid-cols-4 gap-8">
         <section class="md:col-span-1">
             <h2 class="text-xl font-semibold mb-4 text-gray-600" data-i18n="index.section_categories">Offrir un point</h2>
             <div id="categories-list" class="flex flex-wrap md:flex-col gap-3"></div>

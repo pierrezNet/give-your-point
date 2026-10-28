@@ -158,17 +158,21 @@ export function renderUsers(users) {
 
 export async function refreshScores() {
   const users = await fetchLeaderboard();
-  if (!users) return;
+  if (!users) return false;
   if (!document.startViewTransition || matchMedia('(prefers-reduced-motion: reduce)').matches) {
     renderUsers(users);
-    return;
+    return true;
   }
   state.transitioning = true;
   document.startViewTransition(() => renderUsers(users)).finished.finally(() => { state.transitioning = false; });
+  return true;
 }
 
 export async function loadCategories() {
-  categoriesList().innerHTML = categoryButtonsHtml(await fetchCategories());
+  const categories = await fetchCategories();
+  if (!categories) return false;
+  categoriesList().innerHTML = categoryButtonsHtml(categories);
+  return true;
 }
 
 function wireCategories() {

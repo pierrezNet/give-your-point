@@ -10,6 +10,7 @@ const PAGE = `<!DOCTYPE html><html lang="fr"><head>
 <h1 data-i18n="app.title">Donne Ton Point</h1>
 <input data-i18n-placeholder="onboarding.admin_placeholder" placeholder="Ton prénom">
 <a href="/about">À propos</a>
+<noscript data-noscript-localized><p>Donne Ton Point a besoin de JavaScript.</p></noscript>
 </body></html>`;
 
 const assets = { fetch: async () => new Response(PAGE, { headers: { 'Content-Type': 'text/html; charset=utf-8' } }) };
@@ -38,6 +39,7 @@ describe('pages publiques', () => {
     expect(html).toContain('<h1 data-i18n="app.title">Give Your Point</h1>');
     expect(html).toContain('placeholder="Your first name"');
     expect(html).toContain('href="/en/about"');
+    expect(html).toContain('Give Your Point needs JavaScript');
     expect(html).toContain('<link rel="canonical" href="https://donnetonpoint.fr/en/">');
     expect(html).toContain('content="https://donnetonpoint.fr/og-en.png"');
   });

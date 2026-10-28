@@ -1,3 +1,4 @@
+import { escapeHtml } from '../html';
 import { pageMetadata, pagePath, serializeJsonLd, structuredData, translationFor, type Language, type PublicPage } from './metadata';
 
 type Rewriter = InstanceType<typeof HTMLRewriter>;
@@ -37,6 +38,15 @@ function withMetadata(rewriter: Rewriter, page: PublicPage, language: Language):
     .on('head', { element: (element) => { element.append(headExtras, { html: true }); } });
 }
 
+function noscriptContent(language: Language): string {
+  const text = (key: string) => escapeHtml(translationFor(language, key) ?? '');
+  return `
+            <div role="note" class="max-w-md mx-auto px-4 pb-8 text-center">
+                <p class="font-bold text-slate-800">${text('noscript.message')}</p>
+                <a href="${pagePath('home', language)}" class="inline-block mt-2 text-sm font-bold text-blue-700 underline">${text('noscript.home')}</a>
+            </div>`;
+}
+
 function withTranslation(rewriter: Rewriter, language: Language): Rewriter {
   const translateAttribute = (dataAttribute: string, attribute: string) => rewriter.on(`[${dataAttribute}]`, {
     element: (element) => {
@@ -59,6 +69,9 @@ function withTranslation(rewriter: Rewriter, language: Language): Rewriter {
         const html = translationFor(language, element.getAttribute('data-i18n-html') ?? '');
         if (html !== undefined) element.setInnerContent(html, { html: true });
       },
+    })
+    .on('noscript[data-noscript-localized]', {
+      element: (element) => { element.setInnerContent(noscriptContent(language), { html: true }); },
     })
     .on('a[href]', {
       element: (element) => {

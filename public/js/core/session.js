@@ -55,17 +55,30 @@ export function postJson(url, body, method = 'POST') {
   return authFetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 }
 
-export async function fetchCurrentUser() {
-  if (!getSessionToken()) return null;
+export const SESSION_CHECK_TIMEOUT_MS = 10000;
+const REJECTED_SESSION_STATUSES = new Set([401, 403]);
+
+export function sessionStatusOf(httpStatus) {
+  if (REJECTED_SESSION_STATUSES.has(httpStatus)) return 'invalid';
+  return httpStatus >= 200 && httpStatus < 300 ? 'ok' : 'unreachable';
+}
+
+export async function checkSession({ timeoutMs = SESSION_CHECK_TIMEOUT_MS } = {}) {
+  if (!getSessionToken()) return { status: 'invalid' };
   try {
-    const response = await authFetch('/api/me');
-    if (!response.ok) return null;
+    const response = await authFetch('/api/me', { signal: AbortSignal.timeout(timeoutMs) });
+    const status = sessionStatusOf(response.status);
+    if (status !== 'ok') return { status };
     const me = await response.json();
     setCurrentUserId(me.id);
-    return me;
+    return { status, me };
   } catch {
-    return null;
+    return { status: 'unreachable' };
   }
+}
+
+export async function fetchCurrentUser() {
+  return (await checkSession()).me ?? null;
 }
 
 export const ADMIN_ROLES = ['admin', 'superadmin', 'owner'];

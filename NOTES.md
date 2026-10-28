@@ -169,6 +169,24 @@ module ; chaque entrée cite le symbole concerné pour être retrouvée par rech
   l'UTC. L'ancien code les lisait en heure locale (décalage d'1 à 2 h dans l'historique).
 - Le shell de l'application (`#app-shell`) est masqué tant qu'on ne sait pas si l'utilisateur est
   connecté : plus de flash « Connexion en cours… » chez les visiteurs.
+- Démarrage connecté (`pages/home.js`) : trois états visibles, `chargement` (`#boot-loading`,
+  `role="status"`), `prêt` (le tableau `#board`), `erreur` (`#boot-error`, `role="alert"`, focus
+  sur « Réessayer »). `checkSession()` distingue `invalid` (401/403 : **seul cas qui efface la
+  session**) de `unreachable` (réseau, 5xx, délai de 10 s dépassé) : avant, une simple coupure
+  effaçait le jeton et déconnectait l'utilisateur. Le chargement initial des badges et du classement
+  bascule aussi sur l'erreur (délai identique). « Réessayer » relance le chargement sans recâbler
+  les écouteurs (`signedInApp.wired` / `.live`).
+- `/#accueil` affiche la landing **sans toucher à la session** : c'est la sortie « Retour à
+  l'accueil » de l'écran d'erreur ; `/` relancerait l'app et retomberait sur la même erreur.
+- « Session invalide » renvoie vers `/?lost=1`, que la landing ouvre directement sur la récupération
+  du lien par e-mail.
+- `<noscript>` : lol-html (HTMLRewriter) traite son contenu comme du texte brut, `data-i18n` n'y
+  est donc pas traduit. L'accueil marque son bloc `data-noscript-localized` et le serveur en réécrit
+  tout le contenu (`noscriptContent`). Les consoles ne passent pas par la réécriture et ne
+  connaissent pas la langue choisie (stockée côté navigateur) : leur message est bilingue, en dur,
+  avec `lang` sur chaque partie. Elles démarrent en `opacity-0` (fondu à l'ouverture) ; la CSP
+  interdisant les styles inline, `noscript.css` (chargé dans un `<noscript>` du `<head>`) les rend
+  visibles.
 
 ## Tests de bout en bout (`e2e/`)
 

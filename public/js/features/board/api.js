@@ -2,7 +2,7 @@ import { authFetch, postJson } from '../../core/session.js';
 
 export async function fetchCategories() {
   const response = await authFetch('/api/categories');
-  return response.ok ? response.json() : [];
+  return response.ok ? response.json() : null;
 }
 
 export async function fetchLeaderboard() {
