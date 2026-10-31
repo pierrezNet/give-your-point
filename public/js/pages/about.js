@@ -1,3 +1,4 @@
 import { startPage } from '../core/page.js';
+import { startFeedback } from '../features/feedback/controller.js';
 
-startPage();
+if (startPage()) startFeedback();

@@ -8,3 +8,7 @@ pages_build_output_dir = "./public"
 binding = "DB"
 database_name = "give-your-point-eu"
 database_id = "11098dce-acd8-4bf9-ad54-c74f57e5bf04"
+[[services]]
+binding = "FORUM"
+service = "avrobb"
+entrypoint = "DonneTonPointFeedback"

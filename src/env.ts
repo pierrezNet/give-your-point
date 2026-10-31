@@ -1,5 +1,8 @@
 import type { Context } from 'hono';
 import type { Role } from './domain/roles';
+import type { ForumFeedback } from './domain/feedback';
+
+export type ForumFeedbackResult = { ok: true; topicId: number } | { ok: false; reason: string };
 
 export type Bindings = {
   DB: D1Database;
@@ -13,6 +16,7 @@ export type Bindings = {
   RESEND_FROM_EMAIL: string;
   CRON_SECRET: string;
   APP_BASE_URL: string;
+  FORUM?: { submit(feedback: ForumFeedback): Promise<ForumFeedbackResult> };
 };
 
 export interface AuthUser {

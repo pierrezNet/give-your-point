@@ -11,6 +11,7 @@ import { superadminRoutes } from './routes/superadmin';
 import { ownerRoutes } from './routes/owner';
 import { cronRoutes } from './routes/cron';
 import { pageRoutes } from './routes/pages';
+import { feedbackRoutes } from './routes/feedback';
 
 export type { Bindings } from './env';
 
@@ -24,6 +25,7 @@ const app = new Hono<AppEnv>()
   .route('/', pointRoutes)
   .route('/', statsRoutes)
   .route('/', cronRoutes)
+  .route('/', feedbackRoutes)
   .route('/api/admin', adminRoutes)
   .route('/api/superadmin', superadminRoutes)
   .route('/api/owner', ownerRoutes)

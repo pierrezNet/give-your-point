@@ -11,6 +11,7 @@ import { startRealtimeScores } from '../features/realtime/controller.js';
 import { startPushNotifications } from '../features/push/controller.js';
 import { startHelp } from '../features/help/controller.js';
 import { startProfile } from '../features/profile/controller.js';
+import { startFeedback } from '../features/feedback/controller.js';
 
 const JOIN_PATH = /^\/join\/([^/]+)$/;
 const LANDING_HASH = '#accueil';
@@ -119,6 +120,7 @@ function startSignedInApp() {
 
 function route() {
   if (!startPage()) return null;
+  startFeedback();
   const invitation = location.pathname.match(JOIN_PATH);
   if (invitation) return startJoin(decodeURIComponent(invitation[1]));
   if (!getSessionToken() || location.hash === LANDING_HASH) return startLanding();

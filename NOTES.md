@@ -72,6 +72,26 @@ module ; chaque entrée cite le symbole concerné pour être retrouvée par rech
 - Index `2026-15-indexes.sql` : les quotas de dons, l'annulation et l'historique filtrent par
   `from_user_id` / `to_user_id` sans `team_id` ; sans index, chaque don balayait `points_log`.
 
+## Retours « J'ai un retour » (`src/routes/feedback.ts`)
+
+- Le formulaire (landing, page À propos, menu de l'app) poste sur `POST /api/feedback`, qui transmet
+  au forum AvroBB par **liaison de service** (`FORUM`, `wrangler.toml` : service `avrobb`, point
+  d'entrée `DonneTonPointFeedback`). Pas d'adresse publique ni de secret partagé : seul un Worker
+  ou une Pages Function du même compte peut appeler ce point d'entrée. Même modèle que Phraséo.
+- Côté forum, le retour devient un sujet du forum privé « Retours Donne Ton Point (à trier) »,
+  signé d'un compte système ; le contact part seulement par e-mail aux administrateurs. Le bouton
+  « Accepter » d'AvroBB le publie dans le forum public n° 3.
+- Le client envoie une **clé** de type (`bug`, `suggestion`…) ; le serveur la traduit en libellé
+  du forum (`FEEDBACK_TYPE_LABELS`), qui doit rester identique à la liste validée par AvroBB.
+- Anti-abus : Turnstile à chaque envoi (pas de limiteur de débit sur Pages). Validation avant
+  Turnstile pour ne pas consommer de vérification sur un formulaire invalide.
+- Liaison absente (tests, `npm run dev` sans forum lancé), forum injoignable ou refus du forum :
+  `FEEDBACK_UNAVAILABLE` (503) ; le message d'erreur propose le lien du forum.
+- `loadTurnstile()` renvoie une promesse : la modale peut s'ouvrir sur une page où le script
+  Turnstile n'est pas encore chargé (app connectée, À propos).
+- Après l'envoi, le contenu de la modale est remplacé : le nouveau titre reprend l'`id` visé par
+  `aria-labelledby`, sinon la boîte de dialogue perdrait son nom accessible.
+
 ## Migrations
 
 - `migrations/2026-05`, `-06` et `-07` sont des migrations ponctuelles déjà appliquées en prod.

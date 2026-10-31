@@ -11,6 +11,8 @@ const API_ERRORS = {
   SUPERADMIN_REQUIRED: [403, 'Accès superadmin requis'],
   OWNER_REQUIRED: [403, 'Accès owner requis'],
   TURNSTILE_FAILED: [403, 'Vérification anti-bot échouée. Réessaie.'],
+  FEEDBACK_INVALID: [400, 'Retour invalide (type requis, message de 1 à 1800 caractères).'],
+  FEEDBACK_UNAVAILABLE: [503, "L'envoi du retour a échoué. Réessaie plus tard, ou écris directement sur le forum."],
 
   NAME_INVALID: [400, 'Prénom requis (1 à 40 caractères)'],
   COMPANY_NAME_INVALID: [400, 'Nom de société requis (2 à 60 caractères)'],

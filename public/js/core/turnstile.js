@@ -11,11 +11,18 @@ export function turnstileSiteKey() {
 }
 
 export function loadTurnstile() {
-  if (document.querySelector(`script[src="${TURNSTILE_SCRIPT}"]`)) return;
-  const script = document.createElement('script');
-  script.src = TURNSTILE_SCRIPT;
-  script.async = true;
-  document.head.append(script);
+  let script = document.querySelector(`script[src="${TURNSTILE_SCRIPT}"]`);
+  if (!script) {
+    script = document.createElement('script');
+    script.src = TURNSTILE_SCRIPT;
+    script.async = true;
+    document.head.append(script);
+  }
+  if (window.turnstile) return Promise.resolve();
+  return new Promise((resolve) => {
+    script.addEventListener('load', resolve, { once: true });
+    script.addEventListener('error', resolve, { once: true });
+  });
 }
 
 export function renderTurnstile(container, siteKey) {
